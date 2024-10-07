@@ -1,6 +1,7 @@
 [package]
 name = "lsp-fuzz"
 edition = "2021"
+version = "0.1.0"
 
 [dependencies]
 libafl = { workspace = true }
