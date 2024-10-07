@@ -1,0 +1,9 @@
+[package]
+name = "lsp-fuzz-cli"
+edition = "2021"
+
+[dependencies]
+lsp-fuzz = { path = "../lsp-fuzz" }
+clap = { version = "3", features = ["derive"] }
+anyhow = { version = "1", features = ["backtrace"] }
+tracing-subscriber = { version = "0", features = ["env-filter"] }

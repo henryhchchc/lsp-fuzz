@@ -1,0 +1,9 @@
+[package]
+name = "lsp-fuzz"
+edition = "2021"
+
+[dependencies]
+libafl = { workspace = true }
+libafl_bolts = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
