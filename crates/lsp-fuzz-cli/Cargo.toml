@@ -3,7 +3,12 @@ name = "lsp-fuzz-cli"
 edition = "2021"
 
 [dependencies]
+libafl = { workspace = true }
+libafl_bolts = { workspace = true }
 lsp-fuzz = { path = "../lsp-fuzz" }
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4", features = ["derive", "color"] }
+nix = { workspace = true }
 anyhow = { version = "1", features = ["backtrace"] }
-tracing-subscriber = { version = "0", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0", features = ["env-filter", "local-time"] }
+tempfile = "3"

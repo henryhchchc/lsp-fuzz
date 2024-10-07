@@ -1,0 +1,6 @@
+[
+  {
+    "label": "Cargo Build",
+    "command": "cargo build"
+  }
+]
