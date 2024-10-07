@@ -11,5 +11,5 @@ clap = { version = "4", features = ["derive", "color"] }
 nix = { workspace = true }
 anyhow = { version = "1", features = ["backtrace"] }
 tracing = { workspace = true }
-tracing-subscriber = { version = "0", features = ["env-filter", "local-time"] }
+tracing-subscriber = { version = "0", features = ["env-filter", "chrono"] }
 tempfile = "3"

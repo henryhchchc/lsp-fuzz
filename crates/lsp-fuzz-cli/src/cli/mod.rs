@@ -38,7 +38,7 @@ enum Command {
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(fmt::layer().with_timer(fmt::time::LocalTime::rfc_3339()))
+        .with(fmt::layer().with_timer(fmt::time::ChronoLocal::new("%Y-%m-%d %H:%M:%S".to_owned())))
         .with(
             EnvFilter::builder()
                 .with_default_directive(global_opts.default_log_level.into())

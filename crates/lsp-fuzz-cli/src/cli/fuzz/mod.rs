@@ -8,8 +8,8 @@ use libafl::{
     inputs::BytesInput,
     prelude::{
         havoc_mutations, powersched::PowerSchedule, tokens_mutations, CanTrack, CrashFeedback,
-        ForkserverExecutor, Generator, HasObservers, HitcountsMapObserver, MaxMapFeedback,
-        PowerQueueScheduler, RandBytesGenerator, SimpleMonitor, StdMapObserver,
+        ForkserverExecutor, Generator, HitcountsMapObserver, IndexesLenTimeMinimizerScheduler,
+        MaxMapFeedback, PowerQueueScheduler, RandBytesGenerator, SimpleMonitor, StdMapObserver,
         StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
@@ -20,8 +20,8 @@ use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    tuples::{tuple_list, Handled, Merge},
-    AsSliceMut, Truncate,
+    tuples::{tuple_list, Merge},
+    AsSliceMut,
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
@@ -73,7 +73,8 @@ impl Cli {
         // let the forkserver know the shmid
         shmem
             .write_to_env("__AFL_SHM_ID")
-            .context("Writing shared memory address to env")?;
+            .context("Writing shared memory config to env")?;
+        std::env::set_var("AFL_MAP_SIZE", format!("{}", self.shared_memory_size));
 
         // Create an observation channel using the signals map
         let shmem_observer = {
@@ -122,26 +123,12 @@ impl Cli {
         )
         .context("Creating state")?;
 
-        // The Monitor trait define how the fuzzer stats are reported to the user
-        let monitor = SimpleMonitor::new(|s| info!("{s}"));
-
-        // The event manager handle the various events generated during the fuzzing loop
-        // such as the notification of the addition of a new item to the corpus
-        let mut mgr = SimpleEventManager::new(monitor);
-
-        let observer_ref = edges_observer.handle();
-
         let mut tokens = Tokens::new();
 
-        // Setup a mutational stage with a basic bytes mutator
-        let mutator =
-            StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
-
-        let scheduler = PowerQueueScheduler::new(&mut state, &edges_observer, self.power_schedule);
-
-        let power_mutation_stage = StdPowerMutationalStage::new(mutator);
-
-        let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
+        let scheduler = IndexesLenTimeMinimizerScheduler::new(
+            &edges_observer,
+            PowerQueueScheduler::new(&mut state, &edges_observer, self.power_schedule),
+        );
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -155,15 +142,11 @@ impl Cli {
             .coverage_map_size(self.shared_memory_size)
             .timeout(Duration::from_millis(self.timeout))
             .kill_signal(self.kill_signal)
-            .build(tuple_list!(time_observer, edges_observer))
+            .build_dynamic_map(edges_observer, tuple_list!(time_observer))
             .context("Creating executor")?;
 
-        if let Some(dynamic_map_size) = executor.coverage_map_size() {
-            executor.observers_mut()[&observer_ref]
-                .as_mut()
-                .truncate(dynamic_map_size);
-            info!("Resizing coverage map to {}", dynamic_map_size);
-        }
+        let monitor = SimpleMonitor::new(|s| info!("{s}"));
+        let mut mgr = SimpleEventManager::new(monitor);
 
         // In case the corpus is empty (on first run), reset
         if state.must_load_initial_inputs() {
@@ -185,6 +168,11 @@ impl Cli {
         }
 
         state.add_metadata(tokens);
+
+        let mutator =
+            StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
+        let power_mutation_stage = StdPowerMutationalStage::new(mutator);
+        let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
