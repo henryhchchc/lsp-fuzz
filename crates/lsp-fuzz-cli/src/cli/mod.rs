@@ -26,6 +26,9 @@ impl Cli {
 struct GlobalOptions {
     #[clap(long, default_value = "info")]
     default_log_level: LevelFilter,
+
+    #[clap(long)]
+    random_seed: Option<u64>,
 }
 
 #[derive(Debug, clap::Subcommand)]

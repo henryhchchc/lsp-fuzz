@@ -3,7 +3,7 @@ name = "lsp-fuzz-cli"
 edition = "2021"
 
 [dependencies]
-libafl = { workspace = true }
+libafl = { workspace = true, features = ["clap"] }
 libafl_bolts = { workspace = true }
 lsp-fuzz = { path = "../lsp-fuzz" }
 clap = { version = "4", features = ["derive", "color"] }

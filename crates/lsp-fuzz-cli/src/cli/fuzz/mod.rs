@@ -51,11 +51,14 @@ pub(super) struct Cli {
     #[clap(long, short, default_value_t = 1200)]
     timeout: u64,
 
-    #[clap(long, short, default_value = "SIGKILL")]
+    #[clap(long, short, default_value_t = Signal::SIGKILL)]
     kill_signal: Signal,
 
     #[clap(long, default_value_t = false)]
     debug_child: bool,
+
+    #[clap(long, value_enum, default_value_t = PowerSchedule::FAST)]
+    power_schedule: PowerSchedule,
 }
 
 impl Cli {
@@ -75,6 +78,7 @@ impl Cli {
         // Create an observation channel using the signals map
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
+            // SAFETY: We never move the pirce of the shared memory.
             unsafe { StdMapObserver::new("shared_mem", shmem_buf) }
         };
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
@@ -108,19 +112,15 @@ impl Cli {
         let solution_corpus =
             OnDiskCorpus::new(self.crashes).context("Creating solution corpus")?;
 
-        // create a State from scratch
+        let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
         let mut state = StdState::new(
-            // RNG
-            StdRand::with_seed(current_nanos()),
+            StdRand::with_seed(random_seed),
             corpus,
             solution_corpus,
-            // States of the feedbacks.
-            // The feedbacks can report the data that should persist in the State.
             &mut feedback,
-            // Same for objective feedbacks
             &mut objective,
         )
-        .unwrap();
+        .context("Creating state")?;
 
         // The Monitor trait define how the fuzzer stats are reported to the user
         let monitor = SimpleMonitor::new(|s| info!("{s}"));
@@ -137,7 +137,7 @@ impl Cli {
         let mutator =
             StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
 
-        let scheduler = PowerQueueScheduler::new(&mut state, &edges_observer, PowerSchedule::FAST);
+        let scheduler = PowerQueueScheduler::new(&mut state, &edges_observer, self.power_schedule);
 
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
 
