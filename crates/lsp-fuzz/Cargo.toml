@@ -4,7 +4,11 @@ edition = "2021"
 version = "0.1.0"
 
 [dependencies]
-libafl = { workspace = true }
-libafl_bolts = { workspace = true }
-tracing = { workspace = true }
-thiserror = { workspace = true }
+libafl.workspace = true
+libafl_bolts.workspace = true
+nix.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+serde = "1"
+tuple_list.workspace = true
+libc = "0.2"

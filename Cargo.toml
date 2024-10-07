@@ -10,6 +10,7 @@ libafl_bolts = "0.13"
 nix = "0.29"
 tracing = "0.1"
 thiserror = "1"
+tuple_list = "0.1"
 
 [profile.dev]
 # opt-level = 3

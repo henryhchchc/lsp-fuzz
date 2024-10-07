@@ -20,11 +20,12 @@ use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    tuples::{tuple_list, Merge},
+    tuples::Merge,
     AsSliceMut,
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
+use tuple_list::tuple_list;
 
 use super::GlobalOptions;
 
@@ -100,14 +101,13 @@ impl Cli {
 
         // A feedback to choose if an input is a solution or not
         // We want to do the same crash deduplication that AFL does
-        let combined_feedback = feedback_and_fast!(
+        let mut objective = feedback_and_fast!(
             // Must be a crash
             CrashFeedback::new(),
             // Take it only if trigger new coverage over crashes
             // Uses `with_name` to create a different history from the `MaxMapFeedback` in `feedback` above
             MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
         );
-        let mut objective = combined_feedback;
 
         let corpus = InMemoryCorpus::<BytesInput>::new();
         let solution_corpus =
