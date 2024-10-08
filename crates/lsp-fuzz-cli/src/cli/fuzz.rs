@@ -5,12 +5,11 @@ use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
     feedback_and_fast, feedback_or,
-    inputs::BytesInput,
     prelude::{
         havoc_mutations, powersched::PowerSchedule, tokens_mutations, CanTrack, CrashFeedback,
-        ForkserverExecutor, Generator, HitcountsMapObserver, IndexesLenTimeMinimizerScheduler,
-        MaxMapFeedback, PowerQueueScheduler, RandBytesGenerator, SimpleMonitor, StdMapObserver,
-        StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
+        Generator, HitcountsMapObserver, IndexesLenTimeMinimizerScheduler, MaxMapFeedback,
+        PowerQueueScheduler, SimpleMonitor, StdMapObserver, StdScheduledMutator, TimeFeedback,
+        TimeObserver, Tokens,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
@@ -22,6 +21,9 @@ use libafl_bolts::{
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     tuples::Merge,
     AsSliceMut,
+};
+use lsp_fuzz::{
+    execution::LspExecutor, generator::LspInpuGenerator, muation::LspInputMutator, LspInput,
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
@@ -109,7 +111,7 @@ impl Cli {
             MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
         );
 
-        let corpus = InMemoryCorpus::<BytesInput>::new();
+        let corpus = InMemoryCorpus::<LspInput>::new();
         let solution_corpus =
             OnDiskCorpus::new(self.crashes).context("Creating solution corpus")?;
 
@@ -133,17 +135,18 @@ impl Cli {
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        let mut executor = ForkserverExecutor::builder()
-            .program(self.lsp_executable)
-            .debug_child(self.debug_child)
-            .shmem_provider(&mut shmem_provider)
-            .autotokens(&mut tokens)
-            .parse_afl_cmdline(self.child_args)
-            .coverage_map_size(self.shared_memory_size)
-            .timeout(Duration::from_millis(self.timeout))
-            .kill_signal(self.kill_signal)
-            .build_dynamic_map(edges_observer, tuple_list!(time_observer))
-            .context("Creating executor")?;
+        let mut executor = LspExecutor::new(
+            &self.lsp_executable,
+            self.child_args,
+            None,
+            Duration::from_millis(self.timeout).into(),
+            self.debug_child,
+            self.kill_signal,
+            Some(&mut tokens),
+            edges_observer,
+            tuple_list!(time_observer),
+        )
+        .context("Creating executor")?;
 
         let monitor = SimpleMonitor::new(|s| info!("{s}"));
         let mut mgr = SimpleEventManager::new(monitor);
@@ -157,7 +160,7 @@ impl Cli {
                 info!(num_inputs = state.corpus().count(), "Seed inputs imported");
             } else {
                 warn!("No seed inputs provided, starting from scratch");
-                let mut generator = RandBytesGenerator::new(256);
+                let mut generator = LspInpuGenerator;
                 let initial_input = generator
                     .generate(&mut state)
                     .context("Generating initial input")?;
@@ -169,8 +172,9 @@ impl Cli {
 
         state.add_metadata(tokens);
 
-        let mutator =
-            StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
+        let mutator = LspInputMutator::new(StdScheduledMutator::new(
+            havoc_mutations().merge(tokens_mutations()),
+        ));
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
         let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
 

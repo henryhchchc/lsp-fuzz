@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 
 [workspace.dependencies]
-libafl = "0.13"
+libafl = { version = "0.13", features = ["errors_backtrace"] }
 libafl_bolts = "0.13"
 nix = "0.29"
 tracing = "0.1"
