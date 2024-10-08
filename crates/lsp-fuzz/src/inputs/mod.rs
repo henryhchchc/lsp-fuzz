@@ -1,17 +1,11 @@
-use std::{
-    fmt,
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-};
+use std::hash::{Hash, Hasher};
 
 use libafl::{
     inputs::{HasMutatorBytes, Input},
     prelude::CorpusId,
 };
 use libafl_bolts::HasLen;
-use lsp_types::request::Request;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 pub mod lsp;
 
