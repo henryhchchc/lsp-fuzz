@@ -1,7 +1,7 @@
 use std::{env::temp_dir, marker::PhantomData, path::Path};
 
 use libafl::{
-    inputs::UsesInput,
+    inputs::{HasMutatorBytes, UsesInput},
     prelude::{
         Executor, ExitKind, Forkserver, HasObservers, MapObserver, Observer, ObserversTuple,
         Tokens, UsesObservers,
@@ -20,7 +20,7 @@ use nix::{
 };
 use tracing::info;
 
-use crate::LspInput;
+use crate::inputs::LspInput;
 
 #[derive(Debug)]
 pub struct LspExecutor<S, OT> {
@@ -284,10 +284,11 @@ where
         *state.executions_mut() += 1;
         let mut exit_kind = ExitKind::Ok;
         let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
-        let input_bytes = input.bytes.clone();
+        let input_bytes = input.bytes().to_vec();
         let input_size = input_bytes.as_slice().len();
         self.input_file
             .write_buf(&input_bytes.as_slice()[..input_size])?;
+
         let send_len = self.fork_server.write_ctl(last_run_timed_out)?;
         self.fork_server.set_last_run_timed_out(false);
         if send_len != 4 {

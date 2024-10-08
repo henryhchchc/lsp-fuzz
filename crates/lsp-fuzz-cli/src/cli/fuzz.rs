@@ -23,7 +23,7 @@ use libafl_bolts::{
     AsSliceMut,
 };
 use lsp_fuzz::{
-    execution::LspExecutor, generator::LspInpuGenerator, muation::LspInputMutator, LspInput,
+    execution::LspExecutor, generator::LspInpuGenerator, inputs::LspInput, muation::LspInputMutator,
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};

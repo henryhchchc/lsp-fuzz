@@ -8,7 +8,7 @@ use libafl::{
 };
 use libafl_bolts::Named;
 
-use crate::LspInput;
+use crate::inputs::LspInput;
 
 #[derive(Debug)]
 pub struct LspInputMutator<M> {
