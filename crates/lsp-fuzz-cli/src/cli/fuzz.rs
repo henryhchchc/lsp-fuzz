@@ -12,7 +12,7 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, MaxMapFeedback, PowerQueueScheduler, SimpleMonitor,
         StdMapObserver, StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
     },
-    stages::{CalibrationStage, StdPowerMutationalStage},
+    stages::{AflStatsStage, CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -76,6 +76,10 @@ pub(super) struct Cli {
     /// Power schedule to use for fuzzing.
     #[clap(long, value_enum, default_value_t = BaseSchedule::FAST)]
     power_schedule: BaseSchedule,
+
+    /// Number of iterations between stats updates.
+    #[clap(long, default_value_t = 10)]
+    stats_interval: u64,
 }
 
 impl Cli {
@@ -194,7 +198,8 @@ impl Cli {
             havoc_mutations().merge(tokens_mutations()),
         ));
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
-        let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
+        let stats_stage = AflStatsStage::new(Duration::from_secs(self.stats_interval));
+        let mut stages = tuple_list!(calibration_stage, power_mutation_stage, stats_stage);
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
