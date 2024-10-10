@@ -3,13 +3,15 @@ use std::{env::temp_dir, marker::PhantomData, path::Path};
 use libafl::{
     inputs::{HasMutatorBytes, UsesInput},
     prelude::{
-        Executor, ExitKind, Forkserver, HasObservers, MapObserver, Observer, ObserversTuple,
-        Tokens, UsesObservers,
+        Executor, ExitKind, Forkserver, HasObservers, MapObserver, Observer, ObserversTuple, Tokens,
     },
     state::{HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
-    current_nanos, fs::InputFile, prelude::RefIndexable, tuples::Prepend, Truncate,
+    current_nanos,
+    fs::InputFile,
+    tuples::{Prepend, RefIndexable},
+    Truncate,
 };
 use nix::{
     sys::{
@@ -79,8 +81,8 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
     where
         S: State + UsesInput<Input = LspInput>,
         MO: MapObserver + Truncate,
-        A: Observer<S> + AsMut<MO>,
-        OT: ObserversTuple<S> + Prepend<A, PreprendResult = OT>,
+        A: Observer<S::Input, S> + AsMut<MO> + AsRef<MO>,
+        OT: ObserversTuple<S::Input, S> + Prepend<A>,
     {
         let filename = format!("lsp-fuzz-input_{}", current_nanos());
         let input_file_path = temp_dir().join(filename);
@@ -103,6 +105,8 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             0,
             false,
             false,
+            false,
+            Some(map_observer.as_ref().len()),
             debug_child,
             kill_signal,
         )?;
@@ -171,6 +175,11 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
                     ));
                 }
                 map_observer.as_mut().truncate(fsrv_map_size as usize);
+                if map_observer.as_ref().len() < fsrv_map_size as usize {
+                    return Err(libafl::Error::illegal_argument(format!(
+                        "The map size is too small. {fsrv_map_size} is required for the target."
+                    )));
+                }
                 info!(new_size = fsrv_map_size, "Coverage map truncated");
             }
 
@@ -246,24 +255,18 @@ where
     type State = S;
 }
 
-impl<S, OT> UsesObservers for LspExecutor<S, OT>
-where
-    S: State + UsesInput<Input = LspInput>,
-    OT: ObserversTuple<S>,
-{
-    type Observers = OT;
-}
-
 impl<S, OT> HasObservers for LspExecutor<S, OT>
 where
     S: State + UsesInput<Input = LspInput>,
-    OT: ObserversTuple<S>,
+    OT: ObserversTuple<S::Input, S>,
 {
-    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers> {
+    type Observers = OT;
+
+    fn observers(&self) -> RefIndexable<&OT, OT> {
         RefIndexable::from(&self.observers)
     }
 
-    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers> {
+    fn observers_mut(&mut self) -> RefIndexable<&mut OT, OT> {
         RefIndexable::from(&mut self.observers)
     }
 }

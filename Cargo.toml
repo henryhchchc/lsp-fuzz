@@ -3,14 +3,19 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
+version = "0.1.0"
 
 [workspace.dependencies]
-libafl = { version = "0.13", features = ["errors_backtrace"] }
-libafl_bolts = "0.13"
+libafl = { version = "0.*", features = ["errors_backtrace"] }
+libafl_bolts = { version = "0.*" }
 nix = "0.29"
 tracing = "0.1"
 thiserror = "1"
 tuple_list = "0.1"
+
+[patch.crates-io]
+libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
+libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
 
 [profile.dev]
 # opt-level = 3

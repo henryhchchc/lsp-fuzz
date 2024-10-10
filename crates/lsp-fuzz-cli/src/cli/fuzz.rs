@@ -6,10 +6,11 @@ use libafl::{
     events::SimpleEventManager,
     feedback_and_fast, feedback_or,
     prelude::{
-        havoc_mutations, powersched::PowerSchedule, tokens_mutations, CanTrack, CrashFeedback,
-        Generator, HitcountsMapObserver, IndexesLenTimeMinimizerScheduler, MaxMapFeedback,
-        PowerQueueScheduler, SimpleMonitor, StdMapObserver, StdScheduledMutator, TimeFeedback,
-        TimeObserver, Tokens,
+        havoc_mutations,
+        powersched::{BaseSchedule, PowerSchedule},
+        tokens_mutations, CanTrack, CrashFeedback, Generator, HitcountsMapObserver,
+        IndexesLenTimeMinimizerScheduler, MaxMapFeedback, PowerQueueScheduler, SimpleMonitor,
+        StdMapObserver, StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
@@ -31,37 +32,50 @@ use tuple_list::tuple_list;
 
 use super::GlobalOptions;
 
+const DEFAULT_COVERAGE_MAP_SIZE: usize = 65536;
+
+/// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
 pub(super) struct Cli {
+    /// Directory containing seed inputs for the fuzzer.
     #[clap(long)]
     seeds_dir: Option<PathBuf>,
 
+    /// Directory to store crash artifacts.
     #[clap(long, default_value = "crashes")]
     crashes: PathBuf,
 
+    /// Working directory for the Language Server Protocol (LSP).
     #[clap(long)]
     lsp_work_dir: Option<PathBuf>,
 
+    /// Path to the LSP executable.
     #[clap(long)]
     lsp_executable: PathBuf,
 
+    /// Arguments to pass to the child process.
     #[clap(long, short, default_value = "")]
     child_args: Vec<String>,
 
-    #[clap(long, short, default_value_t = 65536)]
-    shared_memory_size: usize,
+    /// Size of the coverage map.
+    #[clap(long, short, default_value_t = DEFAULT_COVERAGE_MAP_SIZE)]
+    coverage_map_size: usize,
 
+    /// Timeout runing the fuzz target in milliseconds.
     #[clap(long, short, default_value_t = 1200)]
     timeout: u64,
 
+    /// Signal to send to terminate the child process.
     #[clap(long, short, default_value_t = Signal::SIGKILL)]
     kill_signal: Signal,
 
+    /// Enable debugging for the child process.
     #[clap(long, default_value_t = false)]
     debug_child: bool,
 
-    #[clap(long, value_enum, default_value_t = PowerSchedule::FAST)]
-    power_schedule: PowerSchedule,
+    /// Power schedule to use for fuzzing.
+    #[clap(long, value_enum, default_value_t = BaseSchedule::FAST)]
+    power_schedule: BaseSchedule,
 }
 
 impl Cli {
@@ -71,13 +85,13 @@ impl Cli {
 
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider
-            .new_shmem(self.shared_memory_size)
+            .new_shmem(self.coverage_map_size)
             .context("Creating shared memory")?;
         // let the forkserver know the shmid
         shmem
             .write_to_env("__AFL_SHM_ID")
             .context("Writing shared memory config to env")?;
-        std::env::set_var("AFL_MAP_SIZE", format!("{}", self.shared_memory_size));
+        std::env::set_var("AFL_MAP_SIZE", format!("{}", self.coverage_map_size));
 
         // Create an observation channel using the signals map
         let shmem_observer = {
@@ -129,7 +143,11 @@ impl Cli {
 
         let scheduler = IndexesLenTimeMinimizerScheduler::new(
             &edges_observer,
-            PowerQueueScheduler::new(&mut state, &edges_observer, self.power_schedule),
+            PowerQueueScheduler::new(
+                &mut state,
+                &edges_observer,
+                PowerSchedule::new(self.power_schedule),
+            ),
         );
 
         // A fuzzer with feedbacks and a corpus scheduler
