@@ -12,7 +12,7 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, MaxMapFeedback, PowerQueueScheduler, SimpleMonitor,
         StdMapObserver, StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
     },
-    stages::{AflStatsStage, CalibrationStage, StdPowerMutationalStage},
+    stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -20,7 +20,7 @@ use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    tuples::Merge,
+    tuples::{Handled, Merge},
     AsSliceMut,
 };
 use lsp_fuzz::{
@@ -157,6 +157,8 @@ impl Cli {
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
+        let edge_observer_handle = edges_observer.handle();
+
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
             self.target_args,
@@ -198,8 +200,7 @@ impl Cli {
             havoc_mutations().merge(tokens_mutations()),
         ));
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
-        let stats_stage = AflStatsStage::new(Duration::from_secs(self.stats_interval));
-        let mut stages = tuple_list!(calibration_stage, power_mutation_stage, stats_stage);
+        let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
