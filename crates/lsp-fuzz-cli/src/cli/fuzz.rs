@@ -54,8 +54,8 @@ pub(super) struct Cli {
     lsp_executable: PathBuf,
 
     /// Arguments to pass to the child process.
-    #[clap(long, short, default_value = "")]
-    child_args: Vec<String>,
+    #[clap(long, default_value = "")]
+    target_args: Vec<String>,
 
     /// Size of the coverage map.
     #[clap(long, short, default_value_t = DEFAULT_COVERAGE_MAP_SIZE)]
@@ -155,7 +155,7 @@ impl Cli {
 
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
-            self.child_args,
+            self.target_args,
             None,
             Duration::from_millis(self.timeout).into(),
             self.debug_child,
