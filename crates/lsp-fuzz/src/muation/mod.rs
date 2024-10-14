@@ -46,7 +46,7 @@ where
         const RELOCATE_FILE: usize = 3;
         const MAX_ACTIONS: usize = 4;
 
-        const MAX_PATH_SEGMENTS: usize = 3;
+        const MAX_PATH_SEGMENTS: usize = 1;
         let action = state.rand_mut().below_incl(MAX_ACTIONS);
         match action {
             NEW_FILE => {
