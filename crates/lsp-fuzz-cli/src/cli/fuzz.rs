@@ -56,7 +56,7 @@ pub(super) struct Cli {
     lsp_executable: PathBuf,
 
     /// Arguments to pass to the child process.
-    #[clap(long, default_value = "")]
+    #[clap(long)]
     target_args: Vec<String>,
 
     /// Size of the coverage map.
