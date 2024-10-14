@@ -7,8 +7,11 @@ use libafl::{
     HasMetadata,
 };
 use libafl_bolts::{rands::Rand, Named};
+use path_segment::PathSegmentMutator;
 
-use crate::inputs::{LspInput, PathInput};
+use crate::inputs::{path_segment::PathSegmentInput, LspInput, PathInput};
+
+pub mod path_segment;
 
 #[derive(Debug)]
 pub struct LspInputMutator<M> {
@@ -53,8 +56,10 @@ where
                     let path_segments = state.rand_mut().between(1, MAX_PATH_SEGMENTS);
                     let segments = (0..path_segments)
                         .map(|_| {
-                            let mut segment = BytesInput::default();
-                            self.inner_mutator.mutate(state, &mut segment).unwrap();
+                            let mut segment = PathSegmentInput::default();
+                            PathSegmentMutator::new()
+                                .mutate(state, &mut segment)
+                                .unwrap();
                             segment
                         })
                         .collect();

@@ -1,8 +1,6 @@
 use std::{
     collections::HashMap,
-    ffi::{OsStr, OsString},
     iter::once,
-    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -13,23 +11,23 @@ use libafl::{
 };
 use libafl_bolts::HasLen;
 use lsp::encapsulate_request_content;
+use path_segment::PathSegmentInput;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 pub mod lsp;
+pub mod path_segment;
 
 pub type FileContentInput = BytesInput;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PathInput {
-    pub segments: Vec<BytesInput>,
+    pub segments: Vec<PathSegmentInput>,
 }
 
 impl PathInput {
     fn as_path_buf(&self) -> PathBuf {
-        self.segments
-            .iter()
-            .map(|it| String::from_utf8_lossy(it.bytes()).to_string())
-            .collect()
+        self.segments.iter().map(|it| it.as_path()).collect()
     }
 }
 
@@ -89,6 +87,7 @@ impl LspInput {
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
         for (path, content) in self.source_directory.iter() {
             let path = source_dir.join(path.as_path_buf());
+            info!("Writing file: {:?}", path);
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
