@@ -1,7 +1,5 @@
-use std::num::NonZero;
 
 use libafl::{generators::Generator, state::HasRand};
-use libafl_bolts::rands::Rand;
 
 use crate::inputs::LspInput;
 
@@ -12,8 +10,7 @@ impl<S> Generator<LspInput, S> for LspInpuGenerator
 where
     S: HasRand,
 {
-    fn generate(&mut self, state: &mut S) -> Result<LspInput, libafl::Error> {
-        let byte = state.rand_mut().below(NonZero::new(256).unwrap()) as u8;
-        Ok(LspInput::new(vec![byte]))
+    fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
+        Ok(LspInput::default())
     }
 }

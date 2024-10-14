@@ -8,7 +8,7 @@ use libafl::{
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     generators::Generator,
     monitors::SimpleMonitor,
-    mutators::{havoc_mutations, tokens_mutations, StdScheduledMutator, Tokens},
+    mutators::{havoc_mutations_no_crossover, tokens_mutations, StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
@@ -22,7 +22,7 @@ use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    tuples::{Handled, Merge},
+    tuples::Merge,
     AsSliceMut,
 };
 use lsp_fuzz::{
@@ -197,7 +197,7 @@ impl Cli {
         state.add_metadata(tokens);
 
         let mutator = LspInputMutator::new(StdScheduledMutator::new(
-            havoc_mutations().merge(tokens_mutations()),
+            havoc_mutations_no_crossover().merge(tokens_mutations()),
         ));
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
         let mut stages = tuple_list!(calibration_stage, power_mutation_stage);

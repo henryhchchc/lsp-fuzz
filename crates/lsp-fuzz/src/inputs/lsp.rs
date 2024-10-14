@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 macro_rules! lsp_requests {
     (
         $(#[$outer:meta])*
@@ -42,7 +44,7 @@ macro_rules! lsp_requests {
 lsp_requests! {
 
     /// A Language Server Protocol request.
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
     pub enum LspRequest {
         Initialize,

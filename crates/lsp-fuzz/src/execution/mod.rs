@@ -2,7 +2,7 @@ use std::{env::temp_dir, marker::PhantomData, path::Path};
 
 use libafl::{
     executors::{Executor, ExitKind, Forkserver, HasObservers},
-    inputs::{HasMutatorBytes, UsesInput},
+    inputs::UsesInput,
     mutators::Tokens,
     observers::{MapObserver, Observer, ObserversTuple},
     state::{HasExecutions, State, UsesState},
@@ -279,7 +279,11 @@ where
         *state.executions_mut() += 1;
         let mut exit_kind = ExitKind::Ok;
         let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
-        let input_bytes = input.bytes().to_vec();
+
+        let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
+        std::fs::create_dir_all(&workspace_dir)?;
+        input.setup_source_dir(&workspace_dir)?;
+        let input_bytes = input.request_bytes(&workspace_dir);
         let input_size = input_bytes.as_slice().len();
         self.input_file
             .write_buf(&input_bytes.as_slice()[..input_size])?;
@@ -326,6 +330,7 @@ where
         if !libc::WIFSTOPPED(self.fork_server.status()) {
             self.fork_server.reset_child_pid();
         }
+        std::fs::remove_dir_all(&workspace_dir)?;
         Ok(exit_kind)
     }
 }
