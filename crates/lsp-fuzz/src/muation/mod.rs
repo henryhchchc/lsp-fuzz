@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, num::NonZero};
 
 use libafl::{
     inputs::{BytesInput, UsesInput},
@@ -47,7 +47,7 @@ where
         const MAX_ACTIONS: usize = 4;
 
         const MAX_PATH_SEGMENTS: usize = 1;
-        let action = state.rand_mut().below_incl(MAX_ACTIONS);
+        let action = state.rand_mut().below(NonZero::new(MAX_ACTIONS).unwrap());
         match action {
             NEW_FILE => {
                 let mut new_file = BytesInput::default();
@@ -69,16 +69,49 @@ where
                 Ok(MutationResult::Mutated)
             }
             MUTATE_FILE => {
-                // TODO: Implement mutation logic for existing files
-                Ok(MutationResult::Skipped)
+                if let Some((_path, file)) = input.source_directory.iter_mut().next() {
+                    self.inner_mutator.mutate(state, file)
+                } else {
+                    Ok(MutationResult::Skipped)
+                }
             }
             REMOVE_FILE => {
-                // TODO: Implement logic to remove a file
-                Ok(MutationResult::Skipped)
+                if !input.source_directory.is_empty() {
+                    let keys: Vec<_> = input.source_directory.keys().cloned().collect();
+                    let key_to_remove = state.rand_mut().choose(&keys).unwrap();
+                    input.source_directory.remove(key_to_remove);
+                    Ok(MutationResult::Mutated)
+                } else {
+                    Ok(MutationResult::Skipped)
+                }
             }
             RELOCATE_FILE => {
-                // TODO: Implement logic to relocate a file
-                Ok(MutationResult::Skipped)
+                if !input.source_directory.is_empty() {
+                    let keys: Vec<_> = input.source_directory.keys().cloned().collect();
+                    let key_to_relocate = state.rand_mut().choose(&keys).unwrap();
+                    let new_path = {
+                        let path_segments = state.rand_mut().between(1, MAX_PATH_SEGMENTS);
+                        let segments = (0..path_segments)
+                            .map(|_| {
+                                let mut segment = PathSegmentInput::new("main.c".to_owned());
+                                PathSegmentMutator::new()
+                                    .mutate(state, &mut segment)
+                                    .unwrap();
+                                segment
+                            })
+                            .collect();
+                        PathInput { segments }
+                    };
+                    if input.source_directory.contains_key(&new_path) {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        let file = input.source_directory.remove(key_to_relocate).unwrap();
+                        input.source_directory.insert(new_path, file);
+                        Ok(MutationResult::Mutated)
+                    }
+                } else {
+                    Ok(MutationResult::Skipped)
+                }
             }
             MAX_ACTIONS.. => unreachable!("Garenteed by RNG"),
         }
