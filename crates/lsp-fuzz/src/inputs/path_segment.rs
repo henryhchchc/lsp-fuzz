@@ -8,6 +8,12 @@ pub struct PathSegmentInput {
 }
 
 impl PathSegmentInput {
+    pub fn new(inner: String) -> Self {
+        Self { inner }
+    }
+}
+
+impl PathSegmentInput {
     pub fn as_path(&self) -> &Path {
         Path::new(&self.inner)
     }

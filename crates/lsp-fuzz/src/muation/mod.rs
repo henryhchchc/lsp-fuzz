@@ -56,7 +56,7 @@ where
                     let path_segments = state.rand_mut().between(1, MAX_PATH_SEGMENTS);
                     let segments = (0..path_segments)
                         .map(|_| {
-                            let mut segment = PathSegmentInput::default();
+                            let mut segment = PathSegmentInput::new("main.c".to_owned());
                             PathSegmentMutator::new()
                                 .mutate(state, &mut segment)
                                 .unwrap();

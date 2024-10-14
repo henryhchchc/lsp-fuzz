@@ -33,12 +33,12 @@ where
         input: &mut PathSegmentInput,
     ) -> Result<MutationResult, libafl::Error> {
         let new_char = {
-            let mut the_char = '/';
-            while the_char == '/' {
+            let mut the_char = Some('/');
+            while matches!(the_char, None | Some('/')) {
                 let code_point = state.rand_mut().between(1usize, char::MAX as usize) as u32;
-                the_char = std::char::from_u32(code_point).unwrap();
+                the_char = std::char::from_u32(code_point);
             }
-            the_char
+            the_char.unwrap()
         };
 
         const APPEND_CHAR: usize = 0;
