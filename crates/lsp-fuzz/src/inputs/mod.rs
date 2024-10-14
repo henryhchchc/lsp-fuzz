@@ -1,8 +1,8 @@
 use std::hash::{Hash, Hasher};
 
 use libafl::{
+    corpus::CorpusId,
     inputs::{HasMutatorBytes, Input},
-    prelude::CorpusId,
 };
 use libafl_bolts::HasLen;
 use serde::{Deserialize, Serialize};

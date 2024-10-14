@@ -1,10 +1,10 @@
 use std::{env::temp_dir, marker::PhantomData, path::Path};
 
 use libafl::{
+    executors::{Executor, ExitKind, Forkserver, HasObservers},
     inputs::{HasMutatorBytes, UsesInput},
-    prelude::{
-        Executor, ExitKind, Forkserver, HasObservers, MapObserver, Observer, ObserversTuple, Tokens,
-    },
+    mutators::Tokens,
+    observers::{MapObserver, Observer, ObserversTuple},
     state::{HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
@@ -111,13 +111,12 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             kill_signal,
         )?;
 
-        let (rlen, version_status) = fork_server.read_st()?; // Initial handshake, read 4-bytes hello message from the forkserver.
-
-        if rlen != 4 {
+        // Initial handshake, read 4-bytes hello message from the forkserver.
+        let Ok(version_status) = fork_server.read_st() else {
             return Err(libafl::Error::unknown(
                 "Failed to start a forkserver".to_string(),
             ));
-        }
+        };
 
         if (version_status & FS_NEW_ERROR) == FS_NEW_ERROR {
             report_error_and_exit(version_status & 0x0000ffff)?;
@@ -148,32 +147,29 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
 
             let xored_status = (version_status as u32 ^ 0xffffffff) as i32;
 
-            let send_len = fork_server.write_ctl(xored_status)?;
-            if send_len != 4 {
+            if fork_server.write_ctl(xored_status).is_err() {
                 return Err(libafl::Error::unknown(
                     "Writing to forkserver failed.".to_string(),
                 ));
-            }
+            };
 
             info!(
                 "All right - new fork server model version {} is up",
                 version
             );
 
-            let (read_len, status) = fork_server.read_st()?;
-            if read_len != 4 {
+            let Ok(status) = fork_server.read_st() else {
                 return Err(libafl::Error::unknown(
                     "Reading from forkserver failed.".to_string(),
                 ));
-            }
+            };
 
             if status & FS_NEW_OPT_MAPSIZE == FS_NEW_OPT_MAPSIZE {
-                let (read_len, fsrv_map_size) = fork_server.read_st()?;
-                if read_len != 4 {
+                let Ok(fsrv_map_size) = fork_server.read_st() else {
                     return Err(libafl::Error::unknown(
                         "Failed to read map size from forkserver".to_string(),
                     ));
-                }
+                };
                 map_observer.as_mut().truncate(fsrv_map_size as usize);
                 if map_observer.as_ref().len() < fsrv_map_size as usize {
                     return Err(libafl::Error::illegal_argument(format!(
@@ -192,12 +188,11 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             if status & FS_NEW_OPT_AUTODICT != 0 {
                 // Here unlike shmem input fuzzing, we are forced to read things
                 // hence no self.autotokens.is_some() to check if we proceed
-                let (read_len, autotokens_size) = fork_server.read_st()?;
-                if read_len != 4 {
+                let Ok(autotokens_size) = fork_server.read_st() else {
                     return Err(libafl::Error::unknown(
                         "Failed to read autotokens size from forkserver".to_string(),
                     ));
-                }
+                };
 
                 let tokens_size_max = 0xffffff;
 
@@ -207,25 +202,22 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
                             ));
                 }
                 info!(size = autotokens_size, "AUTODICT detected.");
-                let (rlen, buf) = fork_server.read_st_size(autotokens_size as usize)?;
-
-                if rlen != autotokens_size as usize {
+                let Ok(buf) = fork_server.read_st_size(autotokens_size as usize) else {
                     return Err(libafl::Error::unknown(
                         "Failed to load autotokens".to_string(),
                     ));
-                }
+                };
                 if let Some(t) = auto_tokens {
                     info!("Updating autotokens.");
                     t.parse_autodict(&buf, autotokens_size as usize);
                 }
             }
 
-            let (read_len, aflx) = fork_server.read_st()?;
-            if read_len != 4 {
+            let Ok(aflx) = fork_server.read_st() else {
                 return Err(libafl::Error::unknown(
                     "Reading from forkserver failed".to_string(),
                 ));
-            }
+            };
 
             if aflx != keep {
                 return Err(libafl::Error::unknown(format!(
@@ -292,19 +284,17 @@ where
         self.input_file
             .write_buf(&input_bytes.as_slice()[..input_size])?;
 
-        let send_len = self.fork_server.write_ctl(last_run_timed_out)?;
+        if self.fork_server.write_ctl(last_run_timed_out).is_err() {
+            return Err(libafl::Error::unknown(
+                "Unable to request new process from fork server (OOM?)".to_string(),
+            ));
+        }
         self.fork_server.set_last_run_timed_out(false);
-        if send_len != 4 {
+        let Ok(pid) = self.fork_server.read_st() else {
             return Err(libafl::Error::unknown(
                 "Unable to request new process from fork server (OOM?)".to_string(),
             ));
-        }
-        let (recv_pid_len, pid) = self.fork_server.read_st()?;
-        if recv_pid_len != 4 {
-            return Err(libafl::Error::unknown(
-                "Unable to request new process from fork server (OOM?)".to_string(),
-            ));
-        }
+        };
         if pid <= 0 {
             return Err(libafl::Error::unknown(
                 "Fork server is misbehaving (OOM?)".to_string(),
@@ -326,8 +316,7 @@ where
             // We need to kill the child in case he has timed out, or we can't get the correct
             // pid in the next call to self.executor.forkserver_mut().read_st()?
             let _ = kill(self.fork_server.child_pid(), self.kill_signal);
-            let (recv_status_len, _) = self.fork_server.read_st()?;
-            if recv_status_len != 4 {
+            if self.fork_server.read_st().is_err() {
                 return Err(libafl::Error::unknown(
                     "Could not kill timed-out child".to_string(),
                 ));

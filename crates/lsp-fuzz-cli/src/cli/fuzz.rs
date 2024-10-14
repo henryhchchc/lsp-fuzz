@@ -5,12 +5,14 @@ use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
     feedback_and_fast, feedback_or,
-    prelude::{
-        havoc_mutations,
+    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
+    generators::Generator,
+    monitors::SimpleMonitor,
+    mutators::{havoc_mutations, tokens_mutations, StdScheduledMutator, Tokens},
+    observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
+    schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
-        tokens_mutations, CanTrack, CrashFeedback, Generator, HitcountsMapObserver,
-        IndexesLenTimeMinimizerScheduler, MaxMapFeedback, PowerQueueScheduler, SimpleMonitor,
-        StdMapObserver, StdScheduledMutator, TimeFeedback, TimeObserver, Tokens,
+        IndexesLenTimeMinimizerScheduler, PowerQueueScheduler,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
@@ -156,8 +158,6 @@ impl Cli {
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-        let edge_observer_handle = edges_observer.handle();
 
         let mut executor = LspExecutor::new(
             &self.lsp_executable,

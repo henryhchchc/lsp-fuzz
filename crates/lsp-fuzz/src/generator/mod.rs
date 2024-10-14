@@ -1,6 +1,6 @@
 use std::num::NonZero;
 
-use libafl::{prelude::Generator, state::HasRand};
+use libafl::{generators::Generator, state::HasRand};
 use libafl_bolts::rands::Rand;
 
 use crate::inputs::LspInput;

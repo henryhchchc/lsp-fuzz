@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use libafl::{
     inputs::UsesInput,
-    prelude::{MutationResult, Mutator},
+    mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand, State},
     HasMetadata,
 };
