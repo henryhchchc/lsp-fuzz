@@ -26,7 +26,8 @@ use libafl_bolts::{
     AsSliceMut,
 };
 use lsp_fuzz::{
-    execution::LspExecutor, generator::LspInpuGenerator, inputs::LspInput, muation::LspInputMutator,
+    execution::LspExecutor, generator::LspInpuGenerator, inputs::LspInput,
+    muation::LspInputMutator, stages::CoverageStage,
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
@@ -103,9 +104,11 @@ impl Cli {
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
-            unsafe { StdMapObserver::new("shared_mem", shmem_buf) }
+            unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
+
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
+        let coverage_stage = CoverageStage::new(&edges_observer);
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -200,7 +203,7 @@ impl Cli {
             havoc_mutations_no_crossover().merge(tokens_mutations()),
         ));
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
-        let mut stages = tuple_list!(calibration_stage, power_mutation_stage);
+        let mut stages = tuple_list!(calibration_stage, power_mutation_stage, coverage_stage);
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
