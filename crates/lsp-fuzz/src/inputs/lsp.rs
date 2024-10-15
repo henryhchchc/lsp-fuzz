@@ -4,14 +4,21 @@ macro_rules! lsp_requests {
     (
         $(#[$outer:meta])*
         $vis: vis enum $type_name: ident {
-            $( $variant: ident, )*
+            $(
+                $( request::$req_variant: ident )?
+                $( notification::$not_variant: ident )?
+            ),*
         }
     ) => {
         use lsp_types::request::{self, Request};
+        use lsp_types::notification::{self, Notification};
 
         $(#[$outer])*
         $vis enum $type_name {
-            $($variant(<request::$variant as Request>::Params),)*
+            $(
+                $( $req_variant(<request::$req_variant as Request>::Params) )?
+                $( $not_variant(<notification::$not_variant as Notification>::Params) )?
+            ),*
         }
 
         impl $type_name {
@@ -19,7 +26,10 @@ macro_rules! lsp_requests {
             /// Returns the method name of the request.
             pub const fn method<'a>(&self) -> &'a str {
                 match self {
-                    $(Self::$variant(_) => <request::$variant as Request>::METHOD,)*
+                    $(
+                        $( Self::$req_variant(_) => <request::$req_variant as Request>::METHOD )?
+                        $( Self::$not_variant(_) => <notification::$not_variant as Notification>::METHOD )?
+                    ),*
                 }
             }
 
@@ -27,13 +37,23 @@ macro_rules! lsp_requests {
             pub fn as_json(&self, id: usize) -> serde_json::Value {
                 match self {
                     $(
-                        Self::$variant(params) => serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "id": id,
-                            "method": <request::$variant as Request>::METHOD,
-                            "params": params
-                        }),
-                    )*
+                        $(
+                            Self::$req_variant(params) => serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "method": <request::$req_variant as Request>::METHOD,
+                                "params": params
+                            })
+                        )?
+                        $(
+                            Self::$not_variant(params) => serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "method": <notification::$not_variant as Notification>::METHOD,
+                                "params": params
+                            })
+                        )?
+                    ),*
                 }
             }
 
@@ -47,70 +67,96 @@ lsp_requests! {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
     pub enum LspRequest {
-        Initialize,
-        Shutdown,
-        ShowMessageRequest,
-        RegisterCapability,
-        UnregisterCapability,
-        WorkspaceSymbolRequest,
-        WorkspaceSymbolResolve,
-        ExecuteCommand,
-        WillSaveWaitUntil,
-        Completion,
-        ResolveCompletionItem,
-        HoverRequest,
-        SignatureHelpRequest,
-        GotoDeclaration,
-        GotoDefinition,
-        References,
-        DocumentHighlightRequest,
-        DocumentSymbolRequest,
-        CodeActionRequest,
-        CodeLensRequest,
-        CodeLensResolve,
-        DocumentLinkRequest,
-        DocumentLinkResolve,
-        ApplyWorkspaceEdit,
-        RangeFormatting,
-        OnTypeFormatting,
-        Formatting,
-        Rename,
-        DocumentColor,
-        ColorPresentationRequest,
-        FoldingRangeRequest,
-        PrepareRenameRequest,
-        GotoImplementation,
-        GotoTypeDefinition,
-        SelectionRangeRequest,
-        WorkspaceFoldersRequest,
-        WorkspaceConfiguration,
-        WorkDoneProgressCreate,
-        CallHierarchyIncomingCalls,
-        CallHierarchyOutgoingCalls,
-        MonikerRequest,
-        LinkedEditingRange,
-        CallHierarchyPrepare,
-        TypeHierarchyPrepare,
-        SemanticTokensFullRequest,
-        SemanticTokensFullDeltaRequest,
-        SemanticTokensRangeRequest,
-        InlayHintRequest,
-        InlineValueRequest,
-        DocumentDiagnosticRequest,
-        WorkspaceDiagnosticRequest,
-        WorkspaceDiagnosticRefresh,
-        TypeHierarchySupertypes,
-        TypeHierarchySubtypes,
-        WillCreateFiles,
-        WillRenameFiles,
-        WillDeleteFiles,
-        SemanticTokensRefresh,
-        CodeLensRefresh,
-        InlayHintRefreshRequest,
-        InlineValueRefreshRequest,
-        CodeActionResolveRequest,
-        InlayHintResolveRequest,
-        ShowDocument,
+        request::Initialize,
+        request::Shutdown,
+        request::ShowMessageRequest,
+        request::RegisterCapability,
+        request::UnregisterCapability,
+        request::WorkspaceSymbolRequest,
+        request::WorkspaceSymbolResolve,
+        request::ExecuteCommand,
+        request::WillSaveWaitUntil,
+        request::Completion,
+        request::ResolveCompletionItem,
+        request::HoverRequest,
+        request::SignatureHelpRequest,
+        request::GotoDeclaration,
+        request::GotoDefinition,
+        request::References,
+        request::DocumentHighlightRequest,
+        request::DocumentSymbolRequest,
+        request::CodeActionRequest,
+        request::CodeLensRequest,
+        request::CodeLensResolve,
+        request::DocumentLinkRequest,
+        request::DocumentLinkResolve,
+        request::ApplyWorkspaceEdit,
+        request::RangeFormatting,
+        request::OnTypeFormatting,
+        request::Formatting,
+        request::Rename,
+        request::DocumentColor,
+        request::ColorPresentationRequest,
+        request::FoldingRangeRequest,
+        request::PrepareRenameRequest,
+        request::GotoImplementation,
+        request::GotoTypeDefinition,
+        request::SelectionRangeRequest,
+        request::WorkspaceFoldersRequest,
+        request::WorkspaceConfiguration,
+        request::WorkDoneProgressCreate,
+        request::CallHierarchyIncomingCalls,
+        request::CallHierarchyOutgoingCalls,
+        request::MonikerRequest,
+        request::LinkedEditingRange,
+        request::CallHierarchyPrepare,
+        request::TypeHierarchyPrepare,
+        request::SemanticTokensFullRequest,
+        request::SemanticTokensFullDeltaRequest,
+        request::SemanticTokensRangeRequest,
+        request::InlayHintRequest,
+        request::InlineValueRequest,
+        request::DocumentDiagnosticRequest,
+        request::WorkspaceDiagnosticRequest,
+        request::WorkspaceDiagnosticRefresh,
+        request::TypeHierarchySupertypes,
+        request::TypeHierarchySubtypes,
+        request::WillCreateFiles,
+        request::WillRenameFiles,
+        request::WillDeleteFiles,
+        request::SemanticTokensRefresh,
+        request::CodeLensRefresh,
+        request::InlayHintRefreshRequest,
+        request::InlineValueRefreshRequest,
+        request::CodeActionResolveRequest,
+        request::InlayHintResolveRequest,
+        request::ShowDocument,
+        notification::Cancel,
+        notification::SetTrace,
+        notification::LogTrace,
+        notification::Initialized,
+        notification::Exit,
+        notification::ShowMessage,
+        notification::LogMessage,
+        notification::WorkDoneProgressCancel,
+        notification::TelemetryEvent,
+        notification::DidOpenTextDocument,
+        notification::DidChangeTextDocument,
+        notification::WillSaveTextDocument,
+        notification::DidSaveTextDocument,
+        notification::DidCloseTextDocument,
+        notification::PublishDiagnostics,
+        notification::DidOpenNotebookDocument,
+        notification::DidChangeNotebookDocument,
+        notification::DidSaveNotebookDocument,
+        notification::DidCloseNotebookDocument,
+        notification::DidChangeConfiguration,
+        notification::DidChangeWatchedFiles,
+        notification::DidChangeWorkspaceFolders,
+        notification::Progress,
+        notification::DidCreateFiles,
+        notification::DidRenameFiles,
+        notification::DidDeleteFiles
     }
 }
 
