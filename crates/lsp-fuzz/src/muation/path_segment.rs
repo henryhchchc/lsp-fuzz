@@ -9,13 +9,9 @@ use libafl_bolts::{rands::Rand, Named};
 use crate::inputs::path_segment::PathSegmentInput;
 
 #[derive(Debug)]
-pub struct PathSegmentMutator {}
+pub struct PathSegmentMutator;
 
-impl PathSegmentMutator {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+impl PathSegmentMutator {}
 
 impl Named for PathSegmentMutator {
     fn name(&self) -> &Cow<'static, str> {

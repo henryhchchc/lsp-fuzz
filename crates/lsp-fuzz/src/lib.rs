@@ -5,3 +5,5 @@ pub mod generator;
 pub mod inputs;
 pub mod muation;
 pub mod stages;
+
+pub mod utf8;

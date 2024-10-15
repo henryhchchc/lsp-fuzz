@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use libafl::{
-    events::{Event, EventFirer, LogSeverity},
+    events::EventFirer,
     executors::HasObservers,
     inputs::UsesInput,
     observers::MapObserver,
@@ -17,7 +17,6 @@ use tracing::info;
 #[derive(Debug)]
 pub struct CoverageStage<O, S, M> {
     edge_observer_handle: Handle<O>,
-    // last_seen_coverage: u64,
     _state: PhantomData<S>,
     _map_observer: PhantomData<M>,
 }
@@ -37,7 +36,6 @@ impl<O, S, M> CoverageStage<O, S, M> {
     {
         Self {
             edge_observer_handle: edge_observer.handle(),
-            // last_seen_coverage: 0,
             _state: PhantomData,
             _map_observer: PhantomData,
         }
@@ -76,12 +74,9 @@ where
             .ok_or_else(|| libafl::Error::key_not_found("Cannot find edge observer"))?
             .as_ref();
         let coverage = edge_observer.count_bytes();
-        // if coverage > self.last_seen_coverage {
-        //     self.last_seen_coverage = coverage;
         let total = edge_observer.usable_count();
         let cov_precent = (coverage as f64 / total as f64) * 100.0;
-        info!(coverage = cov_precent, "New Coverage");
-        // }
+        info!("Coverage: {cov_precent:.2}");
         Ok(())
     }
 }

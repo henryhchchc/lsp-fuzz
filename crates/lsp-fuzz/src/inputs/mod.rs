@@ -7,7 +7,7 @@ use std::{
 
 use fluent_uri::{
     component::{Authority, Scheme},
-    encoding::{EStr, EString},
+    encoding::EString,
     Uri,
 };
 use libafl::{
@@ -19,6 +19,7 @@ use lsp::encapsulate_request_content;
 use path_segment::PathSegmentInput;
 use serde::{Deserialize, Serialize};
 
+pub mod file_system;
 pub mod lsp;
 pub mod path_segment;
 

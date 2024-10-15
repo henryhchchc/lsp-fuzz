@@ -57,9 +57,7 @@ where
                     let segments = (0..path_segments)
                         .map(|_| {
                             let mut segment = PathSegmentInput::new("main.c".to_owned());
-                            PathSegmentMutator::new()
-                                .mutate(state, &mut segment)
-                                .unwrap();
+                            PathSegmentMutator.mutate(state, &mut segment).unwrap();
                             segment
                         })
                         .collect();
@@ -94,9 +92,7 @@ where
                         let segments = (0..path_segments)
                             .map(|_| {
                                 let mut segment = PathSegmentInput::new("main.c".to_owned());
-                                PathSegmentMutator::new()
-                                    .mutate(state, &mut segment)
-                                    .unwrap();
+                                PathSegmentMutator.mutate(state, &mut segment).unwrap();
                                 segment
                             })
                             .collect();
