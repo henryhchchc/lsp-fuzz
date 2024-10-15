@@ -5,6 +5,11 @@ use std::{
     str::FromStr,
 };
 
+use fluent_uri::{
+    component::{Authority, Scheme},
+    encoding::{EStr, EString},
+    Uri,
+};
 use libafl::{
     corpus::CorpusId,
     inputs::{BytesInput, HasMutatorBytes, Input},
@@ -58,7 +63,7 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        let init_request = &lsp::LspRequest::Initialize(lsp_types::InitializeParams {
+        let init_request = lsp::LspRequest::Initialize(lsp_types::InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: lsp_types::Uri::from_str(&format!("file://{}", workspace_dir.display()))
                     .unwrap(),
@@ -70,12 +75,39 @@ impl LspInput {
             }]),
             ..Default::default()
         });
+        let did_open_requests = self.source_directory.keys().map(|source_file| {
+            let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
+            path.encode::<fluent_uri::encoding::encoder::Path>(
+                workspace_dir
+                    .join(source_file.as_path_buf())
+                    .to_string_lossy()
+                    .into_owned()
+                    .as_str(),
+            );
+            let uri = Uri::builder()
+                .scheme(Scheme::new_or_panic("file"))
+                .authority(Authority::EMPTY)
+                .path(&path)
+                .build()
+                .unwrap();
+            let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
+            lsp::LspRequest::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri,
+                    language_id: "c".to_string(),
+                    version: 1,
+                    text: "".to_string(),
+                },
+            })
+        });
         let mut bytes = Vec::new();
         for (id, request) in self
             .requests
             .requests
             .iter()
+            .cloned()
             .chain(once(init_request))
+            .chain(did_open_requests)
             .enumerate()
         {
             bytes.extend_from_slice(&encapsulate_request_content(&request.as_json(id + 1)));

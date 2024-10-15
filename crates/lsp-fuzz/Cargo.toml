@@ -14,3 +14,4 @@ tuple_list.workspace = true
 libc = "0.2"
 lsp-types = "0.97"
 serde_json = "1"
+fluent-uri = "0.3"
