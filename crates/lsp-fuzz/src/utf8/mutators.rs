@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZero, ops::DerefMut};
+use std::{borrow::Cow, collections::HashSet, num::NonZero, ops::DerefMut};
 
 use libafl::{
     inputs::Input,
@@ -146,8 +146,25 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct CharShiftMutator;
+#[derive(Debug, Default)]
+pub struct CharShiftMutator {
+    /// The set of characters that should not be produced by the mutator.
+    pub blacklisted_chars: HashSet<char>,
+}
+
+impl CharShiftMutator {
+    /// Create a new `CharShiftMutator` with an empty blacklist.
+    pub fn new() -> Self {
+        Self {
+            blacklisted_chars: Default::default(),
+        }
+    }
+
+    /// Create a new `CharShiftMutator` with a custom blacklist.
+    pub fn with_blacklisted_chars(blacklisted_chars: HashSet<char>) -> Self {
+        Self { blacklisted_chars }
+    }
+}
 
 impl Named for CharShiftMutator {
     fn name(&self) -> &Cow<'static, str> {
@@ -180,6 +197,9 @@ where
         };
 
         if let Some(new_char) = new_char {
+            if self.blacklisted_chars.contains(&new_char) {
+                return Ok(MutationResult::Skipped);
+            }
             input.replace_range(idx..idx + picked.len_utf8(), &new_char.to_string());
             Ok(MutationResult::Mutated)
         } else {

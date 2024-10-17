@@ -202,7 +202,7 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
                             ));
                 }
                 info!(size = autotokens_size, "AUTODICT detected.");
-                let Ok(buf) = fork_server.read_st_size(autotokens_size as usize) else {
+                let Ok(buf) = fork_server.read_st_of_len(autotokens_size as usize) else {
                     return Err(libafl::Error::unknown(
                         "Failed to load autotokens".to_string(),
                     ));

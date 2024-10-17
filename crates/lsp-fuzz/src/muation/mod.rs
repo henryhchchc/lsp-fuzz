@@ -11,6 +11,7 @@ use path_segment::PathSegmentMutator;
 
 use crate::inputs::{path_segment::PathSegmentInput, LspInput, PathInput};
 
+pub mod file_system;
 pub mod path_segment;
 
 #[derive(Debug)]

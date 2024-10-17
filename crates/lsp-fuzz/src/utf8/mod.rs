@@ -60,7 +60,17 @@ pub fn utf8_mutations() -> impl TupleList {
         mutators::CharInsertMutator,
         mutators::CharDeleteMutator,
         mutators::CharReplaceMutator,
-        mutators::CharShiftMutator,
+        mutators::CharShiftMutator::new(),
+        mutators::StringTruncationMutator,
+    ]
+}
+
+pub fn file_name_mutations() -> impl TupleList {
+    tuple_list![
+        mutators::CharInsertMutator,
+        mutators::CharDeleteMutator,
+        mutators::CharReplaceMutator,
+        mutators::CharShiftMutator::with_blacklisted_chars(['/', '\\'].into()),
         mutators::StringTruncationMutator,
     ]
 }
