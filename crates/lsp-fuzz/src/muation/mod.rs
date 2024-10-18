@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZero};
+use std::borrow::Cow;
 
 use libafl::{
     inputs::{BytesInput, UsesInput},
@@ -6,13 +6,14 @@ use libafl::{
     state::{HasCorpus, HasMaxSize, HasRand, State},
     HasMetadata,
 };
-use libafl_bolts::{rands::Rand, Named};
-use path_segment::PathSegmentMutator;
+use libafl_bolts::Named;
 
-use crate::inputs::{path_segment::PathSegmentInput, LspInput, PathInput};
+use crate::{
+    inputs::{file_system::FileSystemEntryInput::File, LspInput, SourceDirectoryInput},
+    utf8::Utf8Input,
+};
 
 pub mod file_system;
-pub mod path_segment;
 
 #[derive(Debug)]
 pub struct LspInputMutator<M> {
@@ -41,76 +42,11 @@ where
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        const NEW_FILE: usize = 0;
-        const MUTATE_FILE: usize = 1;
-        const REMOVE_FILE: usize = 2;
-        const RELOCATE_FILE: usize = 3;
-        const MAX_ACTIONS: usize = 4;
-
-        const MAX_PATH_SEGMENTS: usize = 1;
-        let action = state.rand_mut().below(NonZero::new(MAX_ACTIONS).unwrap());
-        match action {
-            NEW_FILE => {
-                let mut new_file = BytesInput::default();
-                self.inner_mutator.mutate(state, &mut new_file)?;
-                let new_file_path = {
-                    let path_segments = state.rand_mut().between(1, MAX_PATH_SEGMENTS);
-                    let segments = (0..path_segments)
-                        .map(|_| {
-                            let mut segment = PathSegmentInput::new("main.c".to_owned());
-                            PathSegmentMutator.mutate(state, &mut segment).unwrap();
-                            segment
-                        })
-                        .collect();
-                    PathInput { segments }
-                };
-                input.source_directory.insert(new_file_path, new_file);
-                Ok(MutationResult::Mutated)
-            }
-            MUTATE_FILE => {
-                if let Some((_path, file)) = input.source_directory.iter_mut().next() {
-                    self.inner_mutator.mutate(state, file)
-                } else {
-                    Ok(MutationResult::Skipped)
-                }
-            }
-            REMOVE_FILE => {
-                if !input.source_directory.is_empty() {
-                    let keys: Vec<_> = input.source_directory.keys().cloned().collect();
-                    let key_to_remove = state.rand_mut().choose(&keys).unwrap();
-                    input.source_directory.remove(key_to_remove);
-                    Ok(MutationResult::Mutated)
-                } else {
-                    Ok(MutationResult::Skipped)
-                }
-            }
-            RELOCATE_FILE => {
-                if !input.source_directory.is_empty() {
-                    let keys: Vec<_> = input.source_directory.keys().cloned().collect();
-                    let key_to_relocate = state.rand_mut().choose(&keys).unwrap();
-                    let new_path = {
-                        let path_segments = state.rand_mut().between(1, MAX_PATH_SEGMENTS);
-                        let segments = (0..path_segments)
-                            .map(|_| {
-                                let mut segment = PathSegmentInput::new("main.c".to_owned());
-                                PathSegmentMutator.mutate(state, &mut segment).unwrap();
-                                segment
-                            })
-                            .collect();
-                        PathInput { segments }
-                    };
-                    if input.source_directory.contains_key(&new_path) {
-                        Ok(MutationResult::Skipped)
-                    } else {
-                        let file = input.source_directory.remove(key_to_relocate).unwrap();
-                        input.source_directory.insert(new_path, file);
-                        Ok(MutationResult::Mutated)
-                    }
-                } else {
-                    Ok(MutationResult::Skipped)
-                }
-            }
-            MAX_ACTIONS.. => unreachable!("Garenteed by RNG"),
-        }
+        let path = Utf8Input::new("main.c".to_owned());
+        let SourceDirectoryInput(entries) = &mut input.source_directory;
+        let File(file_content) = entries.get_mut(&path).expect("This is the only file.") else {
+            unreachable!("This is the only file.")
+        };
+        self.inner_mutator.mutate(state, file_content)
     }
 }

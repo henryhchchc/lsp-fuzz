@@ -15,6 +15,12 @@ pub struct Utf8Input {
     inner: String,
 }
 
+impl Utf8Input {
+    pub fn new(inner: String) -> Self {
+        Self { inner }
+    }
+}
+
 impl Input for Utf8Input {
     fn generate_name(&self, _id: Option<CorpusId>) -> String {
         self.inner.clone()
@@ -70,7 +76,7 @@ pub fn file_name_mutations() -> impl TupleList {
         mutators::CharInsertMutator,
         mutators::CharDeleteMutator,
         mutators::CharReplaceMutator,
-        mutators::CharShiftMutator::with_blacklisted_chars(['/', '\\'].into()),
+        mutators::CharShiftMutator::with_blacklisted_chars(['/'].into()),
         mutators::StringTruncationMutator,
     ]
 }

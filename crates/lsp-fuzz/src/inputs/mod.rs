@@ -1,10 +1,6 @@
-use std::{
-    collections::HashMap,
-    iter::once,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{collections::HashMap, iter::once, path::Path, str::FromStr};
 
+use file_system::FileSystemEntryInput;
 use fluent_uri::{
     component::{Authority, Scheme},
     encoding::EString,
@@ -16,25 +12,17 @@ use libafl::{
 };
 use libafl_bolts::HasLen;
 use lsp::encapsulate_request_content;
-use path_segment::PathSegmentInput;
 use serde::{Deserialize, Serialize};
+
+use crate::utf8::Utf8Input;
 
 pub mod file_system;
 pub mod lsp;
-pub mod path_segment;
 
 pub type FileContentInput = BytesInput;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PathInput {
-    pub segments: Vec<PathSegmentInput>,
-}
-
-impl PathInput {
-    fn as_path_buf(&self) -> PathBuf {
-        self.segments.iter().map(|it| it.as_path()).collect()
-    }
-}
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SourceDirectoryInput(pub HashMap<Utf8Input, FileSystemEntryInput<FileContentInput>>);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LspRequestSequence {
@@ -44,7 +32,7 @@ pub struct LspRequestSequence {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LspInput {
     pub requests: LspRequestSequence,
-    pub source_directory: HashMap<PathInput, FileContentInput>,
+    pub source_directory: SourceDirectoryInput,
 }
 
 impl Input for LspInput {
@@ -58,7 +46,13 @@ impl Input for LspInput {
 
 impl HasLen for LspInput {
     fn len(&self) -> usize {
-        self.requests.requests.len() + self.source_directory.len()
+        self.requests.requests.len()
+            + self
+                .source_directory
+                .0
+                .iter()
+                .map(|(k, v)| k.len() + v.len())
+                .sum::<usize>()
     }
 }
 
@@ -76,11 +70,11 @@ impl LspInput {
             }]),
             ..Default::default()
         });
-        let did_open_requests = self.source_directory.keys().map(|source_file| {
+        let did_open_requests = self.source_directory.0.keys().map(|source_file| {
             let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
             path.encode::<fluent_uri::encoding::encoder::Path>(
                 workspace_dir
-                    .join(source_file.as_path_buf())
+                    .join(Path::new(source_file.as_str()))
                     .to_string_lossy()
                     .into_owned()
                     .as_str(),
@@ -117,11 +111,14 @@ impl LspInput {
     }
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
-        for (path, content) in self.source_directory.iter() {
-            let path = source_dir.join(path.as_path_buf());
+        for (path, entry) in self.source_directory.0.iter() {
+            let path = source_dir.join(path.as_str());
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
+            let FileSystemEntryInput::File(content) = entry else {
+                unreachable!("We created only files")
+            };
             std::fs::write(path, content.bytes())?;
         }
         Ok(())
