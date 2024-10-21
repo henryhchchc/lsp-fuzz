@@ -1,4 +1,4 @@
-use std::{env::temp_dir, marker::PhantomData, path::Path};
+use std::{env::temp_dir, ffi::OsString, marker::PhantomData, path::Path};
 
 use libafl::{
     executors::{Executor, ExitKind, Forkserver, HasObservers},
@@ -96,10 +96,29 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
         });
         let args = target_args.into_iter().map(|it| it.into()).collect();
 
+        let asan_options = [
+            "detect_odr_violation=0",
+            "abort_on_error=1",
+            "symbolize=0",
+            "allocator_may_return_null=1",
+            "handle_segv=0",
+            "handle_sigbus=0",
+            "handle_abort=0",
+            "handle_sigfpe=0",
+            "handle_sigill=0",
+            "detect_stack_use_after_return=0",
+            "check_initialization_order=0",
+            "detect_leaks=0",
+            "malloc_context_size=0",
+        ]
+        .join(":");
+
+        let envs = vec![(OsString::from("ASAN_OPTIONS"), OsString::from(asan_options))];
+
         let mut fork_server = Forkserver::with_kill_signal(
             fuzz_target.as_os_str().to_owned(),
             args,
-            Vec::default(),
+            envs,
             input_file.as_raw_fd(),
             true,
             0,
