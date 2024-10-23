@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use libafl::{
     corpus::CorpusId,
@@ -49,7 +49,7 @@ impl Deref for Utf8Input {
     }
 }
 
-impl std::ops::DerefMut for Utf8Input {
+impl DerefMut for Utf8Input {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
