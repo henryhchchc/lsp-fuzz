@@ -1,6 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context;
+use core_affinity::CoreId;
 use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
@@ -80,13 +81,21 @@ pub(super) struct Cli {
     #[clap(long, value_enum, default_value_t = BaseSchedule::FAST)]
     power_schedule: BaseSchedule,
 
-    /// Number of iterations between stats updates.
-    #[clap(long, default_value_t = 10)]
-    stats_interval: u64,
+    #[clap(long)]
+    cpu_affinity: Option<usize>,
 }
 
 impl Cli {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+        if let Some(id) = self.cpu_affinity {
+            let core_id = CoreId { id };
+            if core_affinity::set_for_current(core_id) {
+                info!("Set CPU affinity to core {}", id);
+            } else {
+                warn!("Failed to set CPU affinity to core {}", id);
+            }
+        }
+
         let mut shmem_provider =
             UnixShMemProvider::new().context("Creating shared memory provider")?;
 

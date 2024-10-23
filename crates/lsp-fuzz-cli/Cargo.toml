@@ -14,3 +14,4 @@ tracing.workspace = true
 tracing-subscriber = { version = "0", features = ["env-filter", "chrono"] }
 tempfile = "3"
 tuple_list.workspace = true
+core_affinity = "0.8"
