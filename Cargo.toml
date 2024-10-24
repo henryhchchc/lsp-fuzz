@@ -22,3 +22,6 @@ libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "de
 [profile.dev]
 # opt-level = 3
 # lto = true
+
+[profile.release]
+lto = true
