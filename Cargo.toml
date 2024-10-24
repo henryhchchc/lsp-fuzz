@@ -13,6 +13,7 @@ nix = "0.29"
 tracing = "0.1"
 thiserror = "1"
 tuple_list = "0.1"
+anyhow = { version = "1", features = ["backtrace"] }
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }

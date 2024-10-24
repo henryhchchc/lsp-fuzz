@@ -9,7 +9,7 @@ libafl_bolts.workspace = true
 lsp-fuzz = { path = "../lsp-fuzz" }
 clap = { version = "4", features = ["derive", "color"] }
 nix.workspace = true
-anyhow = { version = "1", features = ["backtrace"] }
+anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0", features = ["env-filter", "chrono"] }
 tempfile = "3"
