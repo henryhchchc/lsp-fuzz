@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use libafl::inputs::{HasMutatorBytes, HasTargetBytes, MutVecInput};
+use libafl::inputs::{HasTargetBytes, MutVecInput};
 use libafl_bolts::{ownedref::OwnedSlice, HasLen};
 use serde::{Deserialize, Serialize};
 

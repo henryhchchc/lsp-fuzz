@@ -1,6 +1,4 @@
-use std::{
-    borrow::Cow, collections::HashMap, iter::once, marker::PhantomData, path::Path, str::FromStr,
-};
+use std::{borrow::Cow, collections::HashMap, iter::once, path::Path, str::FromStr};
 
 use fluent_uri::{
     component::{Authority, Scheme},
@@ -10,7 +8,7 @@ use fluent_uri::{
 use libafl::{
     corpus::CorpusId,
     generators::Generator,
-    inputs::{BytesInput, HasMutatorBytes, HasTargetBytes, Input, MutVecInput, UsesInput},
+    inputs::{BytesInput, HasTargetBytes, Input, MutVecInput, UsesInput},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand, State},
     HasMetadata,
@@ -145,9 +143,9 @@ impl<M> LspInputMutator<M> {
 
 impl<M> Named for LspInputMutator<M> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
-            static NAME: Cow<'static, str> = Cow::Borrowed("LspInputMutator");
-            &NAME
-        }
+        static NAME: Cow<'static, str> = Cow::Borrowed("LspInputMutator");
+        &NAME
+    }
 }
 
 impl<M, S> Mutator<LspInput, S> for LspInputMutator<M>
