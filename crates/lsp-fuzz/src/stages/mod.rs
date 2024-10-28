@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use libafl::{
-    events::EventFirer,
+    events::{EventFirer, LogSeverity},
     executors::HasObservers,
     inputs::UsesInput,
     observers::MapObserver,
@@ -12,7 +12,6 @@ use libafl_bolts::{
     tuples::{Handle, Handled, MatchNameRef},
     Named,
 };
-use tracing::info;
 
 #[derive(Debug)]
 pub struct CoverageStage<O, S, M> {
@@ -65,8 +64,8 @@ where
         &mut self,
         _fuzzer: &mut Z,
         executor: &mut E,
-        _state: &mut S,
-        _manager: &mut EM,
+        state: &mut S,
+        manager: &mut EM,
     ) -> Result<(), libafl::Error> {
         let observers = executor.observers();
         let edge_observer = observers
@@ -76,7 +75,10 @@ where
         let coverage = edge_observer.count_bytes();
         let total = edge_observer.usable_count();
         let cov_precent = (coverage as f64 / total as f64) * 100.0;
-        info!("Coverage: {cov_precent:.2}");
-        Ok(())
+        manager.log(
+            state,
+            LogSeverity::Info,
+            format!("Coverage: {coverage} of {total} covered ({cov_precent:.2}%)"),
+        )
     }
 }

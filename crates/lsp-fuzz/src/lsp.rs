@@ -66,7 +66,7 @@ lsp_requests! {
     /// A Language Server Protocol request.
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
-    pub enum LspRequest {
+    pub enum Message {
         request::Initialize,
         request::Shutdown,
         request::ShowMessageRequest,
@@ -173,13 +173,11 @@ pub fn encapsulate_request_content(request_object: &serde_json::Value) -> Vec<u8
 mod test {
     use lsp_types::request::{Initialize, Request};
 
-    use crate::inputs::lsp::encapsulate_request_content;
-
-    use super::LspRequest;
+    use super::{encapsulate_request_content, Message};
 
     #[test]
     fn test_lsp_request() {
-        let request = LspRequest::Initialize(lsp_types::InitializeParams {
+        let request = Message::Initialize(lsp_types::InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: "file:///path/to/folder".parse().unwrap(),
                 name: "folder".to_string(),

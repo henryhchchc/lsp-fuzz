@@ -22,7 +22,7 @@ use nix::{
 };
 use tracing::info;
 
-use crate::inputs::LspInput;
+use crate::lsp_input::LspInput;
 
 #[derive(Debug)]
 pub struct LspExecutor<S, OT> {

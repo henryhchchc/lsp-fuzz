@@ -1,6 +1,5 @@
-use std::{collections::HashMap, iter::once, path::Path, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, iter::once, path::Path, str::FromStr};
 
-use file_system::FileSystemEntryInput;
 use fluent_uri::{
     component::{Authority, Scheme},
     encoding::EString,
@@ -8,16 +7,17 @@ use fluent_uri::{
 };
 use libafl::{
     corpus::CorpusId,
-    inputs::{BytesInput, HasMutatorBytes, Input},
+    generators::Generator,
+    inputs::{BytesInput, HasMutatorBytes, Input, UsesInput},
+    mutators::{MutationResult, Mutator},
+    state::{HasCorpus, HasMaxSize, HasRand, State},
+    HasMetadata,
 };
-use libafl_bolts::HasLen;
+use libafl_bolts::{HasLen, Named};
 use lsp::encapsulate_request_content;
 use serde::{Deserialize, Serialize};
 
-use crate::utf8::Utf8Input;
-
-pub mod file_system;
-pub mod lsp;
+use crate::{file_system::FileSystemEntryInput, lsp, utf8::Utf8Input};
 
 pub type FileContentInput = BytesInput;
 
@@ -25,13 +25,13 @@ pub type FileContentInput = BytesInput;
 pub struct SourceDirectoryInput(pub HashMap<Utf8Input, FileSystemEntryInput<FileContentInput>>);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct LspRequestSequence {
-    pub requests: Vec<lsp::LspRequest>,
+pub struct LspMessages {
+    pub messages: Vec<lsp::Message>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LspInput {
-    pub requests: LspRequestSequence,
+    pub messages: LspMessages,
     pub source_directory: SourceDirectoryInput,
 }
 
@@ -46,7 +46,7 @@ impl Input for LspInput {
 
 impl HasLen for LspInput {
     fn len(&self) -> usize {
-        self.requests.requests.len()
+        self.messages.messages.len()
             + self
                 .source_directory
                 .0
@@ -58,7 +58,7 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        let init_request = lsp::LspRequest::Initialize(lsp_types::InitializeParams {
+        let init_request = lsp::Message::Initialize(lsp_types::InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: lsp_types::Uri::from_str(&format!("file://{}", workspace_dir.display()))
                     .unwrap(),
@@ -86,7 +86,7 @@ impl LspInput {
                 .build()
                 .unwrap();
             let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
-            lsp::LspRequest::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+            lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri,
                     language_id: "c".to_string(),
@@ -97,8 +97,8 @@ impl LspInput {
         });
         let mut bytes = Vec::new();
         for (id, request) in self
-            .requests
-            .requests
+            .messages
+            .messages
             .iter()
             .cloned()
             .chain(once(init_request))
@@ -122,5 +122,61 @@ impl LspInput {
             std::fs::write(path, content.bytes())?;
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct LspInputMutator<M> {
+    inner_mutator: M,
+}
+
+impl<M> LspInputMutator<M> {
+    pub fn new(inner_mutator: M) -> Self {
+        Self { inner_mutator }
+    }
+}
+
+impl<M> Named for LspInputMutator<M> {
+    fn name(&self) -> &std::borrow::Cow<'static, str> {
+        &Cow::Borrowed("LspInputMutator")
+    }
+}
+
+impl<M, S> Mutator<LspInput, S> for LspInputMutator<M>
+where
+    M: Mutator<BytesInput, S>,
+    S: State + UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut LspInput,
+    ) -> Result<MutationResult, libafl::Error> {
+        let path = Utf8Input::new("main.c".to_owned());
+        let SourceDirectoryInput(entries) = &mut input.source_directory;
+        let FileSystemEntryInput::File(file_content) =
+            entries.get_mut(&path).expect("This is the only file.")
+        else {
+            unreachable!("This is the only file.")
+        };
+        self.inner_mutator.mutate(state, file_content)
+    }
+}
+
+#[derive(Debug)]
+pub struct LspInpuGenerator;
+
+impl<S> Generator<LspInput, S> for LspInpuGenerator
+where
+    S: HasRand,
+{
+    fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
+        Ok(LspInput {
+            messages: LspMessages { messages: vec![] },
+            source_directory: SourceDirectoryInput(HashMap::from([(
+                Utf8Input::new("main.c".to_owned()),
+                FileSystemEntryInput::File(BytesInput::new(b"int main() { return 0; }".to_vec())),
+            )])),
+        })
     }
 }
