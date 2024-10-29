@@ -7,21 +7,19 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+itertools = "0.*"
 libafl = { version = "0.*", features = ["errors_backtrace"] }
 libafl_bolts = { version = "0.*" }
 nix = "0.29"
-tracing = "0.1"
 thiserror = "1"
+tracing = "0.1"
 tuple_list = "0.1"
-anyhow = { version = "1", features = ["backtrace"] }
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
 libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
 
-[profile.dev]
-# opt-level = 3
-# lto = true
 
 [profile.release]
 lto = true

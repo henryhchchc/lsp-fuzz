@@ -1,26 +1,14 @@
-use std::collections::HashMap;
-
 use libafl::inputs::{HasTargetBytes, MutVecInput};
 use libafl_bolts::{ownedref::OwnedSlice, HasLen};
 use serde::{Deserialize, Serialize};
 
 use crate::stolen::tree_sitter_generate::{parse_input_grammar, produce_syntax_grammar};
 
-pub use crate::stolen::tree_sitter_generate::*;
+pub mod grammars;
 
-pub const C_GRAMMAR_JSON: &str = include_str!("grammars/c.json");
-
-pub fn load_syntax(grammar_json: &str) -> SyntaxGrammar {
+pub fn load_syntax(grammar_json: &str) -> grammars::SyntaxGrammar {
     let input_grammar = parse_input_grammar(grammar_json).unwrap();
     produce_syntax_grammar(&input_grammar).unwrap()
-}
-
-#[derive(Debug)]
-pub struct Grammar {
-    name: String,
-    language: tree_sitter::Language,
-    grammar: SyntaxGrammar,
-    derivation_fragments: HashMap<String, Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
