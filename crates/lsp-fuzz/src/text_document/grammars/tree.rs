@@ -69,6 +69,7 @@ impl<'t, const ORDER: TraversalType> Iterator for TreeIterator<'t, ORDER> {
             self.queue
                 .push_back(node.child(i).expect("We make sure the index is in range"));
         }
+        self.visited_counter += 1;
         Some(node)
     }
 
