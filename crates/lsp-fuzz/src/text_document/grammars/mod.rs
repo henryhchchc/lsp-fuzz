@@ -105,10 +105,10 @@ impl DerivationGrammar {
     ) -> Result<Self, CreationError> {
         let input_grammar =
             tree_sitter_generate::parse_grammar(grammar_json).map_err(CreationError::TreeSitter)?;
-        let (syntax_grammar, lexical_grammar, _simple_aliases) =
+        let (syntax_grammar, lexical_grammar, aliases) =
             tree_sitter_generate::prepare_grammar(&input_grammar)
                 .map_err(CreationError::TreeSitter)?;
-        Self::from_tree_sitter_grammar(language, syntax_grammar, lexical_grammar)
+        Self::from_tree_sitter_grammar(language, syntax_grammar, lexical_grammar, aliases)
     }
 }
 

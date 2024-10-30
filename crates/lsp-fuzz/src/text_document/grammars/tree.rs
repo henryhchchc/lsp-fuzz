@@ -37,13 +37,13 @@ impl NodeIter for tree_sitter::Node<'_> {
 }
 
 #[derive(Debug)]
-pub struct TreeIterator<'t, const ORDER: TraversalType> {
+pub struct TreeIterator<'t, const TRV: TraversalType> {
     visited_counter: usize,
     total_nodes: usize,
     queue: VecDeque<tree_sitter::Node<'t>>,
 }
 
-impl<'t, const ORDER: TraversalType> TreeIterator<'t, ORDER> {
+impl<'t, const TRV: TraversalType> TreeIterator<'t, TRV> {
     pub fn start_from(root: tree_sitter::Node<'t>) -> Self {
         let mut queue = VecDeque::new();
         let total_nodes = root.descendant_count();
@@ -56,11 +56,11 @@ impl<'t, const ORDER: TraversalType> TreeIterator<'t, ORDER> {
     }
 }
 
-impl<'t, const ORDER: TraversalType> Iterator for TreeIterator<'t, ORDER> {
+impl<'t, const TRV: TraversalType> Iterator for TreeIterator<'t, TRV> {
     type Item = tree_sitter::Node<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let node = match ORDER {
+        let node = match TRV {
             DEPTH_FIRST_TRAVERSAL => self.queue.pop_back(),
             BREADTH_FIRST_TRAVERSAL => self.queue.pop_front(),
         }?;
@@ -79,7 +79,7 @@ impl<'t, const ORDER: TraversalType> Iterator for TreeIterator<'t, ORDER> {
     }
 }
 
-impl<const ORDER: TraversalType> ExactSizeIterator for TreeIterator<'_, ORDER> {
+impl<const TRV: TraversalType> ExactSizeIterator for TreeIterator<'_, TRV> {
     fn len(&self) -> usize {
         self.total_nodes - self.visited_counter
     }

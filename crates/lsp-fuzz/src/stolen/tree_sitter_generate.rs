@@ -13,7 +13,7 @@ pub(crate) use super::upstream::tree_sitter_generate::{
     grammars::{LexicalGrammar, SyntaxGrammar, VariableType},
     parse_grammar::parse_grammar,
     prepare_grammar::prepare_grammar,
-    rules::SymbolType,
+    rules::{AliasMap, SymbolType},
 };
 
 impl DerivationGrammar {
@@ -86,6 +86,7 @@ impl DerivationGrammar {
         language: crate::text_document::Language,
         syntax_grammar: SyntaxGrammar,
         lexical_grammar: LexicalGrammar,
+        alias_map: AliasMap,
     ) -> Result<Self, CreationError> {
         let start_symbol = syntax_grammar
             .variables
@@ -93,13 +94,14 @@ impl DerivationGrammar {
             .ok_or(CreationError::EmptyGrammar)?
             .name
             .clone();
-        let derivation_rules = syntax_grammar
+        let mut derivation_rules = syntax_grammar
             .variables
             .iter()
             .map(|syntax_variable| {
                 Self::convert_rule(syntax_variable, &syntax_grammar, &lexical_grammar)
             })
             .try_collect()?;
+        todo!("Implement aliasing");
         Ok(Self::new(language, start_symbol, derivation_rules))
     }
 }
