@@ -9,19 +9,29 @@ pub const BREADTH_FIRST_TRAVERSAL: bool = false;
 ///
 /// This trait provides methods for creating iterators that traverse the tree
 /// in either depth-first or breadth-first order.
-pub trait NodeIter<'t> {
+pub trait NodeIter {
     /// Returns an iterator over the nodes in the tree in depth-first order.
-    fn iter_depth_first(self) -> TreeIterator<'t, DEPTH_FIRST_TRAVERSAL>;
+    fn iter_depth_first<'t>(self) -> TreeIterator<'t, DEPTH_FIRST_TRAVERSAL>
+    where
+        Self: 't;
     /// Returns an iterator over the nodes in the tree in breadth-first order.
-    fn iter_breadth_first(self) -> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL>;
+    fn iter_breadth_first<'t>(self) -> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL>
+    where
+        Self: 't;
 }
 
-impl<'t> NodeIter<'t> for tree_sitter::Node<'t> {
-    fn iter_depth_first(self) -> TreeIterator<'t, DEPTH_FIRST_TRAVERSAL> {
+impl NodeIter for tree_sitter::Node<'_> {
+    fn iter_depth_first<'t>(self) -> TreeIterator<'t, DEPTH_FIRST_TRAVERSAL>
+    where
+        Self: 't,
+    {
         TreeIterator::start_from(self)
     }
 
-    fn iter_breadth_first(self) -> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL> {
+    fn iter_breadth_first<'t>(self) -> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL>
+    where
+        Self: 't,
+    {
         TreeIterator::start_from(self)
     }
 }
