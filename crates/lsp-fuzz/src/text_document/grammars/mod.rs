@@ -5,7 +5,6 @@ use std::{
 };
 
 use itertools::{Either, Itertools};
-use tracing::Dispatch;
 use tree::NodeIter;
 
 use crate::stolen::tree_sitter_generate;
@@ -111,7 +110,6 @@ impl DerivationGrammar {
                 .map_err(CreationError::TreeSitter)?;
         Self::from_tree_sitter_grammar(language, syntax_grammar, lexical_grammar)
     }
-
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-pub type TraversalOrder = bool;
+pub type TraversalType = bool;
 
 pub const DEPTH_FIRST_TRAVERSAL: bool = true;
 pub const BREADTH_FIRST_TRAVERSAL: bool = false;
@@ -37,23 +37,33 @@ impl NodeIter for tree_sitter::Node<'_> {
 }
 
 #[derive(Debug)]
-pub struct TreeIterator<'t, const ORDER: TraversalOrder> {
+pub struct TreeIterator<'t, const ORDER: TraversalType> {
+    visited_counter: usize,
+    total_nodes: usize,
     queue: VecDeque<tree_sitter::Node<'t>>,
 }
 
-impl<'t, const ORDER: TraversalOrder> TreeIterator<'t, ORDER> {
+impl<'t, const ORDER: TraversalType> TreeIterator<'t, ORDER> {
     pub fn start_from(root: tree_sitter::Node<'t>) -> Self {
         let mut queue = VecDeque::new();
+        let total_nodes = root.descendant_count();
         queue.push_back(root);
-        Self { queue }
+        Self {
+            queue,
+            visited_counter: 0,
+            total_nodes,
+        }
     }
 }
 
-impl<'t> Iterator for TreeIterator<'t, DEPTH_FIRST_TRAVERSAL> {
+impl<'t, const ORDER: TraversalType> Iterator for TreeIterator<'t, ORDER> {
     type Item = tree_sitter::Node<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let node = self.queue.pop_back()?;
+        let node = match ORDER {
+            DEPTH_FIRST_TRAVERSAL => self.queue.pop_back(),
+            BREADTH_FIRST_TRAVERSAL => self.queue.pop_front(),
+        }?;
         self.queue.reserve(node.child_count());
         for i in 0..node.child_count() {
             self.queue
@@ -61,18 +71,15 @@ impl<'t> Iterator for TreeIterator<'t, DEPTH_FIRST_TRAVERSAL> {
         }
         Some(node)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining_nodes = self.total_nodes - self.visited_counter;
+        (remaining_nodes, Some(remaining_nodes))
+    }
 }
 
-impl<'t> Iterator for TreeIterator<'t, BREADTH_FIRST_TRAVERSAL> {
-    type Item = tree_sitter::Node<'t>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let node = self.queue.pop_front()?;
-        self.queue.reserve(node.child_count());
-        for i in 0..node.child_count() {
-            self.queue
-                .push_back(node.child(i).expect("We make sure the index is in range"));
-        }
-        Some(node)
+impl<const ORDER: TraversalType> ExactSizeIterator for TreeIterator<'_, ORDER> {
+    fn len(&self) -> usize {
+        self.total_nodes - self.visited_counter
     }
 }
