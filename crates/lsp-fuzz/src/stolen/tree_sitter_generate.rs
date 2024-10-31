@@ -1,5 +1,7 @@
 //! APIs exposed from the [`tree_sitter_generate`](https://github.com/tree-sitter/tree-sitter/tree/master/cli/generate) project.
 
+use std::collections::HashSet;
+
 use crate::text_document::grammars::{
     CreationError, Derivation, DerivationGrammar, Symbol, Terminal,
 };
@@ -20,13 +22,16 @@ pub(crate) use super::upstream::tree_sitter_generate::{
 impl DerivationGrammar {
     fn convert_terminal(rule: &LexicalVariable, alias: Option<&Alias>) -> Terminal {
         match rule.kind {
-            VariableType::Anonymous => Terminal::Literal(rule.name.clone().into_bytes()),
+            VariableType::Anonymous => {
+                // assert!(alias.is_none(), "{:?} -> {:?}", rule, alias);
+                Terminal::Immediate(rule.name.clone().into_bytes())
+            }
             VariableType::Auxiliary => {
                 if let Some(alias) = alias {
                     if alias.is_named {
-                        Terminal::Token(alias.value.clone())
+                        Terminal::Named(alias.value.clone())
                     } else {
-                        Terminal::Literal(alias.value.clone().into_bytes())
+                        Terminal::Immediate(alias.value.clone().into_bytes())
                     }
                 } else {
                     Terminal::Auxiliary(rule.name.clone())
@@ -34,7 +39,7 @@ impl DerivationGrammar {
             }
             VariableType::Named => {
                 assert!(alias.is_none());
-                Terminal::Token(rule.name.clone())
+                Terminal::Named(rule.name.clone())
             }
             VariableType::Hidden => {
                 todo!("Figure out what hidden terminals are")
@@ -49,6 +54,7 @@ impl DerivationGrammar {
         alias_map: &AliasMap,
     ) -> Result<Symbol, CreationError> {
         let rule_idx = step.symbol.index;
+        let alias = alias_map.get(&step.symbol);
         match step.symbol.kind {
             SymbolType::NonTerminal => {
                 let rule = syntax_grammar
@@ -62,7 +68,6 @@ impl DerivationGrammar {
                     .variables
                     .get(rule_idx)
                     .ok_or(CreationError::MissingRule)?;
-                let alias = alias_map.get(&step.symbol);
                 let terminal = Self::convert_terminal(rule, alias);
                 Ok(Symbol::Terminal(terminal))
             }
@@ -71,7 +76,7 @@ impl DerivationGrammar {
                     .external_tokens
                     .get(rule_idx)
                     .ok_or(CreationError::MissingRule)?;
-                let terminal = Terminal::Token(rule.name.clone());
+                let terminal = Terminal::Named(rule.name.clone());
                 Ok(Symbol::Terminal(terminal))
             }
             SymbolType::End | SymbolType::EndOfNonTerminalExtra => Ok(Symbol::Eof),
@@ -83,7 +88,7 @@ impl DerivationGrammar {
         syntax_grammar: &SyntaxGrammar,
         lexical_grammar: &LexicalGrammar,
         alias_map: &AliasMap,
-    ) -> Result<(String, Vec<Derivation>), CreationError> {
+    ) -> Result<(String, HashSet<Derivation>), CreationError> {
         let derivations = syntax_variable
             .productions
             .iter()

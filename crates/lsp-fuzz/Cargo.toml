@@ -20,6 +20,6 @@ lsp-types = "0.97"
 regex-syntax = "0.8.5"
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
-tree-sitter = "0.24.3"
+tree-sitter = { version = "0.24.3" }
 tree-sitter-c = "0"
 tree-sitter-rust = "0"
