@@ -14,6 +14,7 @@ pub mod grammars;
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
 pub enum Language {
     C,
+    Rust,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

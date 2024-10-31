@@ -8,6 +8,7 @@ edition = "2021"
 
 [workspace.dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
+derive_more = { version = "1.0.0", features = ["display", "into_iterator"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = ["errors_backtrace"] }
 libafl_bolts = { version = "0.*" }

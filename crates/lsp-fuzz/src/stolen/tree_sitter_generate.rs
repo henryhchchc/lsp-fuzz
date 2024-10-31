@@ -5,8 +5,9 @@ use crate::text_document::grammars::{
 };
 use itertools::Itertools;
 
-use super::upstream::tree_sitter_generate::grammars::{
-    LexicalVariable, ProductionStep, SyntaxVariable,
+use super::upstream::tree_sitter_generate::{
+    grammars::{LexicalVariable, ProductionStep, SyntaxVariable},
+    rules::Alias,
 };
 
 pub(crate) use super::upstream::tree_sitter_generate::{
@@ -17,11 +18,24 @@ pub(crate) use super::upstream::tree_sitter_generate::{
 };
 
 impl DerivationGrammar {
-    fn convert_terminal(rule: &LexicalVariable) -> Terminal {
+    fn convert_terminal(rule: &LexicalVariable, alias: Option<&Alias>) -> Terminal {
         match rule.kind {
             VariableType::Anonymous => Terminal::Literal(rule.name.clone().into_bytes()),
-            VariableType::Named => Terminal::Named(rule.name.clone()),
-            VariableType::Auxiliary => Terminal::Auxillary(rule.name.clone()),
+            VariableType::Auxiliary => {
+                if let Some(alias) = alias {
+                    if alias.is_named {
+                        Terminal::Token(alias.value.clone())
+                    } else {
+                        Terminal::Literal(alias.value.clone().into_bytes())
+                    }
+                } else {
+                    Terminal::Auxiliary(rule.name.clone())
+                }
+            }
+            VariableType::Named => {
+                assert!(alias.is_none());
+                Terminal::Token(rule.name.clone())
+            }
             VariableType::Hidden => {
                 todo!("Figure out what hidden terminals are")
             }
@@ -32,6 +46,7 @@ impl DerivationGrammar {
         step: &ProductionStep,
         syntax_grammar: &SyntaxGrammar,
         lexical_grammar: &LexicalGrammar,
+        alias_map: &AliasMap,
     ) -> Result<Symbol, CreationError> {
         let rule_idx = step.symbol.index;
         match step.symbol.kind {
@@ -47,7 +62,8 @@ impl DerivationGrammar {
                     .variables
                     .get(rule_idx)
                     .ok_or(CreationError::MissingRule)?;
-                let terminal = Self::convert_terminal(rule);
+                let alias = alias_map.get(&step.symbol);
+                let terminal = Self::convert_terminal(rule, alias);
                 Ok(Symbol::Terminal(terminal))
             }
             SymbolType::External => {
@@ -55,7 +71,7 @@ impl DerivationGrammar {
                     .external_tokens
                     .get(rule_idx)
                     .ok_or(CreationError::MissingRule)?;
-                let terminal = Terminal::Named(rule.name.clone());
+                let terminal = Terminal::Token(rule.name.clone());
                 Ok(Symbol::Terminal(terminal))
             }
             SymbolType::End | SymbolType::EndOfNonTerminalExtra => Ok(Symbol::Eof),
@@ -66,6 +82,7 @@ impl DerivationGrammar {
         syntax_variable: &SyntaxVariable,
         syntax_grammar: &SyntaxGrammar,
         lexical_grammar: &LexicalGrammar,
+        alias_map: &AliasMap,
     ) -> Result<(String, Vec<Derivation>), CreationError> {
         let derivations = syntax_variable
             .productions
@@ -74,7 +91,9 @@ impl DerivationGrammar {
                 let symbols = production_rule
                     .steps
                     .iter()
-                    .map(|step| Self::convert_symbol(step, syntax_grammar, lexical_grammar))
+                    .map(|step| {
+                        Self::convert_symbol(step, syntax_grammar, lexical_grammar, alias_map)
+                    })
                     .try_collect()?;
                 Ok(Derivation::new(symbols))
             })
@@ -94,14 +113,18 @@ impl DerivationGrammar {
             .ok_or(CreationError::EmptyGrammar)?
             .name
             .clone();
-        let mut derivation_rules = syntax_grammar
+        let derivation_rules = syntax_grammar
             .variables
             .iter()
             .map(|syntax_variable| {
-                Self::convert_rule(syntax_variable, &syntax_grammar, &lexical_grammar)
+                Self::convert_rule(
+                    syntax_variable,
+                    &syntax_grammar,
+                    &lexical_grammar,
+                    &alias_map,
+                )
             })
             .try_collect()?;
-        todo!("Implement aliasing");
         Ok(Self::new(language, start_symbol, derivation_rules))
     }
 }
