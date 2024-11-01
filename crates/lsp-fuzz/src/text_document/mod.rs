@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod grammars;
 
-#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 pub enum Language {
     C,
     Rust,
