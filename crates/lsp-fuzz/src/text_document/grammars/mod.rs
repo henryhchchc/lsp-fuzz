@@ -2,14 +2,12 @@ use core::fmt;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
-    ops::Range,
 };
 
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 pub mod tree;
-use dot_structures::{Attribute, Edge, EdgeTy, Graph, Id, Node, NodeId, Stmt, Vertex};
 use itertools::{Either, Itertools};
-use tree::NodeIter;
+pub mod fragment_extraction;
 
 use crate::stolen::tree_sitter_generate;
 
@@ -159,184 +157,9 @@ impl GrammarContext {
     }
 }
 
-/// Extracts derivation fragments from the given source code using the provided parser.
-///
-/// This function parses the provided source code and traverses the resulting parse tree
-/// to extract fragments of the code associated with each node type. The fragments are
-/// grouped by their node types and returned as a `HashMap`.
-///
-/// # Arguments
-///
-/// * `code` - A byte slice representing the source code to be parsed.
-/// * `parser` - A mutable reference to a `tree_sitter::Parser` used to parse the code.
-///
-/// # Returns
-///
-/// A `HashMap` where the keys are static string slices representing the node types,
-/// and the values are vectors of byte slices representing the fragments of the code
-/// associated with each node type.
-pub fn extract_derivation_fragments<'c>(
-    code: &'c [u8],
-    parser: &mut tree_sitter::Parser,
-) -> HashMap<String, Vec<&'c [u8]>> {
-    let Some(tree) = parser.parse(code, None) else {
-        return HashMap::new();
-    };
-
-    let (named, unnamed): (Vec<_>, Vec<_>) = tree
-        .root_node()
-        .iter_depth_first()
-        .filter(|it| !it.is_error())
-        .partition(|it| it.is_named());
-    let blacklist: HashSet<_> = unnamed.into_iter().map(|it| it.kind()).collect();
-
-    let from_tree = named.into_iter().map(|it| {
-        let kind = it.kind();
-        let fragment = &code[it.byte_range()];
-        (kind.to_owned(), fragment)
-    });
-
-    let graph = tree_to_dot_graph(tree.clone());
-    let graph_terminals = dot_graph_to_terminals(graph)
-        .into_iter()
-        .filter(|(k, _)| !blacklist.contains(k.as_str()) && k != "ERROR")
-        .map(|(k, v)| (k, &code[v]));
-
-    from_tree.chain(graph_terminals).into_group_map()
-}
-
-fn tree_to_dot_graph(tree: tree_sitter::Tree) -> dot_structures::Graph {
-    use std::io::Read;
-    let (mut pipe_reader, pipe_writer) = os_pipe::pipe().expect("Failed to create pipe");
-    let plotting_thread = std::thread::spawn(move || {
-        tree.print_dot_graph(&pipe_writer);
-    });
-    let mut buffer = Vec::new();
-    pipe_reader
-        .read_to_end(&mut buffer)
-        .expect("Failed to read from pipe");
-    plotting_thread
-        .join()
-        .expect("Fail to join the plotting thread");
-    let dot_code = String::from_utf8(buffer).expect("The plotted graph is not valid UTF-8");
-    graphviz_rust::parse(&dot_code).expect("Failed to parse the DOT code")
-}
-
-fn dot_graph_to_terminals(graph: dot_structures::Graph) -> Vec<(String, Range<usize>)> {
-    let Graph::DiGraph { stmts, .. } = graph else {
-        panic!("Tree sitter generates directed graph");
-    };
-    let (nodes, edges): (Vec<_>, Vec<_>) = stmts
-        .into_iter()
-        .filter(|it| matches!(it, Stmt::Node(_) | Stmt::Edge(_)))
-        .partition_map(|it| match it {
-            Stmt::Node(node) => Either::Left(node),
-            Stmt::Edge(edge) => Either::Right(edge),
-            _ => unreachable!(),
-        });
-    let extract_source_node = |edge| {
-        let Edge {
-            ty: EdgeTy::Pair(Vertex::N(NodeId(Id::Plain(source), _)), _),
-            ..
-        } = edge
-        else {
-            panic!("Ohly shit. tree-sitter changes the dot graph format.");
-        };
-        source
-    };
-    let non_terminals_ids: HashSet<_> = edges.into_iter().map(extract_source_node).collect();
-    nodes
-        .into_iter()
-        .filter_map(|node| {
-            let Node {
-                id: NodeId(Id::Plain(id), _),
-                attributes,
-            } = node
-            else {
-                panic!("Ohly shit. tree-sitter changes the dot graph format.");
-            };
-            if non_terminals_ids.contains(&id) {
-                None
-            } else {
-                let mut label = None;
-                let mut tooltip = None;
-                for Attribute(attr, value) in attributes {
-                    match attr {
-                        Id::Plain(attr) if attr == "label" => {
-                            let Id::Escaped(val) = value else {
-                                panic!("Ohly shit. tree-sitter changes the dot graph format.");
-                            };
-                            label = Some(val.trim_matches('"').to_owned());
-                        }
-                        Id::Plain(attr) if attr == "tooltip" => {
-                            let Id::Escaped(val) = value else {
-                                panic!("Ohly shit. tree-sitter changes the dot graph format.");
-                            };
-                            tooltip = Some(val.trim_matches('"').to_owned());
-                        }
-                        _ => {}
-                    }
-                }
-                let label = label?;
-                let tooltip = tooltip?;
-                let range = node_range(&tooltip).expect("fuck");
-                Some((label, range))
-            }
-        })
-        .collect()
-}
-
-fn node_range(tooltip: &str) -> Result<Range<usize>, anyhow::Error> {
-    let line = tooltip
-        .lines()
-        .find(|it| it.starts_with("range: "))
-        .map(|line| line.trim())
-        .ok_or(anyhow!("Cannot find range line"))?;
-    let (start, end) = line
-        .trim_start_matches("range: ")
-        .split_once(" - ")
-        .ok_or(anyhow!("Invalid range line"))?;
-    Ok(start.parse()?..end.parse()?)
-}
-
 #[cfg(test)]
 mod test {
-
     use super::*;
-
-    const C_CODE: &str = r#"
-    #include <stdio.h>
-    #include <stdlib.h>
-
-    const int x = 42;
-
-    int main(int argc, char *argv[] "\n") {
-        printf("Hello, world!\n");
-        return 0;
-    }
-    "#;
-
-    #[test]
-    fn test_extract_derivation_fragments() {
-        let mut parser = tree_sitter::Parser::new();
-        let lang = tree_sitter_c::LANGUAGE.into();
-        parser.set_language(&lang).unwrap();
-        let fragments = extract_derivation_fragments(C_CODE.as_bytes(), &mut parser);
-        for key in [
-            "translation_unit",
-            "function_definition",
-            "declaration",
-            "expression_statement",
-            "call_expression",
-            "string_literal",
-            "number_literal",
-            "preproc_include_token2",
-        ] {
-            assert!(fragments.contains_key(key), "{key} not found");
-        }
-        assert!(fragments["number_literal"].contains(&b"42".as_slice()));
-        eprintln!("{:?}", fragments);
-    }
 
     #[test]
     fn load_derivation_grammar_c() {
