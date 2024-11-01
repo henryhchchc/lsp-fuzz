@@ -151,6 +151,10 @@ impl GrammarContext {
         Ok(tree)
     }
 
+    pub fn language(&self) -> Language {
+        self.grammar.language
+    }
+
     pub fn derivation_fragment(&self, node_kind: &str) -> impl Iterator<Item = &[u8]> {
         let Some(fragments) = self.derivation_fragments.get(node_kind) else {
             return Either::Left(std::iter::empty());

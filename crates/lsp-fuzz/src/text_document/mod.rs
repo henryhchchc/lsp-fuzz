@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod grammars;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 pub enum Language {
     C,
     Rust,
@@ -47,7 +47,7 @@ impl HasLen for TextDocument {
 
 #[derive(Debug)]
 pub struct ReplaceSubTreeWithDerivation {
-    grammar: grammars::GrammarContext,
+    grammar_context: grammars::GrammarContext,
 }
 
 impl Named for ReplaceSubTreeWithDerivation {
@@ -66,8 +66,11 @@ where
         state: &mut S,
         input: &mut TextDocument,
     ) -> Result<MutationResult, libafl::Error> {
+        if input.language != self.grammar_context.language() {
+            return Ok(MutationResult::Skipped);
+        }
         let parse_tree = self
-            .grammar
+            .grammar_context
             .parse_source_code(&input.content)
             .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
         let nodes = parse_tree.root_node().iter_depth_first();
@@ -76,7 +79,7 @@ where
         };
         let byte_range = selected_node.byte_range();
         let node_kind = selected_node.kind();
-        let fragments = self.grammar.derivation_fragment(node_kind);
+        let fragments = self.grammar_context.derivation_fragment(node_kind);
         let Some(selected_fragment) = state.rand_mut().choose(fragments) else {
             return Ok(MutationResult::Skipped);
         };

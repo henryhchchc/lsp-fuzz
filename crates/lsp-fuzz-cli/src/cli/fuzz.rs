@@ -41,7 +41,7 @@ const DEFAULT_COVERAGE_MAP_SIZE: usize = 65536;
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
-pub(super) struct Cli {
+pub(super) struct FuzzCommand {
     /// Directory containing seed inputs for the fuzzer.
     #[clap(long)]
     seeds_dir: Option<PathBuf>,
@@ -86,7 +86,7 @@ pub(super) struct Cli {
     cpu_affinity: Option<usize>,
 }
 
-impl Cli {
+impl FuzzCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         if let Some(id) = self.cpu_affinity {
             let core_id = CoreId { id };
