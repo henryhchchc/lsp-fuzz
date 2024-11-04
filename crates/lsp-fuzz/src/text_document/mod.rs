@@ -1,4 +1,7 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use grammars::tree::NodeIter;
 use libafl::{
@@ -6,12 +9,25 @@ use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
-use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, HasLen, Named};
+use libafl::{mutators::MutatorsTuple, SerdeAny};
+use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, tuples::NamedTuple, HasLen, Named};
 use serde::{Deserialize, Serialize};
+use tuple_list::tuple_list;
 
 pub mod grammars;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display, derive_more::FromStr)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Hash,
+    derive_more::Display,
+    derive_more::FromStr,
+)]
 pub enum Language {
     C,
     Rust,
@@ -36,6 +52,27 @@ impl Language {
             .expect("Fail to initialize parser");
         parser
     }
+
+    fn ts_language(&self) -> tree_sitter::Language {
+        match self {
+            Self::C => tree_sitter::Language::new(tree_sitter_c::LANGUAGE),
+            Self::Rust => tree_sitter::Language::new(tree_sitter_rust::LANGUAGE),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, SerdeAny, derive_more::Deref)]
+pub struct GrammarContextLookup {
+    #[deref]
+    inner: HashMap<Language, grammars::GrammarContext>,
+}
+
+impl FromIterator<(Language, grammars::GrammarContext)> for GrammarContextLookup {
+    fn from_iter<T: IntoIterator<Item = (Language, grammars::GrammarContext)>>(iter: T) -> Self {
+        Self {
+            inner: HashMap::from_iter(iter),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +89,10 @@ impl TextDocument {
     pub fn content_bytes_mut(&mut self) -> MutVecInput<'_> {
         MutVecInput::from(&mut self.content)
     }
+
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        String::from_utf8_lossy(&self.content)
+    }
 }
 
 impl HasTargetBytes for TextDocument {
@@ -66,19 +107,19 @@ impl HasLen for TextDocument {
     }
 }
 
-#[derive(Debug)]
-pub struct ReplaceSubTreeWithDerivation {
-    grammar_context: grammars::GrammarContext,
+#[derive(Debug, derive_more::Constructor)]
+pub struct ReplaceSubTreeWithDerivation<'a> {
+    grammar_lookup: &'a GrammarContextLookup,
 }
 
-impl Named for ReplaceSubTreeWithDerivation {
+impl Named for ReplaceSubTreeWithDerivation<'_> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("ReplaceSubTreeWithDerivation");
         &NAME
     }
 }
 
-impl<S> Mutator<TextDocument, S> for ReplaceSubTreeWithDerivation
+impl<S> Mutator<TextDocument, S> for ReplaceSubTreeWithDerivation<'_>
 where
     S: HasRand,
 {
@@ -87,11 +128,10 @@ where
         state: &mut S,
         input: &mut TextDocument,
     ) -> Result<MutationResult, libafl::Error> {
-        if input.language != self.grammar_context.language() {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
-        }
-        let parse_tree = self
-            .grammar_context
+        };
+        let parse_tree = grammar_ctx
             .parse_source_code(&input.content)
             .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
         let nodes = parse_tree.root_node().iter_depth_first();
@@ -100,7 +140,7 @@ where
         };
         let byte_range = selected_node.byte_range();
         let node_kind = selected_node.kind();
-        let fragments = self.grammar_context.derivation_fragment(node_kind);
+        let fragments = grammar_ctx.derivation_fragment(node_kind);
         let Some(selected_fragment) = state.rand_mut().choose(fragments) else {
             return Ok(MutationResult::Skipped);
         };
@@ -109,4 +149,13 @@ where
             .splice(byte_range, selected_fragment.iter().copied());
         Ok(MutationResult::Mutated)
     }
+}
+
+pub const fn text_document_mutations<S>(
+    grammar_lookup: &GrammarContextLookup,
+) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+where
+    S: HasRand,
+{
+    tuple_list![ReplaceSubTreeWithDerivation::new(grammar_lookup)]
 }

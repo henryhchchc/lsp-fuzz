@@ -8,7 +8,7 @@ use fluent_uri::{
 use libafl::{
     corpus::CorpusId,
     generators::Generator,
-    inputs::{BytesInput, HasTargetBytes, Input, MutVecInput, UsesInput},
+    inputs::{BytesInput, HasTargetBytes, Input, UsesInput},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand, State},
     HasMetadata,
@@ -75,31 +75,38 @@ impl LspInput {
             }]),
             ..Default::default()
         });
-        let did_open_requests = self.source_directory.0.keys().map(|source_file| {
-            let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
-            path.encode::<fluent_uri::encoding::encoder::Path>(
-                workspace_dir
-                    .join(Path::new(source_file.as_str()))
-                    .to_string_lossy()
-                    .into_owned()
-                    .as_str(),
-            );
-            let uri = Uri::builder()
-                .scheme(Scheme::new_or_panic("file"))
-                .authority(Authority::EMPTY)
-                .path(&path)
-                .build()
-                .unwrap();
-            let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
-            lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
-                text_document: lsp_types::TextDocumentItem {
-                    uri,
-                    language_id: "c".to_string(),
-                    version: 1,
-                    text: "".to_string(),
-                },
-            })
-        });
+        let did_open_requests = self
+            .source_directory
+            .0
+            .iter()
+            .map(|(source_file, content)| {
+                let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
+                let FileSystemEntryInput::File(text_document) = content else {
+                    unreachable!("We created only files");
+                };
+                path.encode::<fluent_uri::encoding::encoder::Path>(
+                    workspace_dir
+                        .join(Path::new(source_file.as_str()))
+                        .to_string_lossy()
+                        .into_owned()
+                        .as_str(),
+                );
+                let uri = Uri::builder()
+                    .scheme(Scheme::new_or_panic("file"))
+                    .authority(Authority::EMPTY)
+                    .path(&path)
+                    .build()
+                    .unwrap();
+                let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
+                lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+                    text_document: lsp_types::TextDocumentItem {
+                        uri,
+                        language_id: "c".to_string(),
+                        version: 1,
+                        text: text_document.to_string_lossy().into_owned(),
+                    },
+                })
+            });
         let mut bytes = Vec::new();
         for (id, request) in self
             .messages
@@ -130,27 +137,21 @@ impl LspInput {
     }
 }
 
-#[derive(Debug)]
-pub struct LspInputMutator<M> {
-    inner_mutator: M,
+#[derive(Debug, derive_more::Constructor)]
+pub struct LspInputMutator<TM> {
+    text_document_mutator: TM,
 }
 
-impl<M> LspInputMutator<M> {
-    pub fn new(inner_mutator: M) -> Self {
-        Self { inner_mutator }
-    }
-}
-
-impl<M> Named for LspInputMutator<M> {
+impl<TM> Named for LspInputMutator<TM> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("LspInputMutator");
         &NAME
     }
 }
 
-impl<M, S> Mutator<LspInput, S> for LspInputMutator<M>
+impl<TM, S> Mutator<LspInput, S> for LspInputMutator<TM>
 where
-    M: for<'a> Mutator<MutVecInput<'a>, S>,
+    TM: Mutator<TextDocument, S>,
     S: State + UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
 {
     fn mutate(
@@ -165,8 +166,7 @@ where
         else {
             unreachable!("This is the only file.")
         };
-        self.inner_mutator
-            .mutate(state, &mut file_content.content_bytes_mut())
+        self.text_document_mutator.mutate(state, file_content)
     }
 }
 

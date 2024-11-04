@@ -13,6 +13,7 @@ derive_more = { version = "1.0.0", features = [
     "into_iterator",
     "constructor",
     "from_str",
+    "deref"
 ] }
 indexmap = { version = "2", features = ["serde"] }
 itertools = "0.*"
@@ -25,6 +26,8 @@ tracing = "0.1"
 tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"] }
 num_cpus = "1.16"
+tree-sitter-c = "0"
+tree-sitter-rust = "0"
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }

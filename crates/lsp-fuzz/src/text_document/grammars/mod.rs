@@ -149,10 +149,9 @@ impl DerivationFragments {
     }
 }
 
-#[derive(Debug, derive_more::Constructor)]
+#[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct GrammarContext {
     grammar: DerivationGrammar,
-    ts_language: tree_sitter::Language,
     derivation_fragments: DerivationFragments,
 }
 
@@ -162,7 +161,7 @@ impl GrammarContext {
         source_code: impl AsRef<[u8]>,
     ) -> Result<tree_sitter::Tree, tree_sitter::LanguageError> {
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&self.ts_language)?;
+        parser.set_language(&self.grammar.language.ts_language())?;
         let tree = parser.parse(source_code, None).expect("Garenteed by API");
         Ok(tree)
     }

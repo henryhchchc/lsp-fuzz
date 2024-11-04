@@ -1,4 +1,9 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::Context;
 use core_affinity::CoreId;
@@ -9,7 +14,7 @@ use libafl::{
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     generators::Generator,
     monitors::SimpleMonitor,
-    mutators::{havoc_mutations_no_crossover, tokens_mutations, StdScheduledMutator, Tokens},
+    mutators::{StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
@@ -23,13 +28,16 @@ use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    tuples::Merge,
     AsSliceMut,
 };
 use lsp_fuzz::{
     execution::LspExecutor,
     lsp_input::{LspInpuGenerator, LspInput, LspInputMutator},
     stages::CoverageStage,
+    text_document::{
+        grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
+        text_document_mutations, GrammarContextLookup, Language,
+    },
 };
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
@@ -84,6 +92,9 @@ pub(super) struct FuzzCommand {
 
     #[clap(long)]
     cpu_affinity: Option<usize>,
+
+    #[clap(long)]
+    c_derivation_fragment: PathBuf,
 }
 
 impl FuzzCommand {
@@ -96,6 +107,14 @@ impl FuzzCommand {
                 warn!("Failed to set CPU affinity to core {}", id);
             }
         }
+
+        let derivation_fragement = load_c_derivation_fragment(&self.c_derivation_fragment)
+            .context("Loading C derivation fragements")?;
+        let c_grammar =
+            DerivationGrammar::from_tree_sitter_grammar_json(Language::C, C_GRAMMAR_JSON)
+                .context("Constructing C grammar")?;
+        let c_grammar_ctx = GrammarContext::new(c_grammar, derivation_fragement);
+        let grammar_ctx = GrammarContextLookup::from_iter([(Language::C, c_grammar_ctx)]);
 
         let mut shmem_provider =
             UnixShMemProvider::new().context("Creating shared memory provider")?;
@@ -209,9 +228,10 @@ impl FuzzCommand {
 
         state.add_metadata(tokens);
 
-        let mutator = LspInputMutator::new(StdScheduledMutator::new(
-            havoc_mutations_no_crossover().merge(tokens_mutations()),
-        ));
+        let text_document_mutator =
+            StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 6)
+                .context("Creating text document mutator")?;
+        let mutator = LspInputMutator::new(text_document_mutator);
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
         let mut stages = tuple_list!(calibration_stage, power_mutation_stage, coverage_stage);
 
@@ -219,4 +239,13 @@ impl FuzzCommand {
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
             .context("In fuzzloop")
     }
+}
+
+fn load_c_derivation_fragment(path: &Path) -> Result<DerivationFragments, anyhow::Error> {
+    info!(file = %path.display(), "Loading C derivation fragements");
+    let file = File::open(path).context("Opening c derivation fragment")?;
+    let reader = zstd::Decoder::new(BufReader::new(file))?;
+    let result = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
+    info!("C derivation fragments loaded");
+    Ok(result)
 }
