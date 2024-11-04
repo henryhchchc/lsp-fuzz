@@ -6,10 +6,11 @@ use std::{
     ops::Range,
 };
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 pub mod tree;
 use indexmap::{IndexMap, IndexSet};
 use itertools::{Either, Itertools};
+use libafl_bolts::{rands::Rand, AsSlice};
 use serde::{Deserialize, Serialize};
 pub mod fragment_extraction;
 
@@ -177,6 +178,73 @@ impl GrammarContext {
             Either::Left(std::iter::empty())
         }
     }
+
+    pub fn generate_node(
+            &self,
+            node_kind: &str,
+            rand: &mut impl Rand,
+            max_depth: Option<usize>,
+        ) -> Result<Vec<u8>, DerivationError> {
+            let derivation_fragments = self.derivation_fragment(node_kind);
+            let has_derivation_rule = self.grammar.derivation_rules.contains_key(node_kind);
+            let has_derivation_fragments = derivation_fragments.len() > 0;
+            let depth_limit_reached = max_depth.is_some_and(|it| it == 0);
+            let should_derive = match (
+                depth_limit_reached,
+                has_derivation_rule,
+                has_derivation_fragments,
+            ) {
+                (true, _, false) => return Err(DerivationError::DepthLimitReached),
+                (_, false, true) => false,
+                (true, _, true) => false,
+                (false, true, false) => true,
+                (false, true, true) => rand.coinflip(0.5),
+                (false, false, false) => return Err(DerivationError::InvalidGrammar),
+            };
+            if should_derive {
+                let derivation_rules = self
+                    .grammar
+                    .derivation_rules()
+                    .get(node_kind)
+                    .expect("We checked that the rule is available");
+                let rule = rand
+                    .choose(derivation_rules)
+                    .ok_or(DerivationError::InvalidGrammar)?;
+                rule.into_iter()
+                    .map(|symbol| match symbol {
+                        Symbol::NonTerminal(ref name) => {
+                            self.generate_node(name, rand, max_depth.map(|it| it - 1))
+                        }
+                        Symbol::Terminal(ref term) => match term {
+                            Terminal::Immediate(content) => Ok(content.to_vec()),
+                            Terminal::Named(name) | Terminal::Auxiliary(name) => {
+                                let fragments = self.derivation_fragment(name);
+                                let fragment = rand
+                                    .choose(fragments)
+                                    .ok_or(DerivationError::InvalidGrammar)?;
+                                Ok(fragment.to_vec())
+                            }
+                        },
+                        Symbol::Eof => Ok(Vec::default()),
+                    })
+                    .flatten_ok()
+                    .collect::<Result<Vec<_>, _>>()
+            } else {
+                let fragments = self.derivation_fragment(node_kind);
+                let fragment = rand
+                    .choose(fragments)
+                    .ok_or(DerivationError::InvalidGrammar)?;
+                Ok(fragment.to_vec())
+            }
+        }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DerivationError {
+    #[error("The depth limit has been reached")]
+    DepthLimitReached,
+    #[error("The grammar is invalid")]
+    InvalidGrammar,
 }
 
 #[cfg(test)]
