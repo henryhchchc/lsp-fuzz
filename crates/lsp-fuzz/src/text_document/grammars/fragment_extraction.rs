@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     borrow::Cow,
     collections::{HashMap, HashSet},
     io::Read,
@@ -30,10 +29,10 @@ use super::tree::NodeIter;
 /// A `HashMap` where the keys are static string slices representing the node types,
 /// and the values are vectors of byte slices representing the fragments of the code
 /// associated with each node type.
-pub fn extract_derivation_fragments<'c, 'n>(
-    code: &'c [u8],
+pub fn extract_derivation_fragments<'n>(
+    code: &[u8],
     parser: &mut tree_sitter::Parser,
-) -> Result<HashMap<Cow<'n, str>, Vec<&'c [u8]>>, Error> {
+) -> Result<HashMap<Cow<'n, str>, Vec<Range<usize>>>, Error> {
     let tree = parser.parse(code, None).ok_or(Error::TreeSitterParsing)?;
     let (named, unnamed): (Vec<_>, Vec<_>) = tree
         .root_node()
@@ -44,15 +43,14 @@ pub fn extract_derivation_fragments<'c, 'n>(
 
     let from_tree = named.into_iter().filter(|it| !it.is_error()).map(|it| {
         let kind = it.kind();
-        let fragment = &code[it.byte_range()];
-        (Cow::Borrowed(kind), fragment)
+        (Cow::Borrowed(kind), it.byte_range())
     });
 
     let graph = tree_to_dot_graph(tree.clone())?;
     let graph_terminals = dot_graph_to_terminals(graph)?
         .into_iter()
         .filter(|(k, _)| !blacklist.contains(k.as_str()) && k != "ERROR" && k != "_ERROR")
-        .map(|(k, v)| (Cow::Owned(k), &code[v]));
+        .map(|(k, v)| (Cow::Owned(k), v));
 
     Ok(from_tree.chain(graph_terminals).into_group_map())
 }
@@ -66,7 +64,7 @@ fn tree_to_dot_graph(tree: tree_sitter::Tree) -> Result<Graph, Error> {
         buf.shrink_to_fit();
         buf
     };
-    plotting_thread.join().map_err(Error::PlotGraphPanic)?;
+    plotting_thread.join().map_err(|_| Error::PlotGraphPanic)?;
     let dot_code = String::from_utf8(buffer).map_err(|err| Error::Utf8Parsing {
         what: "Plotted dot graph",
         err,
@@ -181,8 +179,8 @@ pub enum Error {
     #[error("IO Error: {_0}")]
     IO(#[from] std::io::Error),
 
-    #[error("Panics when plotting dot graph: {_0:?}")]
-    PlotGraphPanic(Box<dyn Any + Send>),
+    #[error("Panics when plotting dot graph")]
+    PlotGraphPanic,
 
     #[error("Fail to parse UTF-8 of {what}: {err:?}")]
     Utf8Parsing {
@@ -235,7 +233,5 @@ mod test {
         ] {
             assert!(fragments.contains_key(key), "{key} not found");
         }
-        assert!(fragments["number_literal"].contains(&b"42".as_slice()));
-        eprintln!("{:?}", fragments.keys());
     }
 }

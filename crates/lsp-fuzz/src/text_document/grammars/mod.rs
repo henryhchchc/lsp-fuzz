@@ -1,11 +1,14 @@
 use core::fmt;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
+    ops::Range,
 };
 
 use anyhow::bail;
 pub mod tree;
+use indexmap::{IndexMap, IndexSet};
 use itertools::{Either, Itertools};
 use serde::{Deserialize, Serialize};
 pub mod fragment_extraction;
@@ -70,7 +73,7 @@ impl Derivation {
 pub struct DerivationGrammar {
     language: Language,
     start_symbol: String,
-    derivation_rules: HashMap<String, HashSet<Derivation>>,
+    derivation_rules: IndexMap<String, IndexSet<Derivation>>,
 }
 
 impl Display for DerivationGrammar {
@@ -92,7 +95,7 @@ impl Display for DerivationGrammar {
 }
 
 impl DerivationGrammar {
-    pub fn derivation_rules(&self) -> &HashMap<String, HashSet<Derivation>> {
+    pub fn derivation_rules(&self) -> &IndexMap<String, IndexSet<Derivation>> {
         &self.derivation_rules
     }
 }
@@ -133,11 +136,24 @@ pub enum CreationError {
     MissingRule,
 }
 
+#[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
+pub struct DerivationFragments {
+    code: Vec<u8>,
+    fragments: HashMap<Cow<'static, str>, HashSet<Range<usize>>>,
+}
+
+impl DerivationFragments {
+    pub fn get(&self, node_kind: &str) -> Option<impl ExactSizeIterator<Item = &[u8]>> {
+        let ranges = self.fragments.get(node_kind)?;
+        Some(ranges.iter().cloned().map(|range| &self.code[range]))
+    }
+}
+
 #[derive(Debug, derive_more::Constructor)]
 pub struct GrammarContext {
     grammar: DerivationGrammar,
     ts_language: tree_sitter::Language,
-    derivation_fragments: HashMap<String, Vec<Vec<u8>>>,
+    derivation_fragments: DerivationFragments,
 }
 
 impl GrammarContext {
@@ -155,11 +171,12 @@ impl GrammarContext {
         self.grammar.language
     }
 
-    pub fn derivation_fragment(&self, node_kind: &str) -> impl Iterator<Item = &[u8]> {
-        let Some(fragments) = self.derivation_fragments.get(node_kind) else {
-            return Either::Left(std::iter::empty());
-        };
-        Either::Right(fragments.iter().map(|it| it.as_slice()))
+    pub fn derivation_fragment(&self, node_kind: &str) -> impl ExactSizeIterator<Item = &[u8]> {
+        if let Some(fragments) = self.derivation_fragments.get(node_kind) {
+            Either::Right(fragments)
+        } else {
+            Either::Left(std::iter::empty())
+        }
     }
 }
 

@@ -1,10 +1,9 @@
 //! APIs exposed from the [`tree_sitter_generate`](https://github.com/tree-sitter/tree-sitter/tree/master/cli/generate) project.
 
-use std::collections::HashSet;
-
 use crate::text_document::grammars::{
     CreationError, Derivation, DerivationGrammar, Symbol, Terminal,
 };
+use indexmap::IndexSet;
 use itertools::Itertools;
 
 use super::upstream::tree_sitter_generate::{
@@ -88,7 +87,7 @@ impl DerivationGrammar {
         syntax_grammar: &SyntaxGrammar,
         lexical_grammar: &LexicalGrammar,
         alias_map: &AliasMap,
-    ) -> Result<(String, HashSet<Derivation>), CreationError> {
+    ) -> Result<(String, IndexSet<Derivation>), CreationError> {
         let derivations = syntax_variable
             .productions
             .iter()

@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashSet};
 
 use grammars::tree::NodeIter;
 use libafl::{
@@ -11,10 +11,31 @@ use serde::{Deserialize, Serialize};
 
 pub mod grammars;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display, derive_more::FromStr)]
 pub enum Language {
     C,
     Rust,
+}
+
+impl Language {
+    pub fn file_extensions<'a>(&self) -> HashSet<&'a str> {
+        match self {
+            Self::C => HashSet::from(["c", "cc", "h"]),
+            Self::Rust => HashSet::from(["rs"]),
+        }
+    }
+
+    pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
+        let language = match self {
+            Self::C => tree_sitter_c::LANGUAGE,
+            Self::Rust => tree_sitter_rust::LANGUAGE,
+        };
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&language.into())
+            .expect("Fail to initialize parser");
+        parser
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

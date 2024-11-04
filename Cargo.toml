@@ -12,14 +12,19 @@ derive_more = { version = "1.0.0", features = [
     "display",
     "into_iterator",
     "constructor",
+    "from_str",
 ] }
+indexmap = { version = "2", features = ["serde"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = ["errors_backtrace"] }
 libafl_bolts = { version = "0.*" }
 nix = "0.29"
+rayon = "1"
 thiserror = "1"
 tracing = "0.1"
 tuple_list = "0.1"
+zstd = { version = "0.13", features = ["zstdmt"] }
+num_cpus = "1.16"
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
