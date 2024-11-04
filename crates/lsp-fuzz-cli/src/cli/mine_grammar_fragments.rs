@@ -1,17 +1,23 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs::File,
     io::BufWriter,
+    ops::Range,
     path::{Path, PathBuf},
 };
 
 use anyhow::Context;
 use itertools::Itertools;
 use lsp_fuzz::text_document::{
-    grammars::{fragment_extraction::extract_derivation_fragments, DerivationFragments},
+    grammars::{
+        fragment_extraction::{self, extract_derivation_fragments},
+        DerivationFragments,
+    },
     Language,
 };
 use rayon::prelude::*;
+use tracing::{info, warn};
 
 use super::GlobalOptions;
 
@@ -37,19 +43,9 @@ impl MineGrammarFragments {
 
         let extracted_fragements: Vec<_> = source_files
             .into_par_iter()
-            .map(|source_file_path| -> anyhow::Result<_> {
-                let file_content = std::fs::read(&source_file_path)
-                    .with_context(|| format!("Reading: {}", source_file_path.display()))?;
-                let mut parser = self.language.tree_sitter_parser();
-                let fragments = extract_derivation_fragments(&file_content, &mut parser)
-                    .with_context(|| {
-                        format!(
-                            "Extracting derivation fragments from {}",
-                            source_file_path.display()
-                        )
-                    })?;
-                Ok((file_content, fragments))
-            })
+            .inspect(|source_file_path| info!("Processing: {}", source_file_path.display()))
+            .map(|source_file| extract_fragmemts(&source_file, &self.language))
+            .filter_map(|it| it.transpose())
             .collect::<Result<_, _>>()?;
         let mut code = Vec::new();
         let mut fragments = HashMap::new();
@@ -107,4 +103,39 @@ fn write_output(
     let zstd_encoder = zstd_encoder.auto_finish();
     serde_cbor::to_writer(zstd_encoder, &result).context("Serializing derivation fragments")?;
     Ok(())
+}
+
+type ExtractedFragments<'a> = (Vec<u8>, HashMap<Cow<'a, str>, Vec<Range<usize>>>);
+
+fn extract_fragmemts<'a>(
+    source_file_path: &Path,
+    self_language: &Language,
+) -> anyhow::Result<Option<ExtractedFragments<'a>>> {
+    let file_content = std::fs::read(source_file_path)
+        .with_context(|| format!("Reading: {}", source_file_path.display()))?;
+    let mut parser = self_language.tree_sitter_parser();
+    match extract_derivation_fragments(&file_content, &mut parser) {
+        Ok(fragemnts) => Ok(Some((file_content, fragemnts))),
+        Err(fragment_extraction::Error::Utf8Parsing { .. }) => {
+            warn!(
+                file = % source_file_path.display(),
+                "Failed to parse file as UTF-8",
+            );
+            Ok(None)
+        }
+        Err(fragment_extraction::Error::DotGraphParsing(msg)) => {
+            warn!(
+                file = % source_file_path.display(),
+                "Failed to parse dot graph: {}",
+                msg,
+            );
+            Ok(None)
+        }
+        Err(e) => Err(e).with_context(|| {
+            format!(
+                "Extracting derivation fragments from {}",
+                source_file_path.display()
+            )
+        }),
+    }
 }

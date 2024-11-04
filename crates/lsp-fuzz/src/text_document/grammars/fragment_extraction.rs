@@ -188,7 +188,7 @@ pub enum Error {
         err: FromUtf8Error,
     },
 
-    #[error("Fail to parse the grnerated dot graph code: {_0}")]
+    #[error("Fail to parse the generated dot graph code: {_0}")]
     DotGraphParsing(String),
 
     #[error("Holy shit, the dot graph format mismatch: {_0}")]

@@ -34,12 +34,12 @@ struct GlobalOptions {
     random_seed: Option<u64>,
 
     #[clap(long)]
-    parallal_workers: Option<usize>,
+    parallel_workers: Option<usize>,
 }
 
 impl GlobalOptions {
     pub fn parallel_workers(&self) -> usize {
-        self.parallal_workers.unwrap_or_else(num_cpus::get)
+        self.parallel_workers.unwrap_or_else(num_cpus::get)
     }
 }
 
