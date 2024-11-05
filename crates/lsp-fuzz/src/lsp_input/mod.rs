@@ -73,40 +73,50 @@ impl LspInput {
                     .to_string_lossy()
                     .to_string(),
             }]),
+            capabilities: lsp_types::ClientCapabilities {
+                text_document: Some(lsp_types::TextDocumentClientCapabilities {
+                    publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
+                        ..Default::default()
+                    }),
+                    diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
             ..Default::default()
         });
-        let did_open_requests = self
-            .source_directory
-            .0
-            .iter()
-            .map(|(source_file, content)| {
-                let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
-                let FileSystemEntryInput::File(text_document) = content else {
-                    unreachable!("We created only files");
-                };
-                path.encode::<fluent_uri::encoding::encoder::Path>(
-                    workspace_dir
-                        .join(Path::new(source_file.as_str()))
-                        .to_string_lossy()
-                        .into_owned()
-                        .as_str(),
-                );
-                let uri = Uri::builder()
-                    .scheme(Scheme::new_or_panic("file"))
-                    .authority(Authority::EMPTY)
-                    .path(&path)
-                    .build()
-                    .unwrap();
-                let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
-                lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
-                    text_document: lsp_types::TextDocumentItem {
-                        uri,
-                        language_id: "c".to_string(),
-                        version: 1,
-                        text: text_document.to_string_lossy().into_owned(),
-                    },
-                })
-            });
+        let Some((file_name, FileSystemEntryInput::File(the_only_doc))) =
+            self.source_directory.0.iter().next()
+        else {
+            unreachable!("We created only files");
+        };
+        let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
+        path.encode::<fluent_uri::encoding::encoder::Path>(
+            workspace_dir
+                .join(Path::new(file_name.as_str()))
+                .to_string_lossy()
+                .into_owned()
+                .as_str(),
+        );
+        let uri = Uri::builder()
+            .scheme(Scheme::new_or_panic("file"))
+            .authority(Authority::EMPTY)
+            .path(&path)
+            .build()
+            .unwrap();
+        let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
+        let did_open_request = {
+            lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri,
+                    language_id: "c".to_string(),
+                    version: 1,
+                    text: the_only_doc.to_string_lossy().into_owned(),
+                },
+            })
+        };
         let mut bytes = Vec::new();
         for (id, request) in self
             .messages
@@ -114,7 +124,7 @@ impl LspInput {
             .iter()
             .cloned()
             .chain(once(init_request))
-            .chain(did_open_requests)
+            .chain(once(did_open_request))
             .enumerate()
         {
             bytes.extend_from_slice(&encapsulate_request_content(&request.as_json(id + 1)));

@@ -18,7 +18,7 @@ use libafl::{
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
-        IndexesLenTimeMinimizerScheduler, PowerQueueScheduler,
+        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
@@ -179,14 +179,13 @@ impl FuzzCommand {
 
         let mut tokens = Tokens::new();
 
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(
+        let weighted_scheduler = StdWeightedScheduler::with_schedule(
+            &mut state,
             &edges_observer,
-            PowerQueueScheduler::new(
-                &mut state,
-                &edges_observer,
-                PowerSchedule::new(self.power_schedule),
-            ),
+            Some(PowerSchedule::new(self.power_schedule)),
         );
+
+        let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler);
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);

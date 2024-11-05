@@ -1,4 +1,4 @@
-use std::{env::temp_dir, marker::PhantomData};
+use std::{env::temp_dir, marker::PhantomData, thread};
 
 use libafl::{
     events::{EventFirer, LogSeverity},
@@ -129,15 +129,21 @@ where
         _manager: &mut M,
     ) -> Result<(), libafl::Error> {
         let executions = *state.executions();
-        for exec_num in self.last_cleanup..executions {
-            let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{exec_num}"));
-            std::fs::remove_dir_all(workspace_dir)?;
+        const THRESHOLD: u64 = 1000;
+        if executions - self.last_cleanup > THRESHOLD {
+            let cleanup_range = self.last_cleanup..executions;
+            thread::spawn(move || {
+                info!(
+                    "Cleaning up workspace directories from {} to {}",
+                    cleanup_range.start, cleanup_range.end
+                );
+                for exec_num in cleanup_range {
+                    let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{exec_num}"));
+                    std::fs::remove_dir_all(workspace_dir).expect("The dir should exist");
+                }
+            });
+            self.last_cleanup = executions;
         }
-        info!(
-            "Cleaned up workspace directories from {} to {}",
-            self.last_cleanup, executions
-        );
-        self.last_cleanup = executions;
         Ok(())
     }
 }

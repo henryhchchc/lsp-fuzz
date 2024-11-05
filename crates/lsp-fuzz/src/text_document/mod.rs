@@ -73,18 +73,25 @@ impl FromIterator<(Language, grammars::GrammarContext)> for GrammarContextLookup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TextDocument {
     content: Vec<u8>,
+    #[serde(skip)]
+    parse_tree: Option<tree_sitter::Tree>,
     language: Language,
 }
 
 impl TextDocument {
     pub fn new(content: Vec<u8>, language: Language) -> Self {
-        Self { content, language }
+        Self {
+            content,
+            language,
+            parse_tree: None,
+        }
     }
 
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(&self.content)
     }
 }
+
 
 impl HasTargetBytes for TextDocument {
     fn target_bytes(&self) -> OwnedSlice<'_, u8> {

@@ -1,10 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, mem};
 
 use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, Named};
+use tree_sitter::{InputEdit, Point};
 
 use super::{grammars::tree::NodeIter, GrammarContextLookup, TextDocument};
 
@@ -32,6 +33,9 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
+        // let parse_tree = input
+        //     .parse_tree
+        //     .get_or_insert_with(|| grammar_ctx.parse_source_code(&input.content).unwrap());
         let parse_tree = grammar_ctx
             .parse_source_code(&input.content)
             .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
