@@ -6,10 +6,7 @@ use libafl::{
 };
 use libafl_bolts::{rands::Rand, Named};
 
-use super::{
-    grammars::{tree::NodeIter, DerivationError},
-    GrammarContextLookup, TextDocument,
-};
+use super::{grammars::tree::NodeIter, GrammarContextLookup, TextDocument};
 
 #[derive(Debug, derive_more::Constructor)]
 pub struct ReplaceSubTreeWithDerivation<'a> {
@@ -128,12 +125,92 @@ where
         let node_kind = selected_node.kind();
         let fragment = match grammar_ctx.generate_node(node_kind, state.rand_mut(), Some(5)) {
             Ok(fragments) => fragments,
-            Err(DerivationError::DepthLimitReached) => return Ok(MutationResult::Skipped),
-            Err(DerivationError::InvalidGrammar) => {
-                return Err(libafl::Error::illegal_state("Invalid grammar"))
-            }
+            _ => return Ok(MutationResult::Skipped),
+            // Err(DerivationError::DepthLimitReached) => return Ok(MutationResult::Skipped),
+            // Err(DerivationError::InvalidGrammar) => {
+            //     return Err(libafl::Error::illegal_state("Invalid grammar"))
+            // }
         };
         let _ = input.content.splice(selected_node.byte_range(), fragment);
+        Ok(MutationResult::Mutated)
+    }
+}
+
+#[derive(Debug, derive_more::Constructor)]
+pub struct ReplaceNodeWithGenerated<'a> {
+    grammar_lookup: &'a GrammarContextLookup,
+}
+
+impl Named for ReplaceNodeWithGenerated<'_> {
+    fn name(&self) -> &std::borrow::Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("ReplaceNodeWithGenerated");
+        &NAME
+    }
+}
+
+impl<'a, S> Mutator<TextDocument, S> for ReplaceNodeWithGenerated<'a>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut TextDocument,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let parse_tree = grammar_ctx
+            .parse_source_code(&input.content)
+            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let nodes = parse_tree.root_node().iter_depth_first();
+        let Some(selected_node) = state.rand_mut().choose(nodes) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let byte_range = selected_node.byte_range();
+        let node_kind = selected_node.kind();
+        let fragment = match grammar_ctx.generate_node(node_kind, state.rand_mut(), Some(5)) {
+            Ok(fragments) => fragments,
+            _ => return Ok(MutationResult::Skipped),
+        };
+        let _ = input.content.splice(byte_range, fragment);
+        Ok(MutationResult::Mutated)
+    }
+}
+
+#[derive(Debug, derive_more::Constructor)]
+pub struct DropRandomNode<'a> {
+    grammar_lookup: &'a GrammarContextLookup,
+}
+
+impl Named for DropRandomNode<'_> {
+    fn name(&self) -> &std::borrow::Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("DropRandomNode");
+        &NAME
+    }
+}
+
+impl<S> Mutator<TextDocument, S> for DropRandomNode<'_>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut TextDocument,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let parse_tree = grammar_ctx
+            .parse_source_code(&input.content)
+            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let nodes = parse_tree.root_node().iter_depth_first();
+        let Some(selected_node) = state.rand_mut().choose(nodes) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let byte_range = selected_node.byte_range();
+        let _removed = input.content.drain(byte_range);
         Ok(MutationResult::Mutated)
     }
 }

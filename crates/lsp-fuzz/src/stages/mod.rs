@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{env::temp_dir, marker::PhantomData};
 
 use libafl::{
     events::{EventFirer, LogSeverity},
@@ -6,12 +6,13 @@ use libafl::{
     inputs::UsesInput,
     observers::MapObserver,
     stages::Stage,
-    state::{State, UsesState},
+    state::{HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
     tuples::{Handle, Handled, MatchNameRef},
     Named,
 };
+use tracing::info;
 
 #[derive(Debug)]
 pub struct CoverageStage<O, S, M> {
@@ -80,5 +81,63 @@ where
             LogSeverity::Info,
             format!("Coverage: {coverage} of {total} covered ({cov_precent:.2}%)"),
         )
+    }
+}
+
+#[derive(Debug)]
+pub struct CleanupWorkspaceDirs<S> {
+    last_cleanup: u64,
+    _state: PhantomData<S>,
+}
+
+impl<S> CleanupWorkspaceDirs<S> {
+    pub fn new() -> Self {
+        Self {
+            last_cleanup: 0,
+            _state: PhantomData,
+        }
+    }
+}
+
+impl<S> UsesState for CleanupWorkspaceDirs<S>
+where
+    S: State + UsesInput,
+{
+    type State = S;
+}
+
+impl<E, M, Z, S> Stage<E, M, Z> for CleanupWorkspaceDirs<S>
+where
+    S: State + UsesInput + HasExecutions,
+    E: UsesState<State = S>,
+    M: UsesState<State = S>,
+    Z: UsesState<State = S>,
+{
+    fn should_restart(&mut self, _state: &mut Self::State) -> Result<bool, libafl::Error> {
+        Ok(true)
+    }
+
+    fn clear_progress(&mut self, _state: &mut Self::State) -> Result<(), libafl::Error> {
+        Ok(())
+    }
+
+    fn perform(
+        &mut self,
+        _fuzzer: &mut Z,
+        _executor: &mut E,
+        state: &mut Self::State,
+        _manager: &mut M,
+    ) -> Result<(), libafl::Error> {
+        let executions = *state.executions();
+        for exec_num in self.last_cleanup..executions {
+            let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{exec_num}"));
+            std::fs::remove_dir_all(workspace_dir)?;
+        }
+        info!(
+            "Cleaned up workspace directories from {} to {}",
+            self.last_cleanup, executions
+        );
+        self.last_cleanup = executions;
+        Ok(())
     }
 }

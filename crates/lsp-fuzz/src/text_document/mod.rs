@@ -107,7 +107,9 @@ where
     use mutations::*;
     tuple_list![
         ReplaceSubTreeWithDerivation::new(grammar_lookup),
-        RemoveErrorNode::new(&grammar_lookup),
-        GenerateMissingNode::new(&grammar_lookup),
+        RemoveErrorNode::new(grammar_lookup),
+        GenerateMissingNode::new(grammar_lookup),
+        ReplaceNodeWithGenerated::new(grammar_lookup),
+        DropRandomNode::new(grammar_lookup),
     ]
 }

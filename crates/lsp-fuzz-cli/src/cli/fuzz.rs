@@ -33,7 +33,7 @@ use libafl_bolts::{
 use lsp_fuzz::{
     execution::LspExecutor,
     lsp_input::{LspInpuGenerator, LspInput, LspInputMutator},
-    stages::CoverageStage,
+    stages::{CleanupWorkspaceDirs, CoverageStage},
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
         text_document_mutations, GrammarContextLookup, Language,
@@ -133,7 +133,7 @@ impl FuzzCommand {
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
-            unsafe { StdMapObserver::new("edges", shmem_buf) }
+            unsafe { StdMapObserver::differential("edges", shmem_buf) }
         };
 
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
@@ -233,7 +233,13 @@ impl FuzzCommand {
                 .context("Creating text document mutator")?;
         let mutator = LspInputMutator::new(text_document_mutator);
         let power_mutation_stage = StdPowerMutationalStage::new(mutator);
-        let mut stages = tuple_list!(calibration_stage, power_mutation_stage, coverage_stage);
+        let cleanup_workspace_stage = CleanupWorkspaceDirs::new();
+        let mut stages = tuple_list![
+            calibration_stage,
+            power_mutation_stage,
+            coverage_stage,
+            cleanup_workspace_stage
+        ];
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)

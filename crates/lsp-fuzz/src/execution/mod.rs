@@ -295,7 +295,6 @@ where
         _mgr: &mut EM,
         input: &Self::Input,
     ) -> Result<ExitKind, libafl::Error> {
-        *state.executions_mut() += 1;
         let mut exit_kind = ExitKind::Ok;
         let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
 
@@ -349,7 +348,8 @@ where
         if !libc::WIFSTOPPED(self.fork_server.status()) {
             self.fork_server.reset_child_pid();
         }
-        std::fs::remove_dir_all(&workspace_dir)?;
+        // std::fs::remove_dir_all(&workspace_dir)?;
+        *state.executions_mut() += 1;
         Ok(exit_kind)
     }
 }
