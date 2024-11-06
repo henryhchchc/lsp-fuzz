@@ -136,11 +136,6 @@ impl TextDocument {
         String::from_utf8_lossy(&self.content)
     }
 
-    pub fn reparse(&mut self, grammar_context: &GrammarContext) {
-        let mut parser = grammar_context.create_parser();
-        self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
-    }
-
     fn update_parse_tree(
         &mut self,
         input_edit: tree_sitter::InputEdit,
@@ -150,11 +145,11 @@ impl TextDocument {
         let old_tree = self
             .parse_tree
             .get_or_insert_with(|| parser.parse(&self.content, None).unwrap());
-        // It seems ok to use `edit` only.
         old_tree.edit(&input_edit);
-        // May be have a stage to reparse all the inputs in the corpus periodically.
-        // self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
+        let mut parser = grammar_context.create_parser();
+        self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
+    
 }
 impl GrammarBasedMutation for TextDocument {
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)

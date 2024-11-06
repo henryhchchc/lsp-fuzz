@@ -133,7 +133,7 @@ impl FuzzCommand {
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
-            unsafe { StdMapObserver::differential("edges", shmem_buf) }
+            unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
@@ -231,11 +231,11 @@ impl FuzzCommand {
             StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 6)
                 .context("Creating text document mutator")?;
         let mutator = LspInputMutator::new(text_document_mutator);
-        let power_mutation_stage = StdPowerMutationalStage::new(mutator);
+        let mutation_stage = StdPowerMutationalStage::new(mutator);
         let cleanup_workspace_stage = CleanupWorkspaceDirs::new();
         let mut stages = tuple_list![
             calibration_stage,
-            power_mutation_stage,
+            mutation_stage,
             coverage_stage,
             cleanup_workspace_stage
         ];
