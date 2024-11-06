@@ -111,15 +111,14 @@ pub trait GrammarBasedMutation {
             let byte_range = range.start_byte..range.end_byte;
             let _ = content.drain(byte_range);
 
-            let input_edit = InputEdit {
+            InputEdit {
                 start_byte: range.start_byte,
                 old_end_byte: range.end_byte,
                 new_end_byte: range.start_byte,
                 start_position: range.start_point,
                 old_end_position: range.end_point,
                 new_end_position: range.start_point,
-            };
-            input_edit
+            }
         });
     }
 }
@@ -137,6 +136,11 @@ impl TextDocument {
         String::from_utf8_lossy(&self.content)
     }
 
+    pub fn reparse(&mut self, grammar_context: &GrammarContext) {
+        let mut parser = grammar_context.create_parser();
+        self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
+    }
+
     fn update_parse_tree(
         &mut self,
         input_edit: tree_sitter::InputEdit,
@@ -146,8 +150,10 @@ impl TextDocument {
         let old_tree = self
             .parse_tree
             .get_or_insert_with(|| parser.parse(&self.content, None).unwrap());
+        // It seems ok to use `edit` only.
         old_tree.edit(&input_edit);
-        self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
+        // May be have a stage to reparse all the inputs in the corpus periodically.
+        // self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
 }
 impl GrammarBasedMutation for TextDocument {

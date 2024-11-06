@@ -7,7 +7,7 @@ use libafl::{
 };
 use libafl_bolts::{rands::Rand, Named};
 
-use super::{grammars::tree::NodeIter, GrammarBasedMutation, GrammarContextLookup};
+use super::{grammars::tree::TreeIter, GrammarBasedMutation, GrammarContextLookup};
 
 #[derive(Debug, derive_more::Constructor)]
 pub struct ReplaceSubTreeWithDerivation<'a> {
@@ -31,7 +31,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
-        let nodes = parse_tree.root_node().iter_depth_first();
+        let nodes = parse_tree.iter();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
@@ -67,7 +67,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
-        let nodes = parse_tree.root_node().iter_breadth_first();
+        let nodes = parse_tree.iter();
         let error_nodes = nodes.filter(|node| node.is_error());
         let Some(selected_node) = state.rand_mut().choose(error_nodes) else {
             return Ok(MutationResult::Skipped);
@@ -100,7 +100,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
-        let nodes = parse_tree.root_node().iter_breadth_first();
+        let nodes = parse_tree.iter();
         let missing_nodes: Vec<_> = nodes.filter(|node| node.is_missing()).collect();
         let Some(selected_node) = state.rand_mut().choose(&missing_nodes) else {
             return Ok(MutationResult::Skipped);
@@ -138,7 +138,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
-        let nodes = parse_tree.root_node().iter_depth_first();
+        let nodes = parse_tree.iter();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
@@ -175,7 +175,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
-        let nodes = parse_tree.root_node().iter_depth_first();
+        let nodes = parse_tree.iter();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
@@ -208,8 +208,7 @@ where
         };
         let parse_tree = input.parse_tree(grammar_ctx);
         let covered_areas = parse_tree
-            .root_node()
-            .iter_depth_first()
+            .iter()
             .filter(|it| it.child_count() > 0)
             .map(|it| it.range())
             .sorted_by_key(|it| it.start_byte)

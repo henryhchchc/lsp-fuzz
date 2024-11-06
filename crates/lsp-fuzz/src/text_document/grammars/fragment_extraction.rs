@@ -11,7 +11,7 @@ use std::{
 use dot_structures::{Attribute, Edge, EdgeTy, Graph, Id, Node, NodeId, Stmt, Vertex};
 use itertools::{Either, Itertools};
 
-use super::tree::NodeIter;
+use super::tree::TreeIter;
 
 /// Extracts derivation fragments from the given source code using the provided parser.
 ///
@@ -35,8 +35,7 @@ pub fn extract_derivation_fragments<'n>(
 ) -> Result<HashMap<Cow<'n, str>, Vec<Range<usize>>>, Error> {
     let tree = parser.parse(code, None).ok_or(Error::TreeSitterParsing)?;
     let (named, unnamed): (Vec<_>, Vec<_>) = tree
-        .root_node()
-        .iter_depth_first()
+        .iter()
         // .filter(|it| !it.is_error())
         .partition(|it| it.is_named());
     let blacklist: HashSet<_> = unnamed.into_iter().map(|it| it.kind()).collect();
