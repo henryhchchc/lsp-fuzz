@@ -205,8 +205,8 @@ pub fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
     for &byte in fragment.iter().rev() {
         if byte == LINE_SEP {
             rows += 1;
-            cols = 0;
-        } else if rows == 0 {
+        }
+        if rows == 0 {
             cols += 1;
         }
     }
@@ -251,6 +251,15 @@ mod tests {
         let (rows, cols) = measure_fragment::<b'\n'>(fragment);
         assert_eq!(rows, 0);
         assert_eq!(cols, 0);
+    }
+
+    #[test]
+    fn test_measure_fragment_three_lines() {
+        // Test case 5: Three lines
+        let fragment = b"hello\nworld\nrust";
+        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        assert_eq!(rows, 2);
+        assert_eq!(cols, 4);
     }
 }
 
