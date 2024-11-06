@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    ops::Range,
 };
 
 use grammars::GrammarContext;
@@ -80,6 +81,49 @@ pub struct TextDocument {
     language: Language,
 }
 
+pub trait GrammarBasedMutation {
+    fn language(&self) -> Language;
+    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
+    fn fragment(&self, range: Range<usize>) -> &[u8];
+    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
+    where
+        E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit;
+
+    fn splice(
+        &mut self,
+        range: tree_sitter::Range,
+        new_content: Vec<u8>,
+        grammar_context: &GrammarContext,
+    ) {
+        self.edit(grammar_context, |content| {
+            let byte_range = range.start_byte..range.end_byte;
+            let replacement_range = range.start_byte..(range.start_byte + new_content.len());
+            // Update the content
+            let _ = content.splice(byte_range, new_content);
+            let replacement = &content[replacement_range];
+            let input_edit = edit_for_node_replacement(range, replacement);
+            input_edit
+        });
+    }
+
+    fn drain(&mut self, range: tree_sitter::Range, grammar_context: &GrammarContext) {
+        self.edit(grammar_context, |content| {
+            let byte_range = range.start_byte..range.end_byte;
+            let _ = content.drain(byte_range);
+
+            let input_edit = InputEdit {
+                start_byte: range.start_byte,
+                old_end_byte: range.end_byte,
+                new_end_byte: range.start_byte,
+                start_position: range.start_point,
+                old_end_position: range.end_point,
+                new_end_position: range.start_point,
+            };
+            input_edit
+        });
+    }
+}
+
 impl TextDocument {
     pub fn new(content: Vec<u8>, language: Language) -> Self {
         Self {
@@ -93,57 +137,6 @@ impl TextDocument {
         String::from_utf8_lossy(&self.content)
     }
 
-    pub fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
-        self.parse_tree.get_or_insert_with(|| {
-            let mut parser = grammar_context.create_parser();
-            parser.parse(&self.content, None).unwrap()
-        })
-    }
-
-    pub fn splice(
-        &mut self,
-        range: tree_sitter::Range,
-        new_content: Vec<u8>,
-        grammar_context: &GrammarContext,
-    ) {
-        debug_assert!(
-            range.end_byte <= self.content.len(),
-            "The range is out of bound"
-        );
-
-        let byte_range = range.start_byte..range.end_byte;
-        let replacement_range = range.start_byte..(range.start_byte + new_content.len());
-        // Update the content
-        let _ = self.content.splice(byte_range, new_content);
-
-        // Update the parse tree
-        let replacement = &self.content[replacement_range];
-        let input_edit = edit_for_node_replacement(range, replacement);
-        self.update_parse_tree(input_edit, grammar_context)
-    }
-
-    pub fn drain(&mut self, range: tree_sitter::Range, grammar_context: &GrammarContext) {
-        debug_assert!(
-            range.end_byte <= self.content.len(),
-            "The range is out of bound"
-        );
-
-        let byte_range = range.start_byte..range.end_byte;
-        // Update the content
-        let _ = self.content.drain(byte_range);
-
-        // Update the parse tree
-        let input_edit = InputEdit {
-            start_byte: range.start_byte,
-            old_end_byte: range.end_byte,
-            new_end_byte: range.start_byte,
-            start_position: range.start_point,
-            old_end_position: range.end_point,
-            new_end_position: range.start_point,
-        };
-        self.update_parse_tree(input_edit, grammar_context)
-    }
-
     fn update_parse_tree(
         &mut self,
         input_edit: tree_sitter::InputEdit,
@@ -155,6 +148,30 @@ impl TextDocument {
             .get_or_insert_with(|| parser.parse(&self.content, None).unwrap());
         old_tree.edit(&input_edit);
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
+    }
+}
+impl GrammarBasedMutation for TextDocument {
+    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
+    where
+        E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit,
+    {
+        let input_edit = edit(&mut self.content);
+        self.update_parse_tree(input_edit, grammar_context);
+    }
+
+    fn language(&self) -> Language {
+        self.language
+    }
+
+    fn fragment(&self, range: Range<usize>) -> &[u8] {
+        &self.content[range]
+    }
+
+    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
+        self.parse_tree.get_or_insert_with(|| {
+            let mut parser = grammar_context.create_parser();
+            parser.parse(&self.content, None).unwrap()
+        })
     }
 }
 
@@ -182,7 +199,7 @@ fn edit_for_node_replacement<'a>(
     }
 }
 
-fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
+pub fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
     let mut rows = 0;
     let mut cols = 0;
     for &byte in fragment.iter().rev() {
@@ -262,5 +279,6 @@ where
         GenerateMissingNode::new(grammar_lookup),
         ReplaceNodeWithGenerated::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
+        DropUncoveredArea::new(grammar_lookup),
     ]
 }

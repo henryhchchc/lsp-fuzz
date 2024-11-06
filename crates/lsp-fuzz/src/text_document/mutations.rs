@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 
+use itertools::Itertools;
 use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, Named};
 
-use super::{grammars::tree::NodeIter, GrammarContextLookup, TextDocument};
+use super::{grammars::tree::NodeIter, GrammarBasedMutation, GrammarContextLookup};
 
 #[derive(Debug, derive_more::Constructor)]
 pub struct ReplaceSubTreeWithDerivation<'a> {
@@ -20,16 +21,13 @@ impl Named for ReplaceSubTreeWithDerivation<'_> {
     }
 }
 
-impl<S> Mutator<TextDocument, S> for ReplaceSubTreeWithDerivation<'_>
+impl<S, I> Mutator<I, S> for ReplaceSubTreeWithDerivation<'_>
 where
     S: HasRand,
+    I: GrammarBasedMutation,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut TextDocument,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
@@ -59,16 +57,13 @@ impl Named for RemoveErrorNode<'_> {
     }
 }
 
-impl<S> Mutator<TextDocument, S> for RemoveErrorNode<'_>
+impl<S, I> Mutator<I, S> for RemoveErrorNode<'_>
 where
     S: HasRand,
+    I: GrammarBasedMutation,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut TextDocument,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
@@ -78,7 +73,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let node_range = selected_node.range();
-        input.splice(node_range, Vec::new(), grammar_ctx);
+        input.drain(node_range, grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -95,16 +90,13 @@ impl Named for GenerateMissingNode<'_> {
     }
 }
 
-impl<S> Mutator<TextDocument, S> for GenerateMissingNode<'_>
+impl<I, S> Mutator<I, S> for GenerateMissingNode<'_>
 where
     S: HasRand,
+    I: GrammarBasedMutation,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut TextDocument,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
@@ -117,10 +109,6 @@ where
         let fragment = match grammar_ctx.generate_node(node_kind, state.rand_mut(), Some(5)) {
             Ok(fragments) => fragments,
             _ => return Ok(MutationResult::Skipped),
-            // Err(DerivationError::DepthLimitReached) => return Ok(MutationResult::Skipped),
-            // Err(DerivationError::InvalidGrammar) => {
-            //     return Err(libafl::Error::illegal_state("Invalid grammar"))
-            // }
         };
         let node_range = selected_node.range();
         input.splice(node_range, fragment, grammar_ctx);
@@ -140,16 +128,13 @@ impl Named for ReplaceNodeWithGenerated<'_> {
     }
 }
 
-impl<'a, S> Mutator<TextDocument, S> for ReplaceNodeWithGenerated<'a>
+impl<'a, I, S> Mutator<I, S> for ReplaceNodeWithGenerated<'a>
 where
     S: HasRand,
+    I: GrammarBasedMutation,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut TextDocument,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
@@ -180,16 +165,13 @@ impl Named for DropRandomNode<'_> {
     }
 }
 
-impl<S> Mutator<TextDocument, S> for DropRandomNode<'_>
+impl<S, I> Mutator<I, S> for DropRandomNode<'_>
 where
     S: HasRand,
+    I: GrammarBasedMutation,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut TextDocument,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = input.parse_tree(grammar_ctx);
@@ -198,7 +180,59 @@ where
             return Ok(MutationResult::Skipped);
         };
         let node_range = selected_node.range();
-        input.splice(node_range, Vec::new(), grammar_ctx);
+        input.drain(node_range, grammar_ctx);
+        Ok(MutationResult::Mutated)
+    }
+}
+
+#[derive(Debug, derive_more::Constructor)]
+pub struct DropUncoveredArea<'a> {
+    grammar_lookup: &'a GrammarContextLookup,
+}
+
+impl Named for DropUncoveredArea<'_> {
+    fn name(&self) -> &std::borrow::Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("DropUncoveredArea");
+        &NAME
+    }
+}
+
+impl<S, I> Mutator<I, S> for DropUncoveredArea<'_>
+where
+    S: HasRand,
+    I: GrammarBasedMutation,
+{
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let parse_tree = input.parse_tree(grammar_ctx);
+        let covered_areas = parse_tree
+            .root_node()
+            .iter_depth_first()
+            .filter(|it| it.child_count() > 0)
+            .map(|it| it.range())
+            .sorted_by_key(|it| it.start_byte)
+            .tuple_windows()
+            .filter(|(prev, curr)| prev.end_byte < curr.start_byte);
+
+        let Some((prev, curr)) = state.rand_mut().choose(covered_areas) else {
+            return Ok(MutationResult::Skipped);
+        };
+
+        input.edit(grammar_ctx, |content| {
+            let remove_range = prev.end_byte..curr.start_byte;
+            let _ = content.drain(remove_range);
+            tree_sitter::InputEdit {
+                start_byte: prev.end_byte,
+                old_end_byte: curr.start_byte,
+                new_end_byte: prev.end_byte,
+                start_position: prev.end_point,
+                old_end_position: curr.start_point,
+                new_end_position: prev.end_point,
+            }
+        });
+
         Ok(MutationResult::Mutated)
     }
 }

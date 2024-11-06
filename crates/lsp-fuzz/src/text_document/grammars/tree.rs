@@ -25,14 +25,14 @@ impl NodeIter for tree_sitter::Node<'_> {
     where
         Self: 't,
     {
-        TreeIterator::start_from(self)
+        TreeIterator::depth_first_from(self)
     }
 
     fn iter_breadth_first<'t>(self) -> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL>
     where
         Self: 't,
     {
-        TreeIterator::start_from(self)
+        TreeIterator::breadth_first_from(self)
     }
 }
 
@@ -44,7 +44,7 @@ pub struct TreeIterator<'t, const TRV: TraversalType> {
 }
 
 impl<'t, const TRV: TraversalType> TreeIterator<'t, TRV> {
-    pub fn start_from(root: tree_sitter::Node<'t>) -> Self {
+    pub fn new(root: tree_sitter::Node<'t>) -> Self {
         let mut queue = VecDeque::new();
         let total_nodes = root.descendant_count();
         queue.push_back(root);
@@ -53,6 +53,18 @@ impl<'t, const TRV: TraversalType> TreeIterator<'t, TRV> {
             visited_counter: 0,
             total_nodes,
         }
+    }
+}
+
+impl<'t> TreeIterator<'t, BREADTH_FIRST_TRAVERSAL> {
+    pub fn breadth_first_from(root: tree_sitter::Node<'t>) -> Self {
+        Self::new(root)
+    }
+}
+
+impl<'t> TreeIterator<'t, DEPTH_FIRST_TRAVERSAL> {
+    pub fn depth_first_from(root: tree_sitter::Node<'t>) -> Self {
+        Self::new(root)
     }
 }
 

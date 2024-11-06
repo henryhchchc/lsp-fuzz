@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::File,
     io::BufWriter,
     ops::Range,
@@ -41,15 +41,17 @@ impl MineGrammarFragments {
     pub(super) fn run(self, global_options: GlobalOptions) -> anyhow::Result<()> {
         let source_files = self.find_source_files()?;
 
+        info!("Found {} source files", source_files.len());
         let extracted_fragements: Vec<_> = source_files
             .into_par_iter()
-            .inspect(|source_file_path| info!("Processing: {}", source_file_path.display()))
+            .inspect(|source_file_path| info!("Parsing: {}", source_file_path.display()))
             .map(|source_file| extract_fragmemts(&source_file, &self.language))
             .filter_map(|it| it.transpose())
             .collect::<Result<_, _>>()?;
         let mut code = Vec::new();
         let mut fragments = HashMap::new();
 
+        info!("Merging fragments");
         for (file_content, file_fragments) in extracted_fragements {
             let offset = code.len();
             code.extend(file_content);
@@ -59,11 +61,18 @@ impl MineGrammarFragments {
                     .map(|range| (range.start + offset)..(range.end + offset));
                 fragments
                     .entry(node_kind)
-                    .or_insert_with(HashSet::new)
+                    .or_insert_with(Vec::new)
                     .extend(ranges);
             }
         }
 
+        info!("Deduplicating fragments");
+        fragments.values_mut().par_bridge().for_each(|ranges| {
+            ranges.sort_by_key(|it| &code[it.clone()]);
+            ranges.dedup_by_key(|it| &code[it.clone()]);
+        });
+
+        info!("Serializing fragments");
         let result = DerivationFragments::new(code, fragments);
         write_output(&self.output, result, global_options.parallel_workers())
             .context("Writing output")?;

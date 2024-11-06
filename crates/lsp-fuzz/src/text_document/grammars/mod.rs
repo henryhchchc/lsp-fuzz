@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::{Display, Formatter},
     ops::Range,
 };
@@ -140,7 +140,7 @@ pub enum CreationError {
 #[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct DerivationFragments {
     code: Vec<u8>,
-    fragments: HashMap<Cow<'static, str>, HashSet<Range<usize>>>,
+    fragments: HashMap<Cow<'static, str>, Vec<Range<usize>>>,
 }
 
 impl DerivationFragments {
