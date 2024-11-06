@@ -20,7 +20,7 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StdPowerMutationalStage},
+    stages::{CalibrationStage, StdMutationalStage},
     state::{HasCorpus, StdState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -147,11 +147,7 @@ impl FuzzCommand {
         // New maximization map feedback linked to the edges observer and the feedback state
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let mut feedback = feedback_or!(
-            map_feedback,
-            // Time feedback, this one does not need a feedback state
-            TimeFeedback::new(&time_observer)
-        );
+        let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
 
         // A feedback to choose if an input is a solution or not
         // We want to do the same crash deduplication that AFL does
@@ -231,8 +227,9 @@ impl FuzzCommand {
             StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 6)
                 .context("Creating text document mutator")?;
         let mutator = LspInputMutator::new(text_document_mutator);
-        let mutation_stage = StdPowerMutationalStage::new(mutator);
+        let mutation_stage = StdMutationalStage::new(mutator);
         let cleanup_workspace_stage = CleanupWorkspaceDirs::new();
+
         let mut stages = tuple_list![
             calibration_stage,
             mutation_stage,

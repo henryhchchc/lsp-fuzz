@@ -5,7 +5,12 @@ use std::{
 };
 
 use grammars::GrammarContext;
-use libafl::{inputs::HasTargetBytes, mutators::MutatorsTuple, state::HasRand, SerdeAny};
+use libafl::{
+    inputs::HasTargetBytes,
+    mutators::MutatorsTuple,
+    state::{HasMaxSize, HasRand},
+    SerdeAny,
+};
 use libafl_bolts::{ownedref::OwnedSlice, tuples::NamedTuple, HasLen};
 use serde::{Deserialize, Serialize};
 use tree_sitter::InputEdit;
@@ -149,7 +154,6 @@ impl TextDocument {
         let mut parser = grammar_context.create_parser();
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
-    
 }
 impl GrammarBasedMutation for TextDocument {
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
@@ -280,7 +284,7 @@ pub const fn text_document_mutations<S>(
     grammar_lookup: &GrammarContextLookup,
 ) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
 where
-    S: HasRand,
+    S: HasRand + HasMaxSize,
 {
     use mutations::*;
     tuple_list![

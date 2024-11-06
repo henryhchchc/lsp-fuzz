@@ -5,9 +5,11 @@ use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
-use libafl_bolts::{rands::Rand, Named};
+use libafl_bolts::{rands::Rand, HasLen, Named};
 
 use super::{grammars::tree::TreeIter, GrammarBasedMutation, GrammarContextLookup};
+
+const MAX_DOCUMENT_SIZE: usize = 10_000;
 
 #[derive(Debug, derive_more::Constructor)]
 pub struct ReplaceSubTreeWithDerivation<'a> {
@@ -24,12 +26,13 @@ impl Named for ReplaceSubTreeWithDerivation<'_> {
 impl<S, I> Mutator<I, S> for ReplaceSubTreeWithDerivation<'_>
 where
     S: HasRand,
-    I: GrammarBasedMutation,
+    I: GrammarBasedMutation + HasLen,
 {
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
+        let input_len = input.len();
         let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.iter();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
@@ -39,6 +42,10 @@ where
         let Some(selected_fragment) = state.rand_mut().choose(fragments) else {
             return Ok(MutationResult::Skipped);
         };
+        let node_len = selected_node.end_byte() - selected_node.start_byte();
+        if input_len - node_len + selected_fragment.len() > MAX_DOCUMENT_SIZE {
+            return Ok(MutationResult::Skipped);
+        }
         let node_range = selected_node.range();
         input.splice(node_range, selected_fragment.to_vec(), grammar_ctx);
         Ok(MutationResult::Mutated)
@@ -93,12 +100,13 @@ impl Named for GenerateMissingNode<'_> {
 impl<I, S> Mutator<I, S> for GenerateMissingNode<'_>
 where
     S: HasRand,
-    I: GrammarBasedMutation,
+    I: GrammarBasedMutation + HasLen,
 {
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
+        let input_len = input.len();
         let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.iter();
         let missing_nodes: Vec<_> = nodes.filter(|node| node.is_missing()).collect();
@@ -110,6 +118,10 @@ where
             Ok(fragments) => fragments,
             _ => return Ok(MutationResult::Skipped),
         };
+        let node_len = selected_node.end_byte() - selected_node.start_byte();
+        if input_len - node_len + fragment.len() > MAX_DOCUMENT_SIZE {
+            return Ok(MutationResult::Skipped);
+        }
         let node_range = selected_node.range();
         input.splice(node_range, fragment, grammar_ctx);
         Ok(MutationResult::Mutated)
@@ -131,12 +143,13 @@ impl Named for ReplaceNodeWithGenerated<'_> {
 impl<'a, I, S> Mutator<I, S> for ReplaceNodeWithGenerated<'a>
 where
     S: HasRand,
-    I: GrammarBasedMutation,
+    I: GrammarBasedMutation + HasLen,
 {
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
             return Ok(MutationResult::Skipped);
         };
+        let input_len = input.len();
         let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.iter();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
@@ -147,6 +160,10 @@ where
             Ok(fragments) => fragments,
             _ => return Ok(MutationResult::Skipped),
         };
+        let node_len = selected_node.end_byte() - selected_node.start_byte();
+        if input_len - node_len + fragment.len() > MAX_DOCUMENT_SIZE {
+            return Ok(MutationResult::Skipped);
+        }
         let node_range = selected_node.range();
         input.splice(node_range, fragment, grammar_ctx);
         Ok(MutationResult::Mutated)
