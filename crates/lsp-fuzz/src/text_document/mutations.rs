@@ -1,11 +1,10 @@
-use std::{borrow::Cow, mem};
+use std::borrow::Cow;
 
 use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, Named};
-use tree_sitter::{InputEdit, Point};
 
 use super::{grammars::tree::NodeIter, GrammarContextLookup, TextDocument};
 
@@ -33,25 +32,17 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
-        // let parse_tree = input
-        //     .parse_tree
-        //     .get_or_insert_with(|| grammar_ctx.parse_source_code(&input.content).unwrap());
-        let parse_tree = grammar_ctx
-            .parse_source_code(&input.content)
-            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.root_node().iter_depth_first();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let byte_range = selected_node.byte_range();
-        let node_kind = selected_node.kind();
-        let fragments = grammar_ctx.derivation_fragment(node_kind);
+        let fragments = grammar_ctx.derivation_fragment(selected_node.kind());
         let Some(selected_fragment) = state.rand_mut().choose(fragments) else {
             return Ok(MutationResult::Skipped);
         };
-        let _ = input
-            .content
-            .splice(byte_range, selected_fragment.iter().copied());
+        let node_range = selected_node.range();
+        input.splice(node_range, selected_fragment.to_vec(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -80,16 +71,14 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = grammar_ctx
-            .parse_source_code(&input.content)
-            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.root_node().iter_breadth_first();
-        let error_nodes: Vec<_> = nodes.filter(|node| node.is_error()).collect();
-        let Some(selected_node) = state.rand_mut().choose(&error_nodes) else {
+        let error_nodes = nodes.filter(|node| node.is_error());
+        let Some(selected_node) = state.rand_mut().choose(error_nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let byte_range = selected_node.byte_range();
-        let _removed = input.content.drain(byte_range);
+        let node_range = selected_node.range();
+        input.splice(node_range, Vec::new(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -118,9 +107,7 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = grammar_ctx
-            .parse_source_code(&input.content)
-            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.root_node().iter_breadth_first();
         let missing_nodes: Vec<_> = nodes.filter(|node| node.is_missing()).collect();
         let Some(selected_node) = state.rand_mut().choose(&missing_nodes) else {
@@ -135,7 +122,8 @@ where
             //     return Err(libafl::Error::illegal_state("Invalid grammar"))
             // }
         };
-        let _ = input.content.splice(selected_node.byte_range(), fragment);
+        let node_range = selected_node.range();
+        input.splice(node_range, fragment, grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -164,20 +152,18 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = grammar_ctx
-            .parse_source_code(&input.content)
-            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.root_node().iter_depth_first();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let byte_range = selected_node.byte_range();
         let node_kind = selected_node.kind();
         let fragment = match grammar_ctx.generate_node(node_kind, state.rand_mut(), Some(5)) {
             Ok(fragments) => fragments,
             _ => return Ok(MutationResult::Skipped),
         };
-        let _ = input.content.splice(byte_range, fragment);
+        let node_range = selected_node.range();
+        input.splice(node_range, fragment, grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -206,15 +192,13 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&input.language) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = grammar_ctx
-            .parse_source_code(&input.content)
-            .map_err(|_| libafl::Error::unknown("Fail to parse input"))?;
+        let parse_tree = input.parse_tree(grammar_ctx);
         let nodes = parse_tree.root_node().iter_depth_first();
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let byte_range = selected_node.byte_range();
-        let _removed = input.content.drain(byte_range);
+        let node_range = selected_node.range();
+        input.splice(node_range, Vec::new(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }

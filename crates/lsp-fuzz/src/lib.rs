@@ -11,3 +11,5 @@ pub mod utf8;
 pub mod file_system;
 pub mod lsp;
 pub mod text_document;
+
+pub(crate) mod utils;

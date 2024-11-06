@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{
     borrow::Cow,
-    cell::OnceCell,
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter},
     ops::Range,
@@ -158,34 +157,25 @@ pub struct GrammarContext {
 }
 
 impl GrammarContext {
+    pub fn create_parser(&self) -> tree_sitter::Parser {
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&self.grammar.language.ts_language())
+            .expect("Invalid tree-sitter language");
+        parser
+    }
+
     pub fn parse_source_code(
         &self,
         source_code: impl AsRef<[u8]>,
     ) -> Result<tree_sitter::Tree, tree_sitter::LanguageError> {
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&self.grammar.language.ts_language())?;
+        let mut parser = self.create_parser();
         let tree = parser.parse(source_code, None).expect("Garenteed by API");
         Ok(tree)
     }
 
     pub fn language(&self) -> Language {
         self.grammar.language
-    }
-
-    pub fn update_parse_tree<'a>(
-        &self,
-        buffer: &'a [u8],
-        tree: &'a mut tree_sitter::Tree,
-        node: tree_sitter::Node<'a>,
-        replacement: &[u8],
-    ) {
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&self.grammar.language.ts_language())
-            .unwrap();
-        let input_edit = edit_for_node_replacement(node, replacement);
-        tree.edit(&input_edit);
-        *tree = parser.parse(buffer, Some(tree)).unwrap();
     }
 
     pub fn derivation_fragment(&self, node_kind: &str) -> impl ExactSizeIterator<Item = &[u8]> {
@@ -264,87 +254,9 @@ pub enum DerivationError {
     InvalidGrammar,
 }
 
-fn edit_for_node_replacement<'a>(
-    node: tree_sitter::Node<'a>,
-    replacement: &[u8],
-) -> tree_sitter::InputEdit {
-    let start_byte = node.start_byte();
-    let old_end_byte = node.end_byte();
-    let start_position = node.start_position();
-    let old_end_position = node.end_position();
-    let (delta_rows, delta_cols) = measure_fragment::<b'\n'>(replacement);
-    let new_end_position = tree_sitter::Point {
-        row: old_end_position.row + delta_rows,
-        column: if delta_rows == 0 {
-            old_end_position.column + delta_cols
-        } else {
-            delta_cols
-        },
-    };
-    let new_end_byte = start_byte + replacement.len();
-    tree_sitter::InputEdit {
-        start_byte,
-        old_end_byte,
-        new_end_byte,
-        start_position,
-        old_end_position,
-        new_end_position,
-    }
-}
-
-fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
-    let mut rows = 0;
-    let mut cols = 0;
-    for &byte in fragment.iter().rev() {
-        if byte == LINE_SEP {
-            rows += 1;
-            cols = 0;
-        } else if rows == 0 {
-            cols += 1;
-        }
-    }
-    (rows, cols)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_measure_fragment_single_line() {
-        // Test case 1: Single line, no separators
-        let fragment = b"hello";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
-        assert_eq!(rows, 0);
-        assert_eq!(cols, 5);
-    }
-
-    #[test]
-    fn test_measure_fragment_two_lines() {
-        // Test case 2: Two lines
-        let fragment = b"hello\nworld";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
-        assert_eq!(rows, 1);
-        assert_eq!(cols, 5);
-    }
-
-    #[test]
-    fn test_measure_fragment_ends_with_separator() {
-        // Test case 3: Ends with separator
-        let fragment = b"hello\nworld\n";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
-        assert_eq!(rows, 2);
-        assert_eq!(cols, 0);
-    }
-
-    #[test]
-    fn test_measure_fragment_empty_fragment() {
-        // Test case 4: Empty fragment
-        let fragment = b"";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
-        assert_eq!(rows, 0);
-        assert_eq!(cols, 0);
-    }
 
     #[test]
     fn load_derivation_grammar_c() {
