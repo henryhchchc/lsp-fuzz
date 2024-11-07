@@ -13,7 +13,7 @@ use libafl::{
     feedback_and_fast, feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     generators::Generator,
-    monitors::SimpleMonitor,
+    monitors::tui::TuiMonitor,
     mutators::{StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
@@ -210,7 +210,10 @@ impl FuzzCommand {
         .context("Creating executor")?;
 
         let mut event_manager = {
-            let monitor = SimpleMonitor::new(|s| info!("{s}"));
+            let monitor = TuiMonitor::builder()
+                .title("LSP-Fuzz")
+                .enhanced_graphics(true)
+                .build();
             SimpleEventManager::new(monitor)
         };
 
@@ -262,7 +265,7 @@ impl FuzzCommand {
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut event_manager)
-            .context("In fuzzloop")
+            .context("In fuzz loop")
     }
 
     fn create_grammar_context(&self) -> Result<GrammarContextLookup, anyhow::Error> {

@@ -1,24 +1,24 @@
 use std::{env::temp_dir, marker::PhantomData, thread};
 
 use libafl::{
+    corpus::Corpus,
     events::{EventFirer, LogSeverity},
     executors::HasObservers,
     inputs::UsesInput,
     observers::MapObserver,
     stages::Stage,
-    state::{HasExecutions, State, UsesState},
+    state::{HasCorpus, HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
     tuples::{Handle, Handled, MatchNameRef},
     Named,
 };
-use tracing::info;
 
 #[derive(Debug)]
 pub struct CoverageStage<O, S, M> {
     edge_observer_handle: Handle<O>,
-    _state: PhantomData<S>,
-    _map_observer: PhantomData<M>,
+    last_corpus_count: usize,
+    _phantom: PhantomData<(S, M)>,
 }
 
 impl<O, S, I, M> UsesState for CoverageStage<O, S, M>
@@ -36,15 +36,15 @@ impl<O, S, M> CoverageStage<O, S, M> {
     {
         Self {
             edge_observer_handle: edge_observer.handle(),
-            _state: PhantomData,
-            _map_observer: PhantomData,
+            last_corpus_count: 0,
+            _phantom: PhantomData,
         }
     }
 }
 
 impl<E, EM, Z, S, M, O> Stage<E, EM, Z> for CoverageStage<O, S, M>
 where
-    S: State,
+    S: State + HasCorpus,
     Self: UsesState<State = S>,
     E: UsesState<State = S> + HasObservers,
     <E as HasObservers>::Observers: MatchNameRef,
@@ -53,8 +53,8 @@ where
     M: MapObserver,
     O: AsRef<M> + Named,
 {
-    fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
-        Ok(true)
+    fn should_restart(&mut self, state: &mut S) -> Result<bool, libafl::Error> {
+        Ok(self.last_corpus_count < state.corpus().count())
     }
 
     fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
@@ -68,6 +68,7 @@ where
         state: &mut S,
         manager: &mut EM,
     ) -> Result<(), libafl::Error> {
+        self.last_corpus_count = state.corpus().count();
         let observers = executor.observers();
         let edge_observer = observers
             .get(&self.edge_observer_handle)
@@ -110,7 +111,7 @@ impl<E, M, Z, S> Stage<E, M, Z> for CleanupWorkspaceDirs<S>
 where
     S: State + UsesInput + HasExecutions,
     E: UsesState<State = S>,
-    M: UsesState<State = S>,
+    M: EventFirer + UsesState<State = S>,
     Z: UsesState<State = S>,
 {
     fn should_restart(&mut self, _state: &mut Self::State) -> Result<bool, libafl::Error> {
@@ -126,17 +127,21 @@ where
         _fuzzer: &mut Z,
         _executor: &mut E,
         state: &mut Self::State,
-        _manager: &mut M,
+        manager: &mut M,
     ) -> Result<(), libafl::Error> {
         let executions = *state.executions();
         const THRESHOLD: u64 = 1000;
         if executions - self.last_cleanup > THRESHOLD {
             let cleanup_range = self.last_cleanup..executions;
-            thread::spawn(move || {
-                info!(
+            manager.log(
+                state,
+                LogSeverity::Info,
+                format!(
                     "Cleaning up workspace directories from {} to {}",
                     cleanup_range.start, cleanup_range.end
-                );
+                ),
+            )?;
+            thread::spawn(move || {
                 for exec_num in cleanup_range {
                     let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{exec_num}"));
                     std::fs::remove_dir_all(workspace_dir).expect("The dir should exist");
