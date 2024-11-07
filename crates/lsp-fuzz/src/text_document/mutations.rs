@@ -9,7 +9,7 @@ use libafl_bolts::{rands::Rand, HasLen, Named};
 
 use super::{grammars::tree::TreeIter, GrammarBasedMutation, GrammarContextLookup};
 
-const MAX_DOCUMENT_SIZE: usize = 100_000;
+const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
 
 #[derive(Debug, derive_more::Constructor)]
 pub struct ReplaceSubTreeWithDerivation<'a> {
