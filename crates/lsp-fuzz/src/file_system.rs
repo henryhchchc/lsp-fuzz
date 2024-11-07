@@ -1,15 +1,14 @@
-use std::collections::HashMap;
-
 use libafl::{corpus::CorpusId, inputs::Input};
 use libafl_bolts::HasLen;
+use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
 use crate::utf8::Utf8Input;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FileSystemEntryInput<F> {
     File(F),
-    Directory(HashMap<Utf8Input, FileSystemEntryInput<F>>),
+    Directory(OrderMap<Utf8Input, FileSystemEntryInput<F>>),
 }
 
 impl<S: Input> Input for FileSystemEntryInput<S> {

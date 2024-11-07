@@ -64,7 +64,7 @@ macro_rules! lsp_requests {
 lsp_requests! {
 
     /// A Language Server Protocol request.
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
     pub enum Message {
         request::Initialize,

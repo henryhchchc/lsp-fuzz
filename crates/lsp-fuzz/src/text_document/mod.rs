@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    hash::Hash,
     ops::Range,
 };
 
@@ -80,10 +81,25 @@ impl FromIterator<(Language, grammars::GrammarContext)> for GrammarContextLookup
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TextDocument {
+    language: Language,
     content: Vec<u8>,
     #[serde(skip)]
     parse_tree: Option<tree_sitter::Tree>,
-    language: Language,
+}
+
+impl PartialEq for TextDocument {
+    fn eq(&self, other: &Self) -> bool {
+        self.language == other.language && self.content == other.content
+    }
+}
+
+impl Eq for TextDocument {}
+
+impl Hash for TextDocument {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.language.hash(state);
+        self.content.hash(state);
+    }
 }
 
 pub trait GrammarBasedMutation {
@@ -292,6 +308,20 @@ where
         RemoveErrorNode::new(grammar_lookup),
         GenerateMissingNode::new(grammar_lookup),
         ReplaceNodeWithGenerated::new(grammar_lookup),
+        DropRandomNode::new(grammar_lookup),
+        DropUncoveredArea::new(grammar_lookup),
+    ]
+}
+
+pub const fn text_document_reductions<S>(
+    grammar_lookup: &GrammarContextLookup,
+) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+where
+    S: HasRand + HasMaxSize,
+{
+    use mutations::*;
+    tuple_list![
+        RemoveErrorNode::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
         DropUncoveredArea::new(grammar_lookup),
     ]

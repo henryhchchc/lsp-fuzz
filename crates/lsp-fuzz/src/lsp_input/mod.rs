@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, iter::once, path::Path, str::FromStr};
+use std::{borrow::Cow, iter::once, path::Path, str::FromStr};
 
 use fluent_uri::{
     component::{Authority, Scheme},
@@ -15,6 +15,7 @@ use libafl::{
 };
 use libafl_bolts::{AsSlice, HasLen, Named};
 use lsp::encapsulate_request_content;
+use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -26,15 +27,15 @@ use crate::{
 
 pub type FileContentInput = BytesInput;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SourceDirectoryInput(pub HashMap<Utf8Input, FileSystemEntryInput<TextDocument>>);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct SourceDirectoryInput(pub OrderMap<Utf8Input, FileSystemEntryInput<TextDocument>>);
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspMessages {
     pub messages: Vec<lsp::Message>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspInput {
     pub messages: LspMessages,
     pub source_directory: SourceDirectoryInput,
@@ -74,7 +75,14 @@ impl LspInput {
                     .to_string(),
             }]),
             capabilities: lsp_types::ClientCapabilities {
+                workspace: Some(lsp_types::WorkspaceClientCapabilities {
+                    workspace_folders: Some(true),
+                    ..Default::default()
+                }),
                 text_document: Some(lsp_types::TextDocumentClientCapabilities {
+                    synchronization: Some(lsp_types::TextDocumentSyncClientCapabilities {
+                        ..Default::default()
+                    }),
                     publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
                         ..Default::default()
                     }),
@@ -190,7 +198,7 @@ where
     fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
         Ok(LspInput {
             messages: LspMessages { messages: vec![] },
-            source_directory: SourceDirectoryInput(HashMap::from([(
+            source_directory: SourceDirectoryInput(OrderMap::from([(
                 Utf8Input::new("main.c".to_owned()),
                 FileSystemEntryInput::File(TextDocument::new(
                     b"int main() { return 0; }".to_vec(),

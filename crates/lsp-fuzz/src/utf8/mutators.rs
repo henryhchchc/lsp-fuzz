@@ -189,7 +189,7 @@ where
             .choose(input.char_indices())
             .expect("We have checked that the string is not empty.");
 
-        let shift_amount = rand.below_incl(32);
+        let shift_amount = rand.zero_upto(32);
         let new_char = if rand.coinflip(0.5) {
             (picked..).nth(shift_amount)
         } else {

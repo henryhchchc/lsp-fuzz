@@ -20,7 +20,9 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StdMutationalStage},
+    stages::{
+        CalibrationStage, MapEqualityFactory, StdPowerMutationalStage, StdTMinMutationalStage,
+    },
     state::{HasCorpus, StdState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -36,7 +38,7 @@ use lsp_fuzz::{
     stages::{CleanupWorkspaceDirs, CoverageStage},
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
-        text_document_mutations, GrammarContextLookup, Language,
+        text_document_mutations, text_document_reductions, GrammarContextLookup, Language,
     },
 };
 use nix::sys::signal::Signal;
@@ -46,6 +48,8 @@ use tuple_list::tuple_list;
 use super::GlobalOptions;
 
 const DEFAULT_COVERAGE_MAP_SIZE: usize = 65536;
+const AFL_SHMEM_ADDR_ENV: &str = "__AFL_SHM_ID";
+const AFL_SHMEM_SIZE_ENV: &str = "AFL_MAP_SIZE";
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
@@ -90,6 +94,10 @@ pub(super) struct FuzzCommand {
     #[clap(long, value_enum, default_value_t = BaseSchedule::FAST)]
     power_schedule: BaseSchedule,
 
+    /// Whether to cycle power schedules.
+    #[clap(long, default_value_t = false)]
+    cycle_power_schedule: bool,
+
     #[clap(long)]
     cpu_affinity: Option<usize>,
 
@@ -108,13 +116,9 @@ impl FuzzCommand {
             }
         }
 
-        let derivation_fragement = load_c_derivation_fragment(&self.c_derivation_fragment)
-            .context("Loading C derivation fragements")?;
-        let c_grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::C, C_GRAMMAR_JSON)
-                .context("Constructing C grammar")?;
-        let c_grammar_ctx = GrammarContext::new(c_grammar, derivation_fragement);
-        let grammar_ctx = GrammarContextLookup::from_iter([(Language::C, c_grammar_ctx)]);
+        let grammar_ctx = self
+            .create_grammar_context()
+            .context("Creating grammar context")?;
 
         let mut shmem_provider =
             UnixShMemProvider::new().context("Creating shared memory provider")?;
@@ -125,15 +129,15 @@ impl FuzzCommand {
             .context("Creating shared memory")?;
         // let the forkserver know the shmid
         shmem
-            .write_to_env("__AFL_SHM_ID")
+            .write_to_env(AFL_SHMEM_ADDR_ENV)
             .context("Writing shared memory config to env")?;
-        std::env::set_var("AFL_MAP_SIZE", format!("{}", self.coverage_map_size));
+        std::env::set_var(AFL_SHMEM_SIZE_ENV, self.coverage_map_size.to_string());
 
         // Create an observation channel using the signals map
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
-            unsafe { StdMapObserver::new("edges", shmem_buf) }
+            unsafe { StdMapObserver::differential("edges", shmem_buf) }
         };
 
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
@@ -148,6 +152,7 @@ impl FuzzCommand {
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
+        let min_feedback_factory = MapEqualityFactory::new(&edges_observer);
 
         // A feedback to choose if an input is a solution or not
         // We want to do the same crash deduplication that AFL does
@@ -175,13 +180,18 @@ impl FuzzCommand {
 
         let mut tokens = Tokens::new();
 
-        let weighted_scheduler = StdWeightedScheduler::with_schedule(
-            &mut state,
-            &edges_observer,
-            Some(PowerSchedule::new(self.power_schedule)),
-        );
-
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler);
+        let scheduler = {
+            let power_schedule = PowerSchedule::new(self.power_schedule);
+            let mut weighted_scheduler = StdWeightedScheduler::with_schedule(
+                &mut state,
+                &edges_observer,
+                Some(power_schedule),
+            );
+            if self.cycle_power_schedule {
+                weighted_scheduler = weighted_scheduler.cycling_scheduler();
+            }
+            IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
+        };
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -199,14 +209,21 @@ impl FuzzCommand {
         )
         .context("Creating executor")?;
 
-        let monitor = SimpleMonitor::new(|s| info!("{s}"));
-        let mut mgr = SimpleEventManager::new(monitor);
+        let mut event_manager = {
+            let monitor = SimpleMonitor::new(|s| info!("{s}"));
+            SimpleEventManager::new(monitor)
+        };
 
         // In case the corpus is empty (on first run), reset
         if state.must_load_initial_inputs() {
             if let Some(seeds_dir) = self.seeds_dir {
                 state
-                    .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seeds_dir])
+                    .load_initial_inputs(
+                        &mut fuzzer,
+                        &mut executor,
+                        &mut event_manager,
+                        &[seeds_dir],
+                    )
                     .context("Loading seed inputs")?;
                 info!(num_inputs = state.corpus().count(), "Seed inputs imported");
             } else {
@@ -216,7 +233,7 @@ impl FuzzCommand {
                     .generate(&mut state)
                     .context("Generating initial input")?;
                 fuzzer
-                    .add_input(&mut state, &mut executor, &mut mgr, initial_input)
+                    .add_input(&mut state, &mut executor, &mut event_manager, initial_input)
                     .context("Adding initial input")?;
             }
         }
@@ -224,13 +241,19 @@ impl FuzzCommand {
         state.add_metadata(tokens);
 
         let text_document_mutator =
-            StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 6)
-                .context("Creating text document mutator")?;
+            StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 2);
         let mutator = LspInputMutator::new(text_document_mutator);
-        let mutation_stage = StdMutationalStage::new(mutator);
+        let mutation_stage = StdPowerMutationalStage::new(mutator);
+
+        let text_document_reducer =
+            StdScheduledMutator::with_max_stack_pow(text_document_reductions(&grammar_ctx), 2);
+        let reducer = LspInputMutator::new(text_document_reducer);
+        let minimization_stage = StdTMinMutationalStage::new(reducer, min_feedback_factory, 128);
+
         let cleanup_workspace_stage = CleanupWorkspaceDirs::new();
 
         let mut stages = tuple_list![
+            minimization_stage,
             calibration_stage,
             mutation_stage,
             coverage_stage,
@@ -238,8 +261,19 @@ impl FuzzCommand {
         ];
 
         fuzzer
-            .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
+            .fuzz_loop(&mut stages, &mut executor, &mut state, &mut event_manager)
             .context("In fuzzloop")
+    }
+
+    fn create_grammar_context(&self) -> Result<GrammarContextLookup, anyhow::Error> {
+        let derivation_fragement = load_c_derivation_fragment(&self.c_derivation_fragment)
+            .context("Loading C derivation fragements")?;
+        let c_grammar =
+            DerivationGrammar::from_tree_sitter_grammar_json(Language::C, C_GRAMMAR_JSON)
+                .context("Constructing C grammar")?;
+        let c_grammar_ctx = GrammarContext::new(c_grammar, derivation_fragement);
+        let grammar_ctx = GrammarContextLookup::from_iter([(Language::C, c_grammar_ctx)]);
+        Ok(grammar_ctx)
     }
 }
 
