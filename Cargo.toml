@@ -9,16 +9,16 @@ edition = "2021"
 [workspace.dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 derive_more = { version = "1.0.0", features = [
-    "display",
-    "into_iterator",
-    "constructor",
-    "from_str",
-    "deref"
+  "display",
+  "into_iterator",
+  "constructor",
+  "from_str",
+  "deref",
 ] }
 indexmap = { version = "2", features = ["serde"] }
 ordermap = { version = "0.5", features = ["serde"] }
 itertools = "0.*"
-libafl = { version = "0.*", features = ["errors_backtrace", "introspection"] }
+libafl = { version = "0.*", features = ["errors_backtrace"] }
 libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
@@ -29,12 +29,13 @@ tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"] }
 num_cpus = "1.16"
 tree-sitter-c = "0"
+tree-sitter-cpp = "0"
 tree-sitter-rust = "0"
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
 libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
-lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git" , branch = "dev" }
+lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev" }
 
 [profile.release]
 lto = true

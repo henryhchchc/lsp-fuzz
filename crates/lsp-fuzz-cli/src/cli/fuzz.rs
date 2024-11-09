@@ -13,7 +13,7 @@ use libafl::{
     feedback_and_fast, feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     generators::Generator,
-    monitors::tui::TuiMonitor,
+    monitors::SimpleMonitor,
     mutators::{StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
@@ -35,7 +35,7 @@ use libafl_bolts::{
 use lsp_fuzz::{
     execution::LspExecutor,
     lsp_input::{LspInpuGenerator, LspInput, LspInputMutator},
-    stages::{CleanupWorkspaceDirs, CoverageStage},
+    stages::CleanupWorkspaceDirs,
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
         text_document_mutations, text_document_reductions, GrammarContextLookup, Language,
@@ -137,11 +137,10 @@ impl FuzzCommand {
         let shmem_observer = {
             let shmem_buf = shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
-            unsafe { StdMapObserver::differential("edges", shmem_buf) }
+            unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
-        let coverage_stage = CoverageStage::new(&edges_observer);
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -210,10 +209,7 @@ impl FuzzCommand {
         .context("Creating executor")?;
 
         let mut event_manager = {
-            let monitor = TuiMonitor::builder()
-                .title("LSP-Fuzz")
-                .enhanced_graphics(true)
-                .build();
+            let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
 
@@ -259,7 +255,6 @@ impl FuzzCommand {
             minimization_stage,
             calibration_stage,
             mutation_stage,
-            coverage_stage,
             cleanup_workspace_stage
         ];
 

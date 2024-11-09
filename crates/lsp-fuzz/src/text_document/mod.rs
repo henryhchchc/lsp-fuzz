@@ -5,6 +5,7 @@ use std::{
     ops::Range,
 };
 
+use derive_more::derive::{Display, FromStr};
 use grammars::GrammarContext;
 use libafl::{
     inputs::HasTargetBytes,
@@ -20,20 +21,11 @@ use tuple_list::tuple_list;
 pub mod grammars;
 pub mod mutations;
 
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Hash,
-    derive_more::Display,
-    derive_more::FromStr,
-)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Display, FromStr)]
+#[non_exhaustive]
 pub enum Language {
     C,
+    CPlusPlus,
     Rust,
 }
 
@@ -41,6 +33,7 @@ impl Language {
     pub fn file_extensions<'a>(&self) -> HashSet<&'a str> {
         match self {
             Self::C => HashSet::from(["c", "cc", "h"]),
+            Self::CPlusPlus => HashSet::from(["cpp", "cxx", "hpp"]),
             Self::Rust => HashSet::from(["rs"]),
         }
     }
@@ -48,6 +41,7 @@ impl Language {
     pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
         let language = match self {
             Self::C => tree_sitter_c::LANGUAGE,
+            Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
             Self::Rust => tree_sitter_rust::LANGUAGE,
         };
         let mut parser = tree_sitter::Parser::new();
@@ -60,7 +54,16 @@ impl Language {
     fn ts_language(&self) -> tree_sitter::Language {
         match self {
             Self::C => tree_sitter::Language::new(tree_sitter_c::LANGUAGE),
+            Self::CPlusPlus => tree_sitter::Language::new(tree_sitter_cpp::LANGUAGE),
             Self::Rust => tree_sitter::Language::new(tree_sitter_rust::LANGUAGE),
+        }
+    }
+
+    pub const fn lsp_language_id<'a>(&self) -> &'a str {
+        match self {
+            Self::C => "c",
+            Self::CPlusPlus => "cpp",
+            Self::Rust => "rust",
         }
     }
 }
@@ -122,8 +125,8 @@ pub trait GrammarBasedMutation {
             // Update the content
             let _ = content.splice(byte_range, new_content);
             let replacement = &content[replacement_range];
-            let input_edit = edit_for_node_replacement(range, replacement);
-            input_edit
+
+            edit_for_node_replacement(range, replacement)
         });
     }
 
@@ -196,7 +199,7 @@ impl GrammarBasedMutation for TextDocument {
     }
 }
 
-fn edit_for_node_replacement<'a>(
+fn edit_for_node_replacement(
     range: tree_sitter::Range,
     replacement: &[u8],
 ) -> tree_sitter::InputEdit {
@@ -232,6 +235,49 @@ pub fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
         }
     }
     (rows, cols)
+}
+
+impl HasTargetBytes for TextDocument {
+    fn target_bytes(&self) -> OwnedSlice<'_, u8> {
+        OwnedSlice::from(&self.content)
+    }
+}
+
+impl HasLen for TextDocument {
+    fn len(&self) -> usize {
+        self.content.len()
+    }
+}
+
+pub const fn text_document_mutations<S>(
+    grammar_lookup: &GrammarContextLookup,
+) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+where
+    S: HasRand + HasMaxSize,
+{
+    use mutations::*;
+    tuple_list![
+        ReplaceSubTreeWithDerivation::new(grammar_lookup),
+        RemoveErrorNode::new(grammar_lookup),
+        GenerateMissingNode::new(grammar_lookup),
+        ReplaceNodeWithGenerated::new(grammar_lookup),
+        DropRandomNode::new(grammar_lookup),
+        DropUncoveredArea::new(grammar_lookup),
+    ]
+}
+
+pub const fn text_document_reductions<S>(
+    grammar_lookup: &GrammarContextLookup,
+) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+where
+    S: HasRand + HasMaxSize,
+{
+    use mutations::*;
+    tuple_list![
+        RemoveErrorNode::new(grammar_lookup),
+        DropRandomNode::new(grammar_lookup),
+        DropUncoveredArea::new(grammar_lookup),
+    ]
 }
 
 #[cfg(test)]
@@ -282,47 +328,4 @@ mod tests {
         assert_eq!(rows, 2);
         assert_eq!(cols, 4);
     }
-}
-
-impl HasTargetBytes for TextDocument {
-    fn target_bytes(&self) -> OwnedSlice<'_, u8> {
-        OwnedSlice::from(&self.content)
-    }
-}
-
-impl HasLen for TextDocument {
-    fn len(&self) -> usize {
-        self.content.len()
-    }
-}
-
-pub const fn text_document_mutations<S>(
-    grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
-where
-    S: HasRand + HasMaxSize,
-{
-    use mutations::*;
-    tuple_list![
-        ReplaceSubTreeWithDerivation::new(grammar_lookup),
-        RemoveErrorNode::new(grammar_lookup),
-        GenerateMissingNode::new(grammar_lookup),
-        ReplaceNodeWithGenerated::new(grammar_lookup),
-        DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::new(grammar_lookup),
-    ]
-}
-
-pub const fn text_document_reductions<S>(
-    grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
-where
-    S: HasRand + HasMaxSize,
-{
-    use mutations::*;
-    tuple_list![
-        RemoveErrorNode::new(grammar_lookup),
-        DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::new(grammar_lookup),
-    ]
 }

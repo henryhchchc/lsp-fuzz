@@ -6,12 +6,12 @@ use std::{
 /// A trait for iterating over nodes in a [`tree_sitter::Tree`].
 pub trait TreeIter {
     /// Returns an iterator over the nodes in the tree.
-    fn iter<'t>(&'t self) -> TreeIterator<'t>;
+    fn iter(&self) -> TreeIterator<'_>;
 }
 
 impl TreeIter for tree_sitter::Tree {
-    fn iter<'t>(&'t self) -> TreeIterator<'t> {
-        let available_descendants = (0..self.root_node().descendant_count()).into_iter();
+    fn iter(&self) -> TreeIterator<'_> {
+        let available_descendants = 0..self.root_node().descendant_count();
         let cursor = self.walk();
         TreeIterator {
             descendant_indices: available_descendants,

@@ -1,7 +1,7 @@
-use std::{env::temp_dir, ffi::OsString, marker::PhantomData, path::Path};
+use std::{env::temp_dir, marker::PhantomData, path::Path};
 
 use libafl::{
-    executors::{Executor, ExitKind, Forkserver, HasObservers},
+    executors::{Executor, ExitKind, Forkserver as ForkServer, HasObservers},
     inputs::UsesInput,
     mutators::Tokens,
     observers::{MapObserver, Observer, ObserversTuple},
@@ -14,6 +14,7 @@ use libafl_bolts::{
     Truncate,
 };
 use nix::{
+    errno::Errno,
     sys::{
         signal::{kill, Signal},
         time::TimeSpec,
@@ -22,11 +23,13 @@ use nix::{
 };
 use tracing::info;
 
-use crate::lsp_input::LspInput;
+use crate::{lsp_input::LspInput, utils::ResultExt};
+
+mod fork_server;
 
 #[derive(Debug)]
 pub struct LspExecutor<S, OT> {
-    fork_server: Forkserver,
+    fork_server: ForkServer,
     crash_exit_code: Option<i8>,
     kill_signal: Signal,
     timeout: TimeSpec,
@@ -35,35 +38,9 @@ pub struct LspExecutor<S, OT> {
     _state: PhantomData<S>,
 }
 
-#[allow(clippy::cast_possible_wrap)]
-const FS_NEW_ERROR: i32 = 0xeffe0000_u32 as i32;
-
-const FS_NEW_VERSION_MIN: u32 = 1;
-const FS_NEW_VERSION_MAX: u32 = 1;
-
-#[allow(clippy::cast_possible_wrap)]
-const FS_NEW_OPT_MAPSIZE: i32 = 1_u32 as i32;
-
-#[allow(clippy::cast_possible_wrap)]
-const FS_NEW_OPT_SHDMEM_FUZZ: i32 = 2_u32 as i32;
-
-#[allow(clippy::cast_possible_wrap)]
-const FS_NEW_OPT_AUTODICT: i32 = 0x00000800_u32 as i32;
-
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_MAP_SIZE: i32 = 1_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_MAP_ADDR: i32 = 2_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_SHM_OPEN: i32 = 4_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_SHMAT: i32 = 8_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_MMAP: i32 = 16_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_OLD_CMPLOG: i32 = 32_u32 as i32;
-#[allow(clippy::cast_possible_wrap)]
-const FS_ERROR_OLD_CMPLOG_QEMU: i32 = 64_u32 as i32;
+const FS_NEW_OPT_MAPSIZE: i32 = 1 << 0;
+const FS_NEW_OPT_SHDMEM_FUZZ: i32 = 1 << 1;
+const FS_NEW_OPT_AUTODICT: i32 = 1 << 11;
 
 impl<S, OT, A> LspExecutor<S, (A, OT)> {
     #[allow(clippy::too_many_arguments, reason = "To be refactored later")]
@@ -111,11 +88,12 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             "detect_leaks=0",
             "malloc_context_size=0",
         ]
-        .join(":");
+        .join(":")
+        .into();
 
-        let envs = vec![(OsString::from("ASAN_OPTIONS"), OsString::from(asan_options))];
+        let envs = vec![("ASAN_OPTIONS".into(), asan_options)];
 
-        let mut fork_server = Forkserver::with_kill_signal(
+        let mut fork_server = ForkServer::with_kill_signal(
             fuzz_target.as_os_str().to_owned(),
             args,
             envs,
@@ -131,118 +109,74 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
         )?;
 
         // Initial handshake, read 4-bytes hello message from the forkserver.
-        let Ok(version_status) = fork_server.read_st() else {
-            return Err(libafl::Error::unknown(
-                "Failed to start a forkserver".to_string(),
-            ));
+        let handshake_msg = fork_server
+            .read_st()
+            .afl_context("Oops the fork server fucked up.")?;
+
+        fork_server::check_handshake_error_bits(handshake_msg)?;
+        fork_server::check_version(handshake_msg)?;
+
+        // Send back handshake response to the forkserver.
+        let handshake_response = (handshake_msg as u32 ^ 0xffffffff) as i32;
+        fork_server
+            .write_ctl(handshake_response)
+            .afl_context("Fail to write handshake response to forkserver")?;
+
+        let fsrv_options = fork_server
+            .read_st()
+            .afl_context("Fail to read options from forkserver")?;
+
+        if fsrv_options & FS_NEW_OPT_MAPSIZE == FS_NEW_OPT_MAPSIZE {
+            let fsrv_map_size = fork_server
+                .read_st()
+                .afl_context("Failed to read map size from forkserver")?;
+
+            map_observer.as_mut().truncate(fsrv_map_size as usize);
+            if map_observer.as_ref().len() < fsrv_map_size as usize {
+                Err(libafl::Error::illegal_argument(format!(
+                    "The map size is too small. {fsrv_map_size} is required for the target."
+                )))?;
+            }
+            info!(new_size = fsrv_map_size, "Coverage map truncated");
         };
 
-        if (version_status & FS_NEW_ERROR) == FS_NEW_ERROR {
-            report_error_and_exit(version_status & 0x0000ffff)?;
+        if fsrv_options & FS_NEW_OPT_SHDMEM_FUZZ != 0 {
+            Err(libafl::Error::unknown(
+                "Target requested sharedmem fuzzing, but you didn't prepare shmem",
+            ))?;
         }
 
-        if is_old_forkserver(version_status) {
-            return Err(libafl::Error::unknown(
-                "Old fork server model is used by the target, it is nolonger supportted".to_owned(),
-            ));
-        } else {
-            let keep = version_status;
-            let version: u32 = version_status as u32 - 0x41464c00_u32;
-            match version {
-                0 => {
-                    return Err(libafl::Error::unknown(
-                            "Fork server version is not assigned, this should not happen. Recompile target.",
-                        ));
-                }
-                FS_NEW_VERSION_MIN..=FS_NEW_VERSION_MAX => {
-                    // good, do nothing
-                }
-                _ => {
-                    return Err(libafl::Error::unknown(
-                        "Fork server version is not supported. Recompile the target.",
-                    ));
-                }
+        if fsrv_options & FS_NEW_OPT_AUTODICT != 0 {
+            // Here unlike shmem input fuzzing, we are forced to read things
+            // hence no self.autotokens.is_some() to check if we proceed
+            let autotokens_size = fork_server
+                .read_st()
+                .afl_context("Failed to read autotokens size from forkserver")?;
+
+            let tokens_size_max = 0xffffff;
+
+            if !(2..=tokens_size_max).contains(&autotokens_size) {
+                let message = format!("Autotokens size is incorrect, expected 2 to {tokens_size_max} (inclusive), but got {autotokens_size}. Make sure your afl-cc verison is up to date.");
+                Err(libafl::Error::illegal_state(message))?;
             }
-
-            let xored_status = (version_status as u32 ^ 0xffffffff) as i32;
-
-            if fork_server.write_ctl(xored_status).is_err() {
-                return Err(libafl::Error::unknown(
-                    "Writing to forkserver failed.".to_string(),
-                ));
-            };
-
-            info!(
-                "All right - new fork server model version {} is up",
-                version
-            );
-
-            let Ok(status) = fork_server.read_st() else {
-                return Err(libafl::Error::unknown(
-                    "Reading from forkserver failed.".to_string(),
-                ));
-            };
-
-            if status & FS_NEW_OPT_MAPSIZE == FS_NEW_OPT_MAPSIZE {
-                let Ok(fsrv_map_size) = fork_server.read_st() else {
-                    return Err(libafl::Error::unknown(
-                        "Failed to read map size from forkserver".to_string(),
-                    ));
-                };
-                map_observer.as_mut().truncate(fsrv_map_size as usize);
-                if map_observer.as_ref().len() < fsrv_map_size as usize {
-                    return Err(libafl::Error::illegal_argument(format!(
-                        "The map size is too small. {fsrv_map_size} is required for the target."
-                    )));
-                }
-                info!(new_size = fsrv_map_size, "Coverage map truncated");
+            info!(size = autotokens_size, "AUTODICT detected.");
+            let auto_tokens_buf = fork_server
+                .read_st_of_len(autotokens_size as usize)
+                .afl_context("Failed to load autotokens")?;
+            if let Some(t) = auto_tokens {
+                info!("Updating autotokens.");
+                t.parse_autodict(&auto_tokens_buf, autotokens_size as usize);
             }
+        }
 
-            if status & FS_NEW_OPT_SHDMEM_FUZZ != 0 {
-                return Err(libafl::Error::unknown(
-                    "Target requested sharedmem fuzzing, but you didn't prepare shmem",
-                ));
-            }
+        let aflx = fork_server
+            .read_st()
+            .afl_context("Reading from forkserver failed")?;
 
-            if status & FS_NEW_OPT_AUTODICT != 0 {
-                // Here unlike shmem input fuzzing, we are forced to read things
-                // hence no self.autotokens.is_some() to check if we proceed
-                let Ok(autotokens_size) = fork_server.read_st() else {
-                    return Err(libafl::Error::unknown(
-                        "Failed to read autotokens size from forkserver".to_string(),
-                    ));
-                };
-
-                let tokens_size_max = 0xffffff;
-
-                if !(2..=tokens_size_max).contains(&autotokens_size) {
-                    return Err(libafl::Error::illegal_state(
-                                format!("Autotokens size is incorrect, expected 2 to {tokens_size_max} (inclusive), but got {autotokens_size}. Make sure your afl-cc verison is up to date."),
-                            ));
-                }
-                info!(size = autotokens_size, "AUTODICT detected.");
-                let Ok(buf) = fork_server.read_st_of_len(autotokens_size as usize) else {
-                    return Err(libafl::Error::unknown(
-                        "Failed to load autotokens".to_string(),
-                    ));
-                };
-                if let Some(t) = auto_tokens {
-                    info!("Updating autotokens.");
-                    t.parse_autodict(&buf, autotokens_size as usize);
-                }
-            }
-
-            let Ok(aflx) = fork_server.read_st() else {
-                return Err(libafl::Error::unknown(
-                    "Reading from forkserver failed".to_string(),
-                ));
-            };
-
-            if aflx != keep {
-                return Err(libafl::Error::unknown(format!(
-                    "Error in forkserver communication ({aflx:?}=>{keep:?})",
-                )));
-            }
+        if aflx != handshake_msg {
+            let message =
+                format!("Error in forkserver communication ({aflx:?}=>{handshake_msg:?})");
+            Err(libafl::Error::unknown(message))?;
         }
 
         let observers = (map_observer, other_observers);
@@ -295,9 +229,6 @@ where
         _mgr: &mut EM,
         input: &Self::Input,
     ) -> Result<ExitKind, libafl::Error> {
-        let mut exit_kind = ExitKind::Ok;
-        let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
-
         let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
         std::fs::create_dir_all(&workspace_dir)?;
         input.setup_source_dir(&workspace_dir)?;
@@ -306,45 +237,55 @@ where
         self.input_file
             .write_buf(&input_bytes.as_slice()[..input_size])?;
 
-        if self.fork_server.write_ctl(last_run_timed_out).is_err() {
-            return Err(libafl::Error::unknown(
-                "Unable to request new process from fork server (OOM?)".to_string(),
-            ));
-        }
+        let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
+        self.fork_server
+            .write_ctl(last_run_timed_out)
+            .afl_context("Oops the fork server is dead.")?;
+
         self.fork_server.set_last_run_timed_out(false);
-        let Ok(pid) = self.fork_server.read_st() else {
-            return Err(libafl::Error::unknown(
-                "Unable to request new process from fork server (OOM?)".to_string(),
-            ));
-        };
-        if pid <= 0 {
-            return Err(libafl::Error::unknown(
-                "Fork server is misbehaving (OOM?)".to_string(),
-            ));
+        let child_pid = self
+            .fork_server
+            .read_st()
+            .afl_context("Fail to get child PID from fork server")?;
+
+        if child_pid <= 0 {
+            Err(libafl::Error::unknown(
+                "Get an invalid PID from fork server.",
+            ))?;
         }
-        self.fork_server.set_child_pid(Pid::from_raw(pid));
-        if let Some(status) = self.fork_server.read_st_timed(&self.timeout)? {
+        self.fork_server.set_child_pid(Pid::from_raw(child_pid));
+        let exit_kind = if let Some(status) = self.fork_server.read_st_timed(&self.timeout)? {
             self.fork_server.set_status(status);
-            let exitcode_is_crash = if let Some(crash_exitcode) = self.crash_exit_code {
-                (libc::WEXITSTATUS(self.fork_server.status()) as i8) == crash_exitcode
-            } else {
-                false
-            };
+            let exitcode_is_crash = self
+                .crash_exit_code
+                .map(|it| (libc::WEXITSTATUS(self.fork_server.status()) as i8) == it)
+                .unwrap_or_default();
             if libc::WIFSIGNALED(self.fork_server.status()) || exitcode_is_crash {
-                exit_kind = ExitKind::Crash;
+                ExitKind::Crash
+            } else {
+                ExitKind::Ok
             }
         } else {
             self.fork_server.set_last_run_timed_out(true);
             // We need to kill the child in case he has timed out, or we can't get the correct
             // pid in the next call to self.executor.forkserver_mut().read_st()?
-            let _ = kill(self.fork_server.child_pid(), self.kill_signal);
+            match kill(self.fork_server.child_pid(), self.kill_signal) {
+                Ok(_) | Err(Errno::ESRCH) => {
+                    // It is OK if the child terminated before we could kill it
+                }
+                Err(errno) => {
+                    let message =
+                        format!("Oops we could not kill timed-out child: {}", errno.desc());
+                    Err(libafl::Error::unknown(message))?;
+                }
+            }
             if self.fork_server.read_st().is_err() {
                 return Err(libafl::Error::unknown(
                     "Could not kill timed-out child".to_string(),
                 ));
             }
-            exit_kind = ExitKind::Timeout;
-        }
+            ExitKind::Timeout
+        };
         if !libc::WIFSTOPPED(self.fork_server.status()) {
             self.fork_server.reset_child_pid();
         }
@@ -352,34 +293,4 @@ where
         *state.executions_mut() += 1;
         Ok(exit_kind)
     }
-}
-
-// Stolen from libafl
-fn report_error_and_exit(status: i32) -> Result<(), libafl::Error> {
-    /* Report on the error received via the forkserver controller and exit */
-    match status {
-    FS_ERROR_MAP_SIZE =>
-        Err(libafl::Error::unknown(
-            "AFL_MAP_SIZE is not set and fuzzing target reports that the required size is very large. Solution: Run the fuzzing target stand-alone with the environment variable AFL_DEBUG=1 set and set the value for __afl_final_loc in the AFL_MAP_SIZE environment variable for afl-fuzz.".to_string())),
-    FS_ERROR_MAP_ADDR =>
-        Err(libafl::Error::unknown(
-            "the fuzzing target reports that hardcoded map address might be the reason the mmap of the shared memory failed. Solution: recompile the target with either afl-clang-lto and do not set AFL_LLVM_MAP_ADDR or recompile with afl-clang-fast.".to_string())),
-    FS_ERROR_SHM_OPEN =>
-        Err(libafl::Error::unknown("the fuzzing target reports that the shm_open() call failed.".to_string())),
-    FS_ERROR_SHMAT =>
-        Err(libafl::Error::unknown("the fuzzing target reports that the shmat() call failed.".to_string())),
-    FS_ERROR_MMAP =>
-        Err(libafl::Error::unknown("the fuzzing target reports that the mmap() call to the shared memory failed.".to_string())),
-    FS_ERROR_OLD_CMPLOG =>
-        Err(libafl::Error::unknown(
-            "the -c cmplog target was instrumented with an too old AFL++ version, you need to recompile it.".to_string())),
-    FS_ERROR_OLD_CMPLOG_QEMU =>
-        Err(libafl::Error::unknown("The AFL++ QEMU/FRIDA loaders are from an older version, for -c you need to recompile it.".to_string())),
-    _ =>
-        Err(libafl::Error::unknown(format!("unknown error code {status} from fuzzing target!"))),
-    }
-}
-
-fn is_old_forkserver(version_status: i32) -> bool {
-    !(0x41464c00..0x41464cff).contains(&version_status)
 }

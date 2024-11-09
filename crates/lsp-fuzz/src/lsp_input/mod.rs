@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     file_system::FileSystemEntryInput,
     lsp,
-    text_document::{Language, TextDocument},
+    text_document::{GrammarBasedMutation, Language, TextDocument},
     utf8::Utf8Input,
 };
 
@@ -119,7 +119,7 @@ impl LspInput {
             lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri,
-                    language_id: "c".to_string(),
+                    language_id: the_only_doc.language().lsp_language_id().to_owned(),
                     version: 1,
                     text: the_only_doc.to_string_lossy().into_owned(),
                 },

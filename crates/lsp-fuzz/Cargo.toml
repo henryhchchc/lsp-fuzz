@@ -26,4 +26,5 @@ dot-structures = "0.1.1"
 os_pipe = "1.2.1"
 graphviz-rust = { version = "0.9.3", default-features = false }
 tree-sitter-c.workspace = true
+tree-sitter-cpp.workspace = true
 tree-sitter-rust.workspace = true

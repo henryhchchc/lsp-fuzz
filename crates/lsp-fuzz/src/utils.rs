@@ -25,10 +25,21 @@ impl<T> OptionExt<T> for Option<T> {
 
 pub(crate) trait ResultExt<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error>;
+    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
+    where
+        F: FnOnce() -> String;
 }
 
 impl<T, E> ResultExt<T> for Result<T, E> {
+    /// Wraps the error in an [`libafl::Error::Unknown`] with the given message.
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
         self.map_err(|_| libafl::Error::unknown(message))
+    }
+
+    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
+    where
+        F: FnOnce() -> String,
+    {
+        self.map_err(|_| libafl::Error::unknown(message()))
     }
 }
