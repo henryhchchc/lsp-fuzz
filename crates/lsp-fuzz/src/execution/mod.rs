@@ -1,4 +1,4 @@
-use std::{env::temp_dir, marker::PhantomData, path::Path};
+use std::{env::temp_dir, marker::PhantomData, mem, path::Path};
 
 use libafl::{
     executors::{Executor, ExitKind, Forkserver as ForkServer, HasObservers},
@@ -10,8 +10,9 @@ use libafl::{
 use libafl_bolts::{
     current_nanos,
     fs::InputFile,
+    shmem::ShMem,
     tuples::{Prepend, RefIndexable},
-    Truncate,
+    AsSliceMut, Truncate,
 };
 use nix::{
     errno::Errno,
@@ -28,21 +29,21 @@ use crate::{lsp_input::LspInput, utils::ResultExt};
 mod fork_server;
 
 #[derive(Debug)]
-pub struct LspExecutor<S, OT> {
+pub struct LspExecutor<S, OT, SHM> {
     fork_server: ForkServer,
     crash_exit_code: Option<i8>,
     kill_signal: Signal,
     timeout: TimeSpec,
     input_file: InputFile,
+    test_case_shmem: Option<SHM>,
     observers: OT,
     _state: PhantomData<S>,
 }
 
-const FS_NEW_OPT_MAPSIZE: i32 = 1 << 0;
-const FS_NEW_OPT_SHDMEM_FUZZ: i32 = 1 << 1;
-const FS_NEW_OPT_AUTODICT: i32 = 1 << 11;
-
-impl<S, OT, A> LspExecutor<S, (A, OT)> {
+impl<S, OT, A, SHM> LspExecutor<S, (A, OT), SHM>
+where
+    SHM: ShMem,
+{
     #[allow(clippy::too_many_arguments, reason = "To be refactored later")]
     pub fn new<MO>(
         fuzz_target: &Path,
@@ -51,6 +52,9 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
         timeout: TimeSpec,
         debug_child: bool,
         kill_signal: Signal,
+        test_case_shmem: Option<SHM>,
+        is_persistent: bool,
+        is_deferred_fork_server: bool,
         auto_tokens: Option<&mut Tokens>,
         mut map_observer: A,
         other_observers: OT,
@@ -93,6 +97,11 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
 
         let envs = vec![("ASAN_OPTIONS".into(), asan_options)];
 
+        // This must be done before the fork server is created
+        if let Some(ref shmem) = test_case_shmem {
+            shmem.write_to_env("__AFL_SHM_FUZZ_ID")?;
+        }
+
         let mut fork_server = ForkServer::with_kill_signal(
             fuzz_target.as_os_str().to_owned(),
             args,
@@ -100,84 +109,20 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             input_file.as_raw_fd(),
             true,
             0,
-            false,
-            false,
+            is_persistent,
+            is_deferred_fork_server,
             false,
             Some(map_observer.as_ref().len()),
             debug_child,
             kill_signal,
         )?;
 
-        // Initial handshake, read 4-bytes hello message from the forkserver.
-        let handshake_msg = fork_server
-            .read_st()
-            .afl_context("Oops the fork server fucked up.")?;
-
-        fork_server::check_handshake_error_bits(handshake_msg)?;
-        fork_server::check_version(handshake_msg)?;
-
-        // Send back handshake response to the forkserver.
-        let handshake_response = (handshake_msg as u32 ^ 0xffffffff) as i32;
-        fork_server
-            .write_ctl(handshake_response)
-            .afl_context("Fail to write handshake response to forkserver")?;
-
-        let fsrv_options = fork_server
-            .read_st()
-            .afl_context("Fail to read options from forkserver")?;
-
-        if fsrv_options & FS_NEW_OPT_MAPSIZE == FS_NEW_OPT_MAPSIZE {
-            let fsrv_map_size = fork_server
-                .read_st()
-                .afl_context("Failed to read map size from forkserver")?;
-
-            map_observer.as_mut().truncate(fsrv_map_size as usize);
-            if map_observer.as_ref().len() < fsrv_map_size as usize {
-                Err(libafl::Error::illegal_argument(format!(
-                    "The map size is too small. {fsrv_map_size} is required for the target."
-                )))?;
-            }
-            info!(new_size = fsrv_map_size, "Coverage map truncated");
-        };
-
-        if fsrv_options & FS_NEW_OPT_SHDMEM_FUZZ != 0 {
-            Err(libafl::Error::unknown(
-                "Target requested sharedmem fuzzing, but you didn't prepare shmem",
-            ))?;
-        }
-
-        if fsrv_options & FS_NEW_OPT_AUTODICT != 0 {
-            // Here unlike shmem input fuzzing, we are forced to read things
-            // hence no self.autotokens.is_some() to check if we proceed
-            let autotokens_size = fork_server
-                .read_st()
-                .afl_context("Failed to read autotokens size from forkserver")?;
-
-            let tokens_size_max = 0xffffff;
-
-            if !(2..=tokens_size_max).contains(&autotokens_size) {
-                let message = format!("Autotokens size is incorrect, expected 2 to {tokens_size_max} (inclusive), but got {autotokens_size}. Make sure your afl-cc verison is up to date.");
-                Err(libafl::Error::illegal_state(message))?;
-            }
-            info!(size = autotokens_size, "AUTODICT detected.");
-            let auto_tokens_buf = fork_server
-                .read_st_of_len(autotokens_size as usize)
-                .afl_context("Failed to load autotokens")?;
-            if let Some(t) = auto_tokens {
-                info!("Updating autotokens.");
-                t.parse_autodict(&auto_tokens_buf, autotokens_size as usize);
-            }
-        }
-
-        let aflx = fork_server
-            .read_st()
-            .afl_context("Reading from forkserver failed")?;
-
-        if aflx != handshake_msg {
-            let message =
-                format!("Error in forkserver communication ({aflx:?}=>{handshake_msg:?})");
-            Err(libafl::Error::unknown(message))?;
-        }
+        fork_server::initialize(
+            &mut fork_server,
+            &mut map_observer,
+            &test_case_shmem,
+            auto_tokens,
+        )?;
 
         let observers = (map_observer, other_observers);
 
@@ -186,21 +131,21 @@ impl<S, OT, A> LspExecutor<S, (A, OT)> {
             crash_exit_code,
             kill_signal,
             timeout,
+            test_case_shmem,
             observers,
             input_file,
             _state: PhantomData,
         })
     }
 }
-
-impl<S, OT> UsesState for LspExecutor<S, OT>
+impl<S, OT, SHM> UsesState for LspExecutor<S, OT, SHM>
 where
     S: State + UsesInput<Input = LspInput>,
 {
     type State = S;
 }
 
-impl<S, OT> HasObservers for LspExecutor<S, OT>
+impl<S, OT, SHM> HasObservers for LspExecutor<S, OT, SHM>
 where
     S: State + UsesInput<Input = LspInput>,
     OT: ObserversTuple<S::Input, S>,
@@ -216,11 +161,12 @@ where
     }
 }
 
-impl<EM, Z, S, OT> Executor<EM, Z> for LspExecutor<S, OT>
+impl<EM, Z, S, OT, SHM> Executor<EM, Z> for LspExecutor<S, OT, SHM>
 where
     S: State + UsesInput<Input = LspInput> + HasExecutions,
     EM: UsesState<State = S>,
     Z: UsesState<State = S>,
+    SHM: ShMem,
 {
     fn run_target(
         &mut self,
@@ -229,14 +175,20 @@ where
         _mgr: &mut EM,
         input: &Self::Input,
     ) -> Result<ExitKind, libafl::Error> {
+        // Setup workspace directory
         let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
         std::fs::create_dir_all(&workspace_dir)?;
         input.setup_source_dir(&workspace_dir)?;
-        let input_bytes = input.request_bytes(&workspace_dir);
-        let input_size = input_bytes.as_slice().len();
-        self.input_file
-            .write_buf(&input_bytes.as_slice()[..input_size])?;
 
+        // Transfer input to the fork server
+        let input_bytes = input.request_bytes(&workspace_dir);
+        if let Some(shmem) = self.test_case_shmem.as_mut() {
+            write_shm_input(shmem, &input_bytes)?;
+        } else {
+            self.input_file.write_buf(&input_bytes)?;
+        }
+
+        // Run the fuzzing target
         let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
         self.fork_server
             .write_ctl(last_run_timed_out)
@@ -293,4 +245,23 @@ where
         *state.executions_mut() += 1;
         Ok(exit_kind)
     }
+}
+
+fn write_shm_input<SHM>(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libafl::Error>
+where
+    SHM: ShMem,
+{
+    let input_size = input_bytes.len();
+    const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<usize>();
+    if shmem.len() < input_size + SHM_FUZZ_HEADER_SIZE {
+        Err(libafl::Error::unknown(
+            "The shared memory is too small for the input.",
+        ))?;
+    }
+    let input_size_encoded = input_size.to_ne_bytes();
+    let shmem_slice = shmem.as_slice_mut();
+    shmem_slice[..SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
+    let input_body_range = SHM_FUZZ_HEADER_SIZE..(SHM_FUZZ_HEADER_SIZE + input_size);
+    shmem_slice[input_body_range].copy_from_slice(input_bytes);
+    Ok(())
 }

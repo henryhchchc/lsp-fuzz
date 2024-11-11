@@ -14,3 +14,5 @@ pub mod text_document;
 
 pub mod mutators;
 pub(crate) mod utils;
+
+pub mod debug;
