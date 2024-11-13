@@ -1,69 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-macro_rules! lsp_requests {
-    (
-        $(#[$outer:meta])*
-        $vis: vis enum $type_name: ident {
-            $(
-                $( request::$req_variant: ident )?
-                $( notification::$not_variant: ident )?
-            ),*
-        }
-    ) => {
-        use lsp_types::request::{self, Request};
-        use lsp_types::notification::{self, Notification};
+use crate::macros::lsp_messages;
 
-        $(#[$outer])*
-        $vis enum $type_name {
-            $(
-                $( $req_variant(<request::$req_variant as Request>::Params) )?
-                $( $not_variant(<notification::$not_variant as Notification>::Params) )?
-            ),*
-        }
-
-        impl $type_name {
-
-            /// Returns the method name of the request.
-            pub const fn method<'a>(&self) -> &'a str {
-                match self {
-                    $(
-                        $( Self::$req_variant(_) => <request::$req_variant as Request>::METHOD )?
-                        $( Self::$not_variant(_) => <notification::$not_variant as Notification>::METHOD )?
-                    ),*
-                }
-            }
-
-            /// Creates a JSON-RPC request object.
-            pub fn as_json(&self, id: usize) -> serde_json::Value {
-                match self {
-                    $(
-                        $(
-                            Self::$req_variant(params) => serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "id": id,
-                                "method": <request::$req_variant as Request>::METHOD,
-                                "params": params
-                            })
-                        )?
-                        $(
-                            Self::$not_variant(params) => serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "id": id,
-                                "method": <notification::$not_variant as Notification>::METHOD,
-                                "params": params
-                            })
-                        )?
-                    ),*
-                }
-            }
-
-        }
-    };
-}
-
-lsp_requests! {
-
-    /// A Language Server Protocol request.
+lsp_messages! {
+    /// A Language Server Protocol message.
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
     pub enum Message {
@@ -157,44 +97,5 @@ lsp_requests! {
         notification::DidCreateFiles,
         notification::DidRenameFiles,
         notification::DidDeleteFiles
-    }
-}
-
-pub fn encapsulate_request_content(request_object: &serde_json::Value) -> Vec<u8> {
-    let request_body =
-        serde_json::to_vec(&request_object).expect("JSON value must be serializable to bytes");
-    let content_length = request_body.len();
-    let mut result = format!("Content-Length: {content_length}\r\n\r\n").into_bytes();
-    result.extend(request_body);
-    result
-}
-
-#[cfg(test)]
-mod test {
-    use lsp_types::request::{Initialize, Request};
-
-    use super::{encapsulate_request_content, Message};
-
-    #[test]
-    fn test_lsp_request() {
-        let request = Message::Initialize(lsp_types::InitializeParams {
-            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: "file:///path/to/folder".parse().unwrap(),
-                name: "folder".to_string(),
-            }]),
-            ..Default::default()
-        });
-        let jsonrpc = encapsulate_request_content(&request.as_json(1));
-        let header = b"Content-Length: 177\r\n\r\n";
-        assert_eq!(jsonrpc[..header.len()], header[..]);
-        let json_value: serde_json::Value =
-            serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();
-        assert_eq!(json_value["jsonrpc"], "2.0");
-        assert_eq!(json_value["id"], 1);
-        assert_eq!(json_value["method"], Initialize::METHOD);
-        assert!(json_value["params"]["workspaceFolders"][0]["uri"]
-            .as_str()
-            .unwrap()
-            .contains("path/to/folder"));
     }
 }

@@ -17,20 +17,22 @@ use libafl::{
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::{StdScheduledMutator, Tokens},
-    observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
+    observers::{
+        CanTrack, HitcountsMapObserver, MapObserver, Observer, StdMapObserver, TimeObserver,
+    },
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
-        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
+        IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StdPowerMutationalStage},
-    state::{HasCorpus, StdState},
+    stages::{CalibrationStage, StatsStage, StdPowerMutationalStage},
+    state::{HasCorpus, HasRand, StdState},
     Fuzzer, HasMetadata, StdFuzzer,
 };
 use libafl_bolts::{
     current_nanos,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-    AsSliceMut,
+    AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
     execution::LspExecutor,
@@ -91,10 +93,6 @@ pub(super) struct FuzzCommand {
     #[clap(long)]
     deferred_fork_derver: bool,
 
-    /// Enable minimization.
-    #[clap(long)]
-    minimization: bool,
-
     /// Enable auto tokens.
     #[clap(long)]
     auto_tokens: bool,
@@ -131,15 +129,12 @@ impl FuzzCommand {
         if self.persistent_mode {
             info!("Persistent fuzzing is enabled.");
         }
-
         if let Some(shm_size) = self.shared_memory_fuzzing {
             info!(shm_size, "Shared memory fuzzing is enabled.");
         }
-
         if self.deferred_fork_derver {
             info!("Deferred fork server is enabled.");
         }
-
         let grammar_ctx = self
             .create_grammar_context()
             .context("Creating grammar context")?;
@@ -169,20 +164,12 @@ impl FuzzCommand {
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
 
-        // Feedback to rate the interestingness of an input
-        // This one is composed by two Feedbacks in OR
-        // New maximization map feedback linked to the edges observer and the feedback state
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
 
-        // A feedback to choose if an input is a solution or not
-        // We want to do the same crash deduplication that AFL does
         let mut objective = feedback_and_fast!(
-            // Must be a crash
             CrashFeedback::new(),
-            // Take it only if trigger new coverage over crashes
-            // Uses `with_name` to create a different history from the `MaxMapFeedback` in `feedback` above
             MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
         );
 
@@ -206,18 +193,12 @@ impl FuzzCommand {
             None
         };
 
-        let scheduler = {
-            let power_schedule = PowerSchedule::new(self.power_schedule);
-            let mut weighted_scheduler = StdWeightedScheduler::with_schedule(
-                &mut state,
-                &edges_observer,
-                Some(power_schedule),
-            );
-            if self.cycle_power_schedule {
-                weighted_scheduler = weighted_scheduler.cycling_scheduler();
-            }
-            IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
-        };
+        let scheduler = create_scheduler(
+            &mut state,
+            self.power_schedule,
+            self.cycle_power_schedule,
+            &edges_observer,
+        );
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -227,6 +208,30 @@ impl FuzzCommand {
             .map(|size| shmem_provider.new_shmem(size))
             .transpose()
             .context("Creating shared memory for test case passing")?;
+
+        let temp_dir = temp_dir();
+        let temp_dir_str = temp_dir
+            .to_str()
+            .context("temp_dir is not a vaild UTF-8 string")?;
+
+        let mut fuzz_stages = {
+            let mutation_stage = {
+                let text_document_mutator = StdScheduledMutator::with_max_stack_pow(
+                    text_document_mutations(&grammar_ctx),
+                    2,
+                );
+                let mutator = LspInputMutator::new(text_document_mutator);
+                StdPowerMutationalStage::new(mutator)
+            };
+            let user_stats = StatsStage::new(Duration::from_secs(5));
+            let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
+            tuple_list![
+                calibration_stage,
+                mutation_stage,
+                user_stats,
+                cleanup_workspace_stage
+            ]
+        };
 
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
@@ -252,20 +257,6 @@ impl FuzzCommand {
         if let Some(tokens) = tokens {
             state.add_metadata(tokens);
         }
-
-        let mutation_stage = {
-            let text_document_mutator =
-                StdScheduledMutator::with_max_stack_pow(text_document_mutations(&grammar_ctx), 2);
-            let mutator = LspInputMutator::new(text_document_mutator);
-            StdPowerMutationalStage::new(mutator)
-        };
-
-        let temp_dir = temp_dir();
-        let temp_dir_str = temp_dir
-            .to_str()
-            .context("temp_dir is not a vaild UTF-8 string")?;
-        let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-        let mut stages = tuple_list![calibration_stage, mutation_stage, cleanup_workspace_stage];
 
         // In case the corpus is empty (on first run), reset
         if state.must_load_initial_inputs() {
@@ -310,7 +301,12 @@ impl FuzzCommand {
         }
 
         fuzzer
-            .fuzz_loop(&mut stages, &mut executor, &mut state, &mut event_manager)
+            .fuzz_loop(
+                &mut fuzz_stages,
+                &mut executor,
+                &mut state,
+                &mut event_manager,
+            )
             .context("In fuzz loop")
     }
 
@@ -333,4 +329,26 @@ fn load_c_derivation_fragment(path: &Path) -> Result<DerivationFragments, anyhow
     let result = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
     info!("C derivation fragments loaded");
     Ok(result)
+}
+
+fn create_scheduler<S, I, O, MO>(
+    state: &mut S,
+    power_schedule: BaseSchedule,
+    cycle_power_schedule: bool,
+    edges_observer: &O,
+) -> impl Scheduler<I, S>
+where
+    I: HasLen,
+    S: HasCorpus + HasMetadata + HasRand + HasTestcase,
+    <S as HasCorpus>::Corpus: Corpus<Input = I>,
+    O: Observer<I, S> + CanTrack + AsRef<MO>,
+    MO: MapObserver,
+{
+    let power_schedule = PowerSchedule::new(power_schedule);
+    let mut weighted_scheduler =
+        StdWeightedScheduler::with_schedule(state, edges_observer, Some(power_schedule));
+    if cycle_power_schedule {
+        weighted_scheduler = weighted_scheduler.cycling_scheduler();
+    }
+    IndexesLenTimeMinimizerScheduler::new(edges_observer, weighted_scheduler)
 }

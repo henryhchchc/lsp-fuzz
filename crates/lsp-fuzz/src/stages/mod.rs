@@ -42,7 +42,7 @@ where
 
 impl<E, M, Z, S> Stage<E, M, Z> for CleanupWorkspaceDirs<S>
 where
-    S: State + UsesInput + HasExecutions + HasNamedMetadata,
+    S: State + HasExecutions + HasNamedMetadata,
     E: UsesState<State = S>,
     M: EventFirer + UsesState<State = S>,
     Z: UsesState<State = S>,

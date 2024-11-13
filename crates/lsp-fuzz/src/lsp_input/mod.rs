@@ -14,13 +14,12 @@ use libafl::{
     HasMetadata,
 };
 use libafl_bolts::{AsSlice, HasLen, Named};
-use lsp::encapsulate_request_content;
 use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     file_system::FileSystemEntryInput,
-    lsp,
+    lsp::{self, JsonRPCMessage},
     text_document::{GrammarBasedMutation, Language, TextDocument},
     utf8::Utf8Input,
 };
@@ -150,7 +149,8 @@ impl LspInput {
             .chain(once(inlay_hint))
             .enumerate()
         {
-            bytes.extend_from_slice(&encapsulate_request_content(&request.as_json(id)));
+            let message = JsonRPCMessage::new(id, &request);
+            bytes.extend(message.to_lsp_payload());
         }
         bytes
     }

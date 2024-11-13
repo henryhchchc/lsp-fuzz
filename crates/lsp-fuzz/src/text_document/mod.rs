@@ -1,9 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    hash::Hash,
-    ops::Range,
-};
+use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
 
 use derive_more::derive::{Display, FromStr};
 use grammars::GrammarContext;
@@ -29,44 +24,7 @@ pub enum Language {
     Rust,
 }
 
-impl Language {
-    pub fn file_extensions<'a>(&self) -> HashSet<&'a str> {
-        match self {
-            Self::C => HashSet::from(["c", "cc", "h"]),
-            Self::CPlusPlus => HashSet::from(["cpp", "cxx", "hpp"]),
-            Self::Rust => HashSet::from(["rs"]),
-        }
-    }
-
-    pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
-        let language = match self {
-            Self::C => tree_sitter_c::LANGUAGE,
-            Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
-            Self::Rust => tree_sitter_rust::LANGUAGE,
-        };
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&language.into())
-            .expect("Fail to initialize parser");
-        parser
-    }
-
-    fn ts_language(&self) -> tree_sitter::Language {
-        match self {
-            Self::C => tree_sitter::Language::new(tree_sitter_c::LANGUAGE),
-            Self::CPlusPlus => tree_sitter::Language::new(tree_sitter_cpp::LANGUAGE),
-            Self::Rust => tree_sitter::Language::new(tree_sitter_rust::LANGUAGE),
-        }
-    }
-
-    pub const fn lsp_language_id<'a>(&self) -> &'a str {
-        match self {
-            Self::C => "c",
-            Self::CPlusPlus => "cpp",
-            Self::Rust => "rust",
-        }
-    }
-}
+pub mod langauge;
 
 #[derive(Debug, Serialize, Deserialize, SerdeAny, derive_more::Deref)]
 pub struct GrammarContextLookup {
