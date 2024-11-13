@@ -118,13 +118,27 @@ impl LspInput {
         let did_open_request = {
             lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
-                    uri,
+                    uri: uri.clone(),
                     language_id: the_only_doc.language().lsp_language_id().to_owned(),
                     version: 1,
                     text: the_only_doc.to_string_lossy().into_owned(),
                 },
             })
         };
+        let inlay_hint = lsp::Message::InlayHintRequest(lsp_types::InlayHintParams {
+            text_document: lsp_types::TextDocumentIdentifier { uri },
+            range: lsp_types::Range {
+                start: lsp_types::Position {
+                    line: 1,
+                    character: 1,
+                },
+                end: lsp_types::Position {
+                    line: 1000,
+                    character: 1,
+                },
+            },
+            work_done_progress_params: Default::default(),
+        });
         let mut bytes = Vec::new();
         for (id, request) in self
             .messages
@@ -133,9 +147,10 @@ impl LspInput {
             .cloned()
             .chain(once(init_request))
             .chain(once(did_open_request))
+            .chain(once(inlay_hint))
             .enumerate()
         {
-            bytes.extend_from_slice(&encapsulate_request_content(&request.as_json(id + 1)));
+            bytes.extend_from_slice(&encapsulate_request_content(&request.as_json(id)));
         }
         bytes
     }

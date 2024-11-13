@@ -99,7 +99,8 @@ where
 
         // This must be done before the fork server is created
         if let Some(ref shmem) = test_case_shmem {
-            shmem.write_to_env("__AFL_SHM_FUZZ_ID")?;
+            const AFL_TEST_CASE_SHM_ID_ENV: &str = "__AFL_SHM_FUZZ_ID";
+            shmem.write_to_env(AFL_TEST_CASE_SHM_ID_ENV)?;
         }
 
         let mut fork_server = ForkServer::with_kill_signal(
@@ -107,7 +108,7 @@ where
             args,
             envs,
             input_file.as_raw_fd(),
-            true,
+            test_case_shmem.is_none(),
             0,
             is_persistent,
             is_deferred_fork_server,
@@ -188,6 +189,8 @@ where
             self.input_file.write_buf(&input_bytes)?;
         }
 
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+
         // Run the fuzzing target
         let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
         self.fork_server
@@ -241,6 +244,7 @@ where
         if !libc::WIFSTOPPED(self.fork_server.status()) {
             self.fork_server.reset_child_pid();
         }
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // std::fs::remove_dir_all(&workspace_dir)?;
         *state.executions_mut() += 1;
         Ok(exit_kind)
@@ -251,17 +255,24 @@ fn write_shm_input<SHM>(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libaf
 where
     SHM: ShMem,
 {
-    let input_size = input_bytes.len();
-    const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<usize>();
-    if shmem.len() < input_size + SHM_FUZZ_HEADER_SIZE {
+    const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<u32>();
+    if shmem.len() < input_bytes.len() + SHM_FUZZ_HEADER_SIZE {
         Err(libafl::Error::unknown(
             "The shared memory is too small for the input.",
         ))?;
     }
+    let input_size = u32::try_from(input_bytes.len())
+        .afl_context("The length of input bytes cannot fit into u32")?;
     let input_size_encoded = input_size.to_ne_bytes();
     let shmem_slice = shmem.as_slice_mut();
     shmem_slice[..SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
-    let input_body_range = SHM_FUZZ_HEADER_SIZE..(SHM_FUZZ_HEADER_SIZE + input_size);
+    let input_body_range = SHM_FUZZ_HEADER_SIZE..(SHM_FUZZ_HEADER_SIZE + input_bytes.len());
     shmem_slice[input_body_range].copy_from_slice(input_bytes);
     Ok(())
+}
+
+impl<S, OT, SHM> Drop for LspExecutor<S, OT, SHM> {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.input_file.path);
+    }
 }

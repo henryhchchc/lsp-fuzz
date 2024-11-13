@@ -18,7 +18,10 @@ derive_more = { version = "1.0.0", features = [
 indexmap = { version = "2", features = ["serde"] }
 ordermap = { version = "0.5", features = ["serde"] }
 itertools = "0.*"
-libafl = { version = "0.*", features = ["errors_backtrace"] }
+libafl = { version = "0.*", features = [
+"errors_backtrace",
+# "introspection"
+] }
 libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
@@ -38,4 +41,6 @@ libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "de
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev" }
 
 [profile.release]
+debug = true
+opt-level = 3
 lto = true

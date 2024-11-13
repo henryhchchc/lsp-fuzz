@@ -1,4 +1,5 @@
 use std::{
+    env::temp_dir,
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
@@ -21,7 +22,7 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StdPowerMutationalStage, StdTMinMutationalStage},
+    stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, StdState},
     Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -37,12 +38,10 @@ use lsp_fuzz::{
     stages::CleanupWorkspaceDirs,
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
-        text_document_mutations, text_document_reductions, GrammarContextLookup, Language,
+        text_document_mutations, GrammarContextLookup, Language,
     },
 };
-mod minimize;
 
-use minimize::MinimizationFeedbackFactory;
 use nix::sys::signal::Signal;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
@@ -84,13 +83,17 @@ pub(super) struct FuzzCommand {
     #[clap(long, short)]
     shared_memory_fuzzing: Option<usize>,
 
-    /// Persistent fuzzing.
+    /// Enable Persistent mode.
     #[clap(long, short)]
-    persistent_fuzzing: bool,
+    persistent_mode: bool,
 
     /// Use deferred fork server.
     #[clap(long)]
     deferred_fork_derver: bool,
+
+    /// Enable minimization.
+    #[clap(long)]
+    minimization: bool,
 
     /// Enable auto tokens.
     #[clap(long)]
@@ -125,16 +128,7 @@ pub(super) struct FuzzCommand {
 
 impl FuzzCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
-        if let Some(id) = self.cpu_affinity {
-            let core_id = CoreId { id };
-            if core_affinity::set_for_current(core_id) {
-                info!("Set CPU affinity to core {}", id);
-            } else {
-                warn!("Failed to set CPU affinity to core {}", id);
-            }
-        }
-
-        if self.persistent_fuzzing {
+        if self.persistent_mode {
             info!("Persistent fuzzing is enabled.");
         }
 
@@ -180,7 +174,6 @@ impl FuzzCommand {
         // New maximization map feedback linked to the edges observer and the feedback state
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let calibration_stage_after_min = CalibrationStage::new(&map_feedback);
         let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
 
         // A feedback to choose if an input is a solution or not
@@ -235,8 +228,6 @@ impl FuzzCommand {
             .transpose()
             .context("Creating shared memory for test case passing")?;
 
-        let min_feedback_factory = MinimizationFeedbackFactory::new(&edges_observer);
-
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
             self.target_args,
@@ -245,7 +236,7 @@ impl FuzzCommand {
             self.debug_child,
             self.kill_signal,
             test_case_shm,
-            self.persistent_fuzzing,
+            self.persistent_mode,
             self.deferred_fork_derver,
             tokens.as_mut(),
             edges_observer,
@@ -268,21 +259,13 @@ impl FuzzCommand {
             let mutator = LspInputMutator::new(text_document_mutator);
             StdPowerMutationalStage::new(mutator)
         };
-        let minimization_stage = {
-            let reducer =
-                StdScheduledMutator::with_max_stack_pow(text_document_reductions(&grammar_ctx), 2);
-            let mutator = LspInputMutator::new(reducer);
-            StdTMinMutationalStage::new(mutator, min_feedback_factory, 1 << 7)
-        };
 
-        let cleanup_workspace_stage = CleanupWorkspaceDirs::new();
-        let mut stages = tuple_list![
-            calibration_stage,
-            mutation_stage,
-            minimization_stage,
-            calibration_stage_after_min,
-            cleanup_workspace_stage
-        ];
+        let temp_dir = temp_dir();
+        let temp_dir_str = temp_dir
+            .to_str()
+            .context("temp_dir is not a vaild UTF-8 string")?;
+        let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
+        let mut stages = tuple_list![calibration_stage, mutation_stage, cleanup_workspace_stage];
 
         // In case the corpus is empty (on first run), reset
         if state.must_load_initial_inputs() {
@@ -316,6 +299,15 @@ impl FuzzCommand {
             .testcase_mut(CorpusId(0))
             .unwrap()
             .add_metadata(SchedulerTestcaseMetadata::new(0));
+
+        if let Some(id) = self.cpu_affinity {
+            let core_id = CoreId { id };
+            if core_affinity::set_for_current(core_id) {
+                info!("Set CPU affinity to core {}", id);
+            } else {
+                warn!("Failed to set CPU affinity to core {}", id);
+            }
+        }
 
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut event_manager)
