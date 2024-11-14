@@ -52,6 +52,24 @@ macro_rules! lsp_messages {
             }
 
         }
+
+        // $(
+        //     $(
+        //         impl From<<request::$req_variant as Request>::Params> for $type_name {
+        //             fn from(params: <request::$req_variant as Request>::Params) -> Self {
+        //                 Self::$req_variant(params)
+        //             }
+        //         }
+        //     )?
+        //     $(
+        //         impl From<<notification::$not_variant as Notification>::Params> for $type_name {
+        //             fn from(params: <notification::$not_variant as Notification>::Params) -> Self {
+        //                 Self::$not_variant(params)
+        //             }
+        //         }
+        //     )?
+        // )*
+
     };
 }
 

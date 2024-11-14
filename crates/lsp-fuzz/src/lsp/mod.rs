@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub(crate) mod generator;
 mod message;
+
 pub use message::Message;
 
 #[derive(Debug, Clone, Copy)]
@@ -18,7 +20,9 @@ impl<'de> Deserialize<'de> for JsonRPC20 {
         if version == "2.0" {
             Ok(Self)
         } else {
-            Err(serde::de::Error::custom("Invalid JSON-RPC version"))
+            Err(serde::de::Error::custom(
+                "Invalid JSON-RPC version. Expecting 2.0.",
+            ))
         }
     }
 }
@@ -43,13 +47,20 @@ impl JsonRPCMessage {
         }
     }
 
+    const CONTENT_LENGTH_HEADER: &'static [u8] = b"Content-Length: ";
+    const HEADER_END: &'static [u8] = b"\r\n\r\n";
+
     pub fn to_lsp_payload(&self) -> Vec<u8> {
         let content =
             serde_json::to_vec(self).expect("Serialization of serde_json::Value cannot fail.");
-        let content_length = content.len();
-        let mut result = format!("Content-Length: {content_length}\r\n\r\n").into_bytes();
-        result.extend(content);
-        result
+        let content_length = content.len().to_string().into_bytes();
+        Self::CONTENT_LENGTH_HEADER
+            .iter()
+            .copied()
+            .chain(content_length)
+            .chain(Self::HEADER_END.iter().copied())
+            .chain(content)
+            .collect()
     }
 }
 

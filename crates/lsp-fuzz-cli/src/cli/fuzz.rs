@@ -12,7 +12,7 @@ use libafl::{
     corpus::{
         Corpus, CorpusId, HasTestcase, InMemoryCorpus, OnDiskCorpus, SchedulerTestcaseMetadata,
     },
-    events::SimpleEventManager,
+    events::{EventFirer, SimpleEventManager},
     feedback_and_fast, feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     monitors::SimpleMonitor,
@@ -25,18 +25,18 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
     },
     stages::{CalibrationStage, StatsStage, StdPowerMutationalStage},
-    state::{HasCorpus, HasRand, StdState},
-    Fuzzer, HasMetadata, StdFuzzer,
+    state::{HasCorpus, HasRand, StdState, UsesState},
+    Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
 use libafl_bolts::{
     current_nanos,
-    rands::StdRand,
+    rands::{Rand, StdRand},
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
     execution::LspExecutor,
-    lsp_input::{LspInpuGenerator, LspInput, LspInputMutator},
+    lsp_input::{messages::message_mutations, LspInpuGenerator, LspInput, LspInputMutator},
     stages::CleanupWorkspaceDirs,
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
@@ -90,8 +90,8 @@ pub(super) struct FuzzCommand {
     persistent_mode: bool,
 
     /// Use deferred fork server.
-    #[clap(long)]
-    deferred_fork_derver: bool,
+    #[clap(long, short)]
+    deferred_fork_server: bool,
 
     /// Enable auto tokens.
     #[clap(long)]
@@ -132,7 +132,7 @@ impl FuzzCommand {
         if let Some(shm_size) = self.shared_memory_fuzzing {
             info!(shm_size, "Shared memory fuzzing is enabled.");
         }
-        if self.deferred_fork_derver {
+        if self.deferred_fork_server {
             info!("Deferred fork server is enabled.");
         }
         let grammar_ctx = self
@@ -220,7 +220,9 @@ impl FuzzCommand {
                     text_document_mutations(&grammar_ctx),
                     2,
                 );
-                let mutator = LspInputMutator::new(text_document_mutator);
+                let messages_mutator =
+                    StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
+                let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
                 StdPowerMutationalStage::new(mutator)
             };
             let user_stats = StatsStage::new(Duration::from_secs(5));
@@ -242,7 +244,7 @@ impl FuzzCommand {
             self.kill_signal,
             test_case_shm,
             self.persistent_mode,
-            self.deferred_fork_derver,
+            self.deferred_fork_server,
             tokens.as_mut(),
             edges_observer,
             tuple_list!(time_observer),
@@ -259,31 +261,13 @@ impl FuzzCommand {
         }
 
         // In case the corpus is empty (on first run), reset
-        if state.must_load_initial_inputs() {
-            if let Some(seeds_dir) = self.seeds_dir {
-                state
-                    .load_initial_inputs(
-                        &mut fuzzer,
-                        &mut executor,
-                        &mut event_manager,
-                        &[seeds_dir],
-                    )
-                    .context("Loading seed inputs")?;
-                info!(num_inputs = state.corpus().count(), "Seed inputs imported");
-            } else {
-                warn!("No seed inputs provided, starting from scratch");
-                let mut generator = LspInpuGenerator;
-                state
-                    .generate_initial_inputs_forced(
-                        &mut fuzzer,
-                        &mut executor,
-                        &mut generator,
-                        &mut event_manager,
-                        1,
-                    )
-                    .context("Generating initial input")?;
-            }
-        }
+        initialize_corpus(
+            self.seeds_dir,
+            &mut state,
+            &mut fuzzer,
+            &mut executor,
+            &mut event_manager,
+        )?;
 
         state
             .corpus()
@@ -351,4 +335,36 @@ where
         weighted_scheduler = weighted_scheduler.cycling_scheduler();
     }
     IndexesLenTimeMinimizerScheduler::new(edges_observer, weighted_scheduler)
+}
+
+fn initialize_corpus<E, Z, EM, C, R, SC>(
+    seeds_dir: Option<PathBuf>,
+    state: &mut StdState<LspInput, C, R, SC>,
+    fuzzer: &mut Z,
+    executor: &mut E,
+    event_manager: &mut EM,
+) -> Result<(), anyhow::Error>
+where
+    C: Corpus<Input = LspInput>,
+    R: Rand,
+    SC: Corpus<Input = LspInput>,
+    Z: Evaluator<E, EM, State = StdState<LspInput, C, R, SC>>,
+    E: UsesState<State = StdState<LspInput, C, R, SC>>,
+    EM: EventFirer + UsesState<State = StdState<LspInput, C, R, SC>>,
+{
+    if state.must_load_initial_inputs() {
+        if let Some(seeds_dir) = seeds_dir {
+            state
+                .load_initial_inputs(fuzzer, executor, event_manager, &[seeds_dir])
+                .context("Loading seed inputs")?;
+            info!(num_inputs = state.corpus().count(), "Seed inputs imported");
+        } else {
+            warn!("No seed inputs provided, starting from scratch");
+            let mut generator = LspInpuGenerator;
+            state
+                .generate_initial_inputs_forced(fuzzer, executor, &mut generator, event_manager, 1)
+                .context("Generating initial input")?;
+        }
+    }
+    Ok(())
 }

@@ -14,7 +14,6 @@ derive_more = { version = "1.0.0", features = [
   "constructor",
   "from_str",
   "deref",
-  "from"
 ] }
 indexmap = { version = "2", features = ["serde"] }
 ordermap = { version = "0.5", features = ["serde"] }

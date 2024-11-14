@@ -1,25 +1,22 @@
 use std::{borrow::Cow, iter::once, path::Path, str::FromStr};
 
-use fluent_uri::{
-    component::{Authority, Scheme},
-    encoding::EString,
-    Uri,
-};
 use libafl::{
     corpus::CorpusId,
     generators::Generator,
     inputs::{BytesInput, HasTargetBytes, Input, UsesInput},
     mutators::{MutationResult, Mutator},
-    state::{HasCorpus, HasMaxSize, HasRand, State},
+    state::{HasCorpus, HasMaxSize, HasRand},
     HasMetadata,
 };
-use libafl_bolts::{AsSlice, HasLen, Named};
+use libafl_bolts::{rands::Rand, AsSlice, HasLen, Named};
+use lsp_types::Uri;
+use messages::LspMessages;
 use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     file_system::FileSystemEntryInput,
-    lsp::{self, JsonRPCMessage},
+    lsp::{self, generator::fuzzer_client_capabilities, JsonRPCMessage},
     text_document::{GrammarBasedMutation, Language, TextDocument},
     utf8::Utf8Input,
 };
@@ -29,10 +26,7 @@ pub type FileContentInput = BytesInput;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct SourceDirectoryInput(pub OrderMap<Utf8Input, FileSystemEntryInput<TextDocument>>);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-pub struct LspMessages {
-    pub messages: Vec<lsp::Message>,
-}
+pub mod messages;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspInput {
@@ -51,7 +45,7 @@ impl Input for LspInput {
 
 impl HasLen for LspInput {
     fn len(&self) -> usize {
-        self.messages.messages.len()
+        self.messages.len()
             + self
                 .source_directory
                 .0
@@ -73,25 +67,7 @@ impl LspInput {
                     .to_string_lossy()
                     .to_string(),
             }]),
-            capabilities: lsp_types::ClientCapabilities {
-                workspace: Some(lsp_types::WorkspaceClientCapabilities {
-                    workspace_folders: Some(true),
-                    ..Default::default()
-                }),
-                text_document: Some(lsp_types::TextDocumentClientCapabilities {
-                    synchronization: Some(lsp_types::TextDocumentSyncClientCapabilities {
-                        ..Default::default()
-                    }),
-                    publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
-                        ..Default::default()
-                    }),
-                    diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
+            capabilities: fuzzer_client_capabilities(),
             ..Default::default()
         });
         let Some((file_name, FileSystemEntryInput::File(the_only_doc))) =
@@ -99,21 +75,7 @@ impl LspInput {
         else {
             unreachable!("We created only files");
         };
-        let mut path = EString::<fluent_uri::encoding::encoder::Path>::new();
-        path.encode::<fluent_uri::encoding::encoder::Path>(
-            workspace_dir
-                .join(Path::new(file_name.as_str()))
-                .to_string_lossy()
-                .into_owned()
-                .as_str(),
-        );
-        let uri = Uri::builder()
-            .scheme(Scheme::new_or_panic("file"))
-            .authority(Authority::EMPTY)
-            .path(&path)
-            .build()
-            .unwrap();
-        let uri = lsp_types::Uri::from_str(uri.to_string().as_str()).unwrap();
+        let uri = Uri::from_str(&format!("workspace://{}", file_name.as_str())).unwrap();
         let did_open_request = {
             lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
@@ -139,14 +101,10 @@ impl LspInput {
             work_done_progress_params: Default::default(),
         });
         let mut bytes = Vec::new();
-        for (id, request) in self
-            .messages
-            .messages
-            .iter()
-            .cloned()
-            .chain(once(init_request))
+        for (id, request) in once(init_request)
             .chain(once(did_open_request))
             .chain(once(inlay_hint))
+            .chain(self.messages.messages.iter().cloned())
             .enumerate()
         {
             let message = JsonRPCMessage::new(id, &request);
@@ -162,7 +120,7 @@ impl LspInput {
                 std::fs::create_dir_all(parent)?;
             }
             let FileSystemEntryInput::File(document) = entry else {
-                unreachable!("We created only files")
+                todo!("We created only files currently")
             };
             std::fs::write(path, document.target_bytes().as_slice())?;
         }
@@ -171,21 +129,23 @@ impl LspInput {
 }
 
 #[derive(Debug, derive_more::Constructor)]
-pub struct LspInputMutator<TM> {
+pub struct LspInputMutator<TM, RM> {
     text_document_mutator: TM,
+    requests_mutator: RM,
 }
 
-impl<TM> Named for LspInputMutator<TM> {
+impl<TM, RM> Named for LspInputMutator<TM, RM> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("LspInputMutator");
         &NAME
     }
 }
 
-impl<TM, S> Mutator<LspInput, S> for LspInputMutator<TM>
+impl<TM, RM, S> Mutator<LspInput, S> for LspInputMutator<TM, RM>
 where
     TM: Mutator<TextDocument, S>,
-    S: State + UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
+    RM: Mutator<LspMessages, S>,
+    S: UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
 {
     fn mutate(
         &mut self,
@@ -194,12 +154,15 @@ where
     ) -> Result<MutationResult, libafl::Error> {
         let path = Utf8Input::new("main.c".to_owned());
         let SourceDirectoryInput(entries) = &mut input.source_directory;
-        let FileSystemEntryInput::File(file_content) =
-            entries.get_mut(&path).expect("This is the only file.")
-        else {
-            unreachable!("This is the only file.")
+        let Some(FileSystemEntryInput::File(file_content)) = entries.get_mut(&path) else {
+            todo!("Currently we create only one file.")
         };
-        self.text_document_mutator.mutate(state, file_content)
+        const MUTATE_DOCUMENT: bool = true;
+        const MUTATE_REQUESTS: bool = false;
+        match state.rand_mut().coinflip(0.5) {
+            MUTATE_DOCUMENT => self.text_document_mutator.mutate(state, file_content),
+            MUTATE_REQUESTS => self.requests_mutator.mutate(state, &mut input.messages),
+        }
     }
 }
 
