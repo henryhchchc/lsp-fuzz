@@ -19,6 +19,7 @@ tuple_list.workspace = true
 fluent-uri = "0.3"
 libc = "0.2"
 regex-syntax = "0.8.5"
+static_assertions.workspace = true
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 tree-sitter = { version = "0.24.3" }

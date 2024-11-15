@@ -4,6 +4,7 @@ pub(crate) mod generator;
 mod message;
 
 pub use message::Message;
+use static_assertions::const_assert_eq;
 
 /// JSON-RPC 2.0 protocol version.
 #[derive(Debug, Clone, Copy)]
@@ -13,6 +14,9 @@ impl JsonRPC20 {
     /// The string representation of the JSON-RPC 2.0 protocol version.
     pub const VERSION: &'static str = "2.0";
 }
+
+// Ensure that `JsonRPC20` is a ZST.
+const_assert_eq!(std::mem::size_of::<JsonRPC20>(), 0);
 
 impl Serialize for JsonRPC20 {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

@@ -27,6 +27,7 @@ libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
 rayon = "1"
+static_assertions = "1.1.0"
 thiserror = "1"
 tracing = "0.1"
 tuple_list = "0.1"
