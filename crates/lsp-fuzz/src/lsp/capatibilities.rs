@@ -25,7 +25,8 @@ pub fn fuzzer_client_capabilities() -> ClientCapabilities {
                 data_support: Some(true),
             }),
             diagnostic: Some(DiagnosticClientCapabilities {
-                ..Default::default()
+                dynamic_registration: None,
+                related_document_support: Some(true),
             }),
             inlay_hint: Some(InlayHintClientCapabilities::default()),
             hover: Some(HoverClientCapabilities {

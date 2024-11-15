@@ -10,6 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
+        use crate::lsp::{LspMessage, IntoMessage};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -50,25 +51,34 @@ macro_rules! lsp_messages {
                     ),*
                 }
             }
-
         }
 
-        // $(
-        //     $(
-        //         impl From<<request::$req_variant as Request>::Params> for $type_name {
-        //             fn from(params: <request::$req_variant as Request>::Params) -> Self {
-        //                 Self::$req_variant(params)
-        //             }
-        //         }
-        //     )?
-        //     $(
-        //         impl From<<notification::$not_variant as Notification>::Params> for $type_name {
-        //             fn from(params: <notification::$not_variant as Notification>::Params) -> Self {
-        //                 Self::$not_variant(params)
-        //             }
-        //         }
-        //     )?
-        // )*
+        $(
+            $(
+                impl LspMessage for request::$req_variant {
+                    const METHOD: &'static str = <Self as Request>::METHOD;
+                    type Params = <Self as Request>::Params;
+                }
+
+                impl IntoMessage<request::$req_variant> for request::$req_variant {
+                    fn into_message(params: <request::$req_variant as Request>::Params) -> $type_name {
+                        $type_name::$req_variant(params)
+                    }
+                }
+            )?
+            $(
+                impl LspMessage for notification::$not_variant {
+                    const METHOD: &'static str = <Self as Notification>::METHOD;
+                    type Params = <Self as Notification>::Params;
+                }
+
+                impl IntoMessage<notification::$not_variant> for notification::$not_variant {
+                    fn into_message(params: <notification::$not_variant as Notification>::Params) -> $type_name {
+                        $type_name::$not_variant(params)
+                    }
+                }
+            )?
+        )*
 
     };
 }

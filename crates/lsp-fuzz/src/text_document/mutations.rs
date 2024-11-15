@@ -8,24 +8,29 @@ use libafl::{
 use libafl_bolts::{rands::Rand, HasLen, Named};
 use node_filters::{AnyNode, ErrorNode, MissingNode};
 use node_generators::{ChooseFromDerivations, EmptyNode, GenerateNodeWithGrammar};
+use text_document_selectors::TheOnlyMainC;
+
+use crate::lsp_input::LspInput;
 
 use super::{
     grammars::{tree::TreeIter, GrammarContext},
-    GrammarBasedMutation, GrammarContextLookup,
+    GrammarBasedMutation, GrammarContextLookup, TextDocument,
 };
 
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
 
 #[derive(Debug)]
-pub struct ReplaceNodeMutation<'a, NF, GEN> {
+pub struct ReplaceNodeMutation<'a, TS, NF, GEN> {
     grammar_lookup: &'a GrammarContextLookup,
     name: Cow<'static, str>,
+    _text_doc_selector: PhantomData<TS>,
     _node_filter: PhantomData<NF>,
     _generator: PhantomData<GEN>,
 }
 
-impl<'a, NF, GEN> ReplaceNodeMutation<'a, NF, GEN>
+impl<'a, TS, NF, GEN> ReplaceNodeMutation<'a, TS, NF, GEN>
 where
+    TS: TextDocumentSelector,
     NF: NodeFilter,
     GEN: NodeGenerator,
 {
@@ -34,16 +39,21 @@ where
         Self {
             grammar_lookup,
             name,
+            _text_doc_selector: PhantomData,
             _node_filter: PhantomData,
             _generator: PhantomData,
         }
     }
 }
 
-impl<NF, GEN> Named for ReplaceNodeMutation<'_, NF, GEN> {
+impl<TS, NF, GEN> Named for ReplaceNodeMutation<'_, TS, NF, GEN> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         &self.name
     }
+}
+
+pub trait TextDocumentSelector {
+    fn select_document(input: &mut LspInput) -> Option<(&str, &mut TextDocument)>;
 }
 
 pub trait NodeFilter {
@@ -62,19 +72,26 @@ pub trait NodeGenerator {
         R: Rand;
 }
 
-impl<S, I, NF, GEN> Mutator<I, S> for ReplaceNodeMutation<'_, NF, GEN>
+impl<S, TS, NF, GEN> Mutator<LspInput, S> for ReplaceNodeMutation<'_, TS, NF, GEN>
 where
+    TS: TextDocumentSelector,
     NF: NodeFilter,
     GEN: NodeGenerator,
-    I: GrammarBasedMutation + HasLen,
     S: HasRand,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut LspInput,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some((_path, doc)) = TS::select_document(input) else {
             return Ok(MutationResult::Skipped);
         };
-        let input_len = input.len();
-        let parse_tree = input.parse_tree(grammar_ctx);
+        let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let doc_len = doc.len();
+        let parse_tree = doc.parse_tree(grammar_ctx);
         let nodes = parse_tree
             .iter()
             .filter(|&it| NF::filter_node(it, grammar_ctx));
@@ -86,14 +103,42 @@ where
             return Ok(MutationResult::Skipped);
         };
         let node_len = selected_node.end_byte() - selected_node.start_byte();
-        if input_len - node_len + new_fragement.len() > MAX_DOCUMENT_SIZE {
+        if doc_len - node_len + new_fragement.len() > MAX_DOCUMENT_SIZE {
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        input.splice(node_range, new_fragement.to_vec(), grammar_ctx);
+        doc.splice(node_range, new_fragement.to_vec(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
+
+pub mod text_document_selectors {
+    use std::option::Option;
+
+    use crate::{
+        file_system::FileSystemEntryInput,
+        lsp_input::{LspInput, SourceDirectoryInput},
+        text_document::{self, TextDocument},
+        utf8::Utf8Input,
+    };
+
+    use super::TextDocumentSelector;
+
+    #[derive(Debug)]
+    pub struct TheOnlyMainC;
+
+    impl TextDocumentSelector for TheOnlyMainC {
+        fn select_document(input: &mut LspInput) -> Option<(&str, &mut TextDocument)> {
+            let path = Utf8Input::new("main.c".to_owned());
+            let SourceDirectoryInput(entries) = &mut input.source_directory;
+            let Some(FileSystemEntryInput::File(doc)) = entries.get_mut(&path) else {
+                todo!("Currently we create only one file.")
+            };
+            Some(("main.c", doc))
+        }
+    }
+}
+
 pub mod node_filters {
     use crate::text_document::grammars::GrammarContext;
 
@@ -197,35 +242,55 @@ pub mod node_generators {
     }
 }
 
-pub type ReplaceSubTreeWithDerivation<'a> = ReplaceNodeMutation<'a, AnyNode, ChooseFromDerivations>;
-pub type ReplaceNodeWithGenerated<'a> = ReplaceNodeMutation<'a, AnyNode, GenerateNodeWithGrammar>;
-pub type GenerateMissingNode<'a> = ReplaceNodeMutation<'a, MissingNode, GenerateNodeWithGrammar>;
+pub type ReplaceSubTreeWithDerivation<'a> =
+    ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, ChooseFromDerivations>;
+pub type ReplaceNodeWithGenerated<'a> =
+    ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, GenerateNodeWithGrammar>;
+pub type GenerateMissingNode<'a> =
+    ReplaceNodeMutation<'a, TheOnlyMainC, MissingNode, GenerateNodeWithGrammar>;
 
-pub type RemoveErrorNode<'a> = ReplaceNodeMutation<'a, ErrorNode, EmptyNode>;
-pub type DropRandomNode<'a> = ReplaceNodeMutation<'a, AnyNode, EmptyNode>;
+pub type RemoveErrorNode<'a> = ReplaceNodeMutation<'a, TheOnlyMainC, ErrorNode, EmptyNode>;
+pub type DropRandomNode<'a> = ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, EmptyNode>;
 
-#[derive(Debug, derive_more::Constructor)]
-pub struct DropUncoveredArea<'a> {
+#[derive(Debug)]
+pub struct DropUncoveredArea<'a, TS> {
     grammar_lookup: &'a GrammarContextLookup,
+    _doc_selector: PhantomData<TS>,
 }
 
-impl Named for DropUncoveredArea<'_> {
+impl<'a, TS> DropUncoveredArea<'a, TS> {
+    pub fn new(grammar_lookup: &'a GrammarContextLookup) -> Self {
+        Self {
+            grammar_lookup,
+            _doc_selector: PhantomData,
+        }
+    }
+}
+
+impl<TS> Named for DropUncoveredArea<'_, TS> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("DropUncoveredArea");
         &NAME
     }
 }
 
-impl<S, I> Mutator<I, S> for DropUncoveredArea<'_>
+impl<S, TS> Mutator<LspInput, S> for DropUncoveredArea<'_, TS>
 where
+    TS: TextDocumentSelector,
     S: HasRand,
-    I: GrammarBasedMutation,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
-        let Some(grammar_ctx) = self.grammar_lookup.get(&input.language()) else {
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut LspInput,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some((_path, doc)) = TS::select_document(input) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = input.parse_tree(grammar_ctx);
+        let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let parse_tree = doc.parse_tree(grammar_ctx);
         let covered_areas = parse_tree
             .iter()
             .filter(|it| it.child_count() > 0)
@@ -238,7 +303,7 @@ where
             return Ok(MutationResult::Skipped);
         };
 
-        input.edit(grammar_ctx, |content| {
+        doc.edit(grammar_ctx, |content| {
             let remove_range = prev.end_byte..curr.start_byte;
             let _ = content.drain(remove_range);
             tree_sitter::InputEdit {

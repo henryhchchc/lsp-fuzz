@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     file_system::FileSystemEntryInput,
-    lsp::{self, generator::fuzzer_client_capabilities, JsonRPCMessage},
+    lsp::{self, capatibilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
     text_document::{GrammarBasedMutation, Language, TextDocument},
     utf8::Utf8Input,
 };
@@ -100,14 +100,19 @@ impl LspInput {
             },
             work_done_progress_params: Default::default(),
         });
+        let shutdown = lsp::Message::Shutdown(());
+        let exit = lsp::Message::Exit(());
         let mut bytes = Vec::new();
         for (id, request) in once(init_request)
             .chain(once(did_open_request))
             .chain(once(inlay_hint))
-            .chain(self.messages.messages.iter().cloned())
+            .chain(self.messages.iter().cloned())
+            .chain(once(shutdown))
+            .chain(once(exit))
             .enumerate()
         {
-            let message = JsonRPCMessage::new(id, &request);
+            let (method, params) = request.as_json();
+            let message = JsonRPCMessage::new(id, method.into(), params);
             bytes.extend(message.to_lsp_payload());
         }
         bytes
@@ -143,8 +148,8 @@ impl<TM, RM> Named for LspInputMutator<TM, RM> {
 
 impl<TM, RM, S> Mutator<LspInput, S> for LspInputMutator<TM, RM>
 where
-    TM: Mutator<TextDocument, S>,
-    RM: Mutator<LspMessages, S>,
+    TM: Mutator<LspInput, S>,
+    RM: Mutator<LspInput, S>,
     S: UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
 {
     fn mutate(
@@ -152,16 +157,11 @@ where
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let path = Utf8Input::new("main.c".to_owned());
-        let SourceDirectoryInput(entries) = &mut input.source_directory;
-        let Some(FileSystemEntryInput::File(file_content)) = entries.get_mut(&path) else {
-            todo!("Currently we create only one file.")
-        };
         const MUTATE_DOCUMENT: bool = true;
         const MUTATE_REQUESTS: bool = false;
         match state.rand_mut().coinflip(0.5) {
-            MUTATE_DOCUMENT => self.text_document_mutator.mutate(state, file_content),
-            MUTATE_REQUESTS => self.requests_mutator.mutate(state, &mut input.messages),
+            MUTATE_DOCUMENT => self.text_document_mutator.mutate(state, input),
+            MUTATE_REQUESTS => self.requests_mutator.mutate(state, input),
         }
     }
 }
@@ -175,7 +175,7 @@ where
 {
     fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
         Ok(LspInput {
-            messages: LspMessages { messages: vec![] },
+            messages: LspMessages::default(),
             source_directory: SourceDirectoryInput(OrderMap::from([(
                 Utf8Input::new("main.c".to_owned()),
                 FileSystemEntryInput::File(TextDocument::new(

@@ -9,8 +9,11 @@ use libafl::{
     SerdeAny,
 };
 use libafl_bolts::{ownedref::OwnedSlice, tuples::NamedTuple, HasLen};
+use mutations::text_document_selectors::TheOnlyMainC;
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
+
+use crate::lsp_input::LspInput;
 
 pub mod grammars;
 pub mod mutations;
@@ -62,32 +65,6 @@ impl Hash for TextDocument {
     }
 }
 
-pub trait GrammarBasedMutation {
-    fn language(&self) -> Language;
-    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
-    fn fragment(&self, range: Range<usize>) -> &[u8];
-    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
-    where
-        E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit;
-
-    fn splice(
-        &mut self,
-        range: tree_sitter::Range,
-        new_content: Vec<u8>,
-        grammar_context: &GrammarContext,
-    ) {
-        self.edit(grammar_context, |content| {
-            let byte_range = range.start_byte..range.end_byte;
-            let replacement_range = range.start_byte..(range.start_byte + new_content.len());
-            // Update the content
-            let _ = content.splice(byte_range, new_content);
-            let replacement = &content[replacement_range];
-
-            edit_for_node_replacement(range, replacement)
-        });
-    }
-}
-
 impl TextDocument {
     pub fn new(content: Vec<u8>, language: Language) -> Self {
         Self {
@@ -116,6 +93,32 @@ impl TextDocument {
     }
 }
 
+
+pub trait GrammarBasedMutation {
+    fn language(&self) -> Language;
+    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
+    fn fragment(&self, range: Range<usize>) -> &[u8];
+    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
+    where
+        E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit;
+
+    fn splice(
+        &mut self,
+        range: tree_sitter::Range,
+        new_content: Vec<u8>,
+        grammar_context: &GrammarContext,
+    ) {
+        self.edit(grammar_context, |content| {
+            let byte_range = range.start_byte..range.end_byte;
+            let replacement_range = range.start_byte..(range.start_byte + new_content.len());
+            // Update the content
+            let _ = content.splice(byte_range, new_content);
+            let replacement = &content[replacement_range];
+
+            edit_for_node_replacement(range, replacement)
+        });
+    }
+}
 impl GrammarBasedMutation for TextDocument {
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
     where
@@ -193,7 +196,7 @@ impl HasLen for TextDocument {
 
 pub fn text_document_mutations<S>(
     grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+) -> impl MutatorsTuple<LspInput, S> + NamedTuple + use<'_, S>
 where
     S: HasRand + HasMaxSize,
 {
@@ -204,13 +207,13 @@ where
         GenerateMissingNode::new(grammar_lookup),
         ReplaceNodeWithGenerated::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::new(grammar_lookup),
+        DropUncoveredArea::<'_, TheOnlyMainC>::new(grammar_lookup),
     ]
 }
 
 pub fn text_document_reductions<S>(
     grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
+) -> impl MutatorsTuple<LspInput, S> + NamedTuple + use<'_, S>
 where
     S: HasRand + HasMaxSize,
 {
@@ -218,7 +221,7 @@ where
     tuple_list![
         RemoveErrorNode::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::new(grammar_lookup),
+        DropUncoveredArea::<'_, TheOnlyMainC>::new(grammar_lookup),
     ]
 }
 
