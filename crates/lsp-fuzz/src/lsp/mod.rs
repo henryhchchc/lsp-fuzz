@@ -1,27 +1,35 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub(crate) mod generator;
 mod message;
 
 pub use message::Message;
 
+/// JSON-RPC 2.0 protocol version.
 #[derive(Debug, Clone, Copy)]
 pub struct JsonRPC20;
 
+impl JsonRPC20 {
+    /// The string representation of the JSON-RPC 2.0 protocol version.
+    pub const VERSION: &'static str = "2.0";
+}
+
 impl Serialize for JsonRPC20 {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str("2.0")
+        serializer.serialize_str(Self::VERSION)
     }
 }
 
 impl<'de> Deserialize<'de> for JsonRPC20 {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::{Error, Unexpected};
         let version: &str = Deserialize::deserialize(deserializer)?;
-        if version == "2.0" {
+        if version == Self::VERSION {
             Ok(Self)
         } else {
-            Err(serde::de::Error::custom(
-                "Invalid JSON-RPC version. Expecting 2.0.",
+            Err(Error::invalid_value(
+                Unexpected::Str(version),
+                &Self::VERSION,
             ))
         }
     }
@@ -47,8 +55,8 @@ impl JsonRPCMessage {
         }
     }
 
-    const CONTENT_LENGTH_HEADER: &'static [u8] = b"Content-Length: ";
-    const HEADER_END: &'static [u8] = b"\r\n\r\n";
+    pub const CONTENT_LENGTH_HEADER: &'static [u8] = b"Content-Length: ";
+    pub const HEADER_BODY_SEP: &'static [u8] = b"\r\n\r\n";
 
     pub fn to_lsp_payload(&self) -> Vec<u8> {
         let content =
@@ -58,7 +66,7 @@ impl JsonRPCMessage {
             .iter()
             .copied()
             .chain(content_length)
-            .chain(Self::HEADER_END.iter().copied())
+            .chain(Self::HEADER_BODY_SEP.iter().copied())
             .chain(content)
             .collect()
     }
@@ -66,7 +74,10 @@ impl JsonRPCMessage {
 
 #[cfg(test)]
 mod test {
-    use lsp_types::request::{Initialize, Request};
+    use lsp_types::{
+        request::{Initialize, Request},
+        InitializeParams, WorkspaceFolder,
+    };
 
     use super::{JsonRPC20, JsonRPCMessage, Message};
 
@@ -86,8 +97,8 @@ mod test {
 
     #[test]
     fn test_lsp_request() {
-        let request = Message::Initialize(lsp_types::InitializeParams {
-            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+        let request = Message::Initialize(InitializeParams {
+            workspace_folders: Some(vec![WorkspaceFolder {
                 uri: "file:///path/to/folder".parse().unwrap(),
                 name: "folder".to_string(),
             }]),
@@ -98,7 +109,7 @@ mod test {
         assert_eq!(jsonrpc[..header.len()], header[..]);
         let json_value: serde_json::Value =
             serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();
-        assert_eq!(json_value["jsonrpc"], "2.0");
+        assert_eq!(json_value["jsonrpc"], JsonRPC20::VERSION);
         assert_eq!(json_value["id"], 1);
         assert_eq!(json_value["method"], Initialize::METHOD);
         assert!(json_value["params"]["workspaceFolders"][0]["uri"]

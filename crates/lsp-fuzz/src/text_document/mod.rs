@@ -10,7 +10,6 @@ use libafl::{
 };
 use libafl_bolts::{ownedref::OwnedSlice, tuples::NamedTuple, HasLen};
 use serde::{Deserialize, Serialize};
-use tree_sitter::InputEdit;
 use tuple_list::tuple_list;
 
 pub mod grammars;
@@ -87,22 +86,6 @@ pub trait GrammarBasedMutation {
             edit_for_node_replacement(range, replacement)
         });
     }
-
-    fn drain(&mut self, range: tree_sitter::Range, grammar_context: &GrammarContext) {
-        self.edit(grammar_context, |content| {
-            let byte_range = range.start_byte..range.end_byte;
-            let _ = content.drain(byte_range);
-
-            InputEdit {
-                start_byte: range.start_byte,
-                old_end_byte: range.end_byte,
-                new_end_byte: range.start_byte,
-                start_position: range.start_point,
-                old_end_position: range.end_point,
-                new_end_position: range.start_point,
-            }
-        });
-    }
 }
 
 impl TextDocument {
@@ -132,6 +115,7 @@ impl TextDocument {
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
 }
+
 impl GrammarBasedMutation for TextDocument {
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
     where
@@ -207,7 +191,7 @@ impl HasLen for TextDocument {
     }
 }
 
-pub const fn text_document_mutations<S>(
+pub fn text_document_mutations<S>(
     grammar_lookup: &GrammarContextLookup,
 ) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
 where
@@ -224,7 +208,7 @@ where
     ]
 }
 
-pub const fn text_document_reductions<S>(
+pub fn text_document_reductions<S>(
     grammar_lookup: &GrammarContextLookup,
 ) -> impl MutatorsTuple<TextDocument, S> + NamedTuple + use<'_, S>
 where
