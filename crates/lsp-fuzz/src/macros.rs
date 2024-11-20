@@ -10,7 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
-        use crate::lsp::{LspMessage, IntoMessage};
+        use crate::lsp::{LspMessage, MessageParam, LocalizeToWorkspace};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -28,6 +28,26 @@ macro_rules! lsp_messages {
                     $(
                         $( Self::$req_variant(_) => <request::$req_variant as Request>::METHOD )?
                         $( Self::$not_variant(_) => <notification::$not_variant as Notification>::METHOD )?
+                    ),*
+                }
+            }
+
+            /// Returns if the message is a request.
+            pub const fn is_request(&self) -> bool {
+                match self {
+                    $(
+                        $( Self::$req_variant(_) => true)?
+                        $( Self::$not_variant(_) => false)?
+                    ),*
+                }
+            }
+
+            /// Returns if the message is a notification.
+            pub const fn is_notification(&self) -> bool {
+                match self {
+                    $(
+                        $( Self::$req_variant(_) => false)?
+                        $( Self::$not_variant(_) => true)?
                     ),*
                 }
             }
@@ -51,6 +71,27 @@ macro_rules! lsp_messages {
                     ),*
                 }
             }
+
+            pub fn from_params<M>(params: M::Params) -> Self
+                where
+                    M: LspMessage,
+                    M::Params: MessageParam<M>
+            {
+                M::Params::into_message(params)
+            }
+
+            pub fn with_workspace_dir(self, workspsace_dir: &str) -> Self {
+                match self {
+                    $(
+                        $(
+                            Self::$req_variant(params) => Self::$req_variant(params.localize(workspsace_dir))
+                        )?
+                        $(
+                            Self::$not_variant(params) => Self::$not_variant(params.localize(workspsace_dir))
+                        )?
+                    ),*
+                }
+            }
         }
 
         $(
@@ -60,9 +101,9 @@ macro_rules! lsp_messages {
                     type Params = <Self as Request>::Params;
                 }
 
-                impl IntoMessage<request::$req_variant> for request::$req_variant {
-                    fn into_message(params: <request::$req_variant as Request>::Params) -> $type_name {
-                        $type_name::$req_variant(params)
+                impl MessageParam<request::$req_variant> for <request::$req_variant as Request>::Params {
+                    fn into_message(self) -> $type_name {
+                        $type_name::$req_variant(self)
                     }
                 }
             )?
@@ -72,9 +113,9 @@ macro_rules! lsp_messages {
                     type Params = <Self as Notification>::Params;
                 }
 
-                impl IntoMessage<notification::$not_variant> for notification::$not_variant {
-                    fn into_message(params: <notification::$not_variant as Notification>::Params) -> $type_name {
-                        $type_name::$not_variant(params)
+                impl MessageParam<notification::$not_variant> for <notification::$not_variant as Notification>::Params {
+                    fn into_message(self) -> $type_name {
+                        $type_name::$not_variant(self)
                     }
                 }
             )?
@@ -83,4 +124,30 @@ macro_rules! lsp_messages {
     };
 }
 
-pub(crate) use lsp_messages;
+/// Implements the `LocalizeToWorkspace` trait for the given type 
+/// by calling the `localize` method on the specified fields of the type.
+macro_rules! impl_localize {
+    (
+        $type: ty
+        $(;
+            $( $field:ident ),*
+        )?
+    ) => {
+        #[automatically_derived]
+        impl LocalizeToWorkspace for $type {
+
+            #[inline]
+            #[allow(clippy::needless_update)]
+            fn localize(self, workspace_dir: &str) -> Self {
+                Self {
+                    $(
+                        $( $field: self.$field.localize(workspace_dir),)*
+                        ..self
+                    )?
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use {impl_localize, lsp_messages};

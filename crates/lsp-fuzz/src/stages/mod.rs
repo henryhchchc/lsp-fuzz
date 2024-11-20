@@ -1,5 +1,6 @@
 use std::{marker::PhantomData, path::PathBuf, thread};
 
+use derive_new::new as New;
 use libafl::{
     events::{EventFirer, LogSeverity},
     inputs::UsesInput,
@@ -16,21 +17,11 @@ pub mod minimize;
 #[repr(transparent)]
 pub struct LastCleanupDir(u64);
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct CleanupWorkspaceDirs<S> {
     cleanup_dir: String,
     cleanup_threshold: u64,
     _state: PhantomData<S>,
-}
-
-impl<S> CleanupWorkspaceDirs<S> {
-    pub fn new(cleanup_dir: String, cleanup_threshold: u64) -> Self {
-        Self {
-            cleanup_dir,
-            cleanup_threshold,
-            _state: PhantomData,
-        }
-    }
 }
 
 impl<S> UsesState for CleanupWorkspaceDirs<S>

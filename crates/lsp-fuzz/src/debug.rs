@@ -1,24 +1,16 @@
 use std::{borrow::Cow, marker::PhantomData};
 
+use derive_new::new as New;
 use libafl::{
     stages::Stage,
     state::{State, UsesState},
 };
 use libafl_bolts::Named;
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct ActionStage<F, S> {
     action: F,
     _state: PhantomData<S>,
-}
-
-impl<F, S> ActionStage<F, S> {
-    pub fn new(action: F) -> Self {
-        ActionStage {
-            action,
-            _state: PhantomData,
-        }
-    }
 }
 
 impl<F, S> Named for ActionStage<F, S> {

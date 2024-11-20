@@ -1,19 +1,29 @@
-use std::{borrow::Cow, marker::PhantomData, str::FromStr};
+use std::{borrow::Cow, marker::PhantomData, num::NonZero, str::FromStr};
 
 use derive_more::derive::{Deref, DerefMut};
+use derive_new::new as New;
 use libafl::{
     mutators::{MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, tuples::NamedTuple, HasLen, Named};
 use lsp_types::{
-    request::SemanticTokensFullRequest, HoverParams, Position, TextDocumentIdentifier,
-    TextDocumentPositionParams, WorkDoneProgressParams,
+    request::{
+        Completion, GotoDefinition, HoverRequest, InlayHintRequest, SemanticTokensFullRequest,
+    },
+    InlayHintParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
-use crate::lsp::{self, IntoMessage, LspMessage, LspParamsGen};
+use crate::{
+    lsp::{
+        self,
+        generation::{FullSemanticTokens, GoToDef, Hover, LspParamsGenerator, TriggerCompletion},
+        LspMessage, Message, MessageParam,
+    },
+    text_document::{mutations::text_document_selectors::RandomDoc, TextDocument},
+};
 
 use super::LspInput;
 
@@ -28,67 +38,85 @@ impl HasLen for LspMessages {
     }
 }
 
-#[derive(Debug)]
-pub struct AppendMessage<M, S> {
+#[derive(Debug, New)]
+pub struct AppendMessage<M, S, G> {
     _message: PhantomData<M>,
     _state: PhantomData<S>,
+    _gen: PhantomData<G>,
 }
 
-impl<M, S> Default for AppendMessage<M, S> {
-    fn default() -> Self {
-        Self {
-            _message: PhantomData,
-            _state: PhantomData,
-        }
-    }
-}
-
-impl<M, S> Named for AppendMessage<M, S> {
+impl<M, S, G> Named for AppendMessage<M, S, G> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("AppendMessage");
         &NAME
     }
 }
 
-impl<M, S, PG> Mutator<LspInput, S> for AppendMessage<M, S>
+impl<M, S, P, G> Mutator<LspInput, S> for AppendMessage<M, S, G>
 where
     S: HasRand,
-    M: LspMessage<Params = PG> + IntoMessage<M>,
-    PG: LspParamsGen,
+    M: LspMessage<Params = P>,
+    P: MessageParam<M>,
+    G: LspParamsGenerator<S, Result = P>,
 {
     fn mutate(
         &mut self,
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let param = PG::generate_one::<S>(state, input);
-        let message = M::into_message(param);
-        input.messages.push(message);
-        Ok(MutationResult::Mutated)
-    }
-}
-
-#[derive(Debug)]
-pub struct RandomHover<S> {
-    _state: PhantomData<S>,
-}
-
-impl<S> Default for RandomHover<S> {
-    fn default() -> Self {
-        Self {
-            _state: PhantomData,
+        if let Some(params) = G::generate(state, input)? {
+            let message = Message::from_params::<M>(params);
+            input.messages.push(message);
+            Ok(MutationResult::Mutated)
+        } else {
+            Ok(MutationResult::Skipped)
         }
     }
 }
 
-impl<S> Named for RandomHover<S> {
+pub trait PositionSelector<S> {
+    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position>;
+}
+
+#[derive(Debug)]
+pub struct RandomPosition<const MAX: u32>;
+
+impl<S, const MAX: u32> PositionSelector<S> for RandomPosition<MAX>
+where
+    S: HasRand,
+{
+    fn select_position(state: &mut S, _doc: &TextDocument) -> Option<lsp_types::Position> {
+        let rand = state.rand_mut();
+        let line = rand.between(0, MAX as _) as _;
+        let character = rand.between(0, MAX as _) as _;
+        Some(lsp_types::Position { line, character })
+    }
+}
+
+pub type AddCompletion<S> =
+    AppendMessage<Completion, S, TriggerCompletion<RandomDoc<S>, RandomPosition<100>>>;
+
+pub type AddGotoDefinition<S> =
+    AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, RandomPosition<100>>>;
+
+pub type RequestSemanticTokens<S> =
+    AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
+
+pub type RandomHover<S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, RandomPosition<100>>>;
+
+#[derive(Debug, New)]
+pub struct AddInlayHints<S> {
+    _state: PhantomData<S>,
+}
+
+impl<S> Named for AddInlayHints<S> {
     fn name(&self) -> &Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("RandomHover");
+        static NAME: Cow<'static, str> = Cow::Borrowed("AddInlayHints");
         &NAME
     }
 }
 
-impl<S> Mutator<LspInput, S> for RandomHover<S>
+impl<S> Mutator<LspInput, S> for AddInlayHints<S>
 where
     S: HasRand,
 {
@@ -101,34 +129,31 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let document_uri = lsp_types::Uri::from_str("workspace://main.c").unwrap();
-        let line = rand.between(0, 100) as _;
-        let character = rand.between(0, 100) as _;
-        let hover = lsp::Message::HoverRequest(HoverParams {
-            text_document_position_params: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri: document_uri },
-                position: Position { line, character },
-            },
+        let uri = lsp_types::Uri::from_str("lsp-fuzz://main.c").unwrap();
+        let start = {
+            let line = rand.between(0, 1000) as _;
+            let character = rand.between(0, 100) as _;
+            Position { line, character }
+        };
+        let end = {
+            let line = rand.between(0, 1000) as _;
+            let character = rand.between(0, 100) as _;
+            Position { line, character }
+        };
+        let inlay_hints = InlayHintParams {
+            text_document: TextDocumentIdentifier { uri },
+            range: Range { start, end },
             work_done_progress_params: WorkDoneProgressParams::default(),
-        });
-        input.messages.push(hover);
+        };
+        let msg = Message::from_params::<InlayHintRequest>(inlay_hints);
+        input.messages.push(msg);
         Ok(MutationResult::Mutated)
     }
 }
 
-pub type RequestSemanticTokens<S> = AppendMessage<SemanticTokensFullRequest, S>;
-
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct DropRandomMessage<S> {
     _state: PhantomData<S>,
-}
-
-impl<S> Default for DropRandomMessage<S> {
-    fn default() -> Self {
-        Self {
-            _state: PhantomData,
-        }
-    }
 }
 
 impl<S> Named for DropRandomMessage<S> {
@@ -157,13 +182,56 @@ where
     }
 }
 
+#[derive(Debug, New)]
+pub struct SwapRequests<S> {
+    _state: PhantomData<S>,
+}
+
+impl<S> Named for SwapRequests<S> {
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("SwapRequests");
+        &NAME
+    }
+}
+
+impl<S> Mutator<LspInput, S> for SwapRequests<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut LspInput,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some(len) = NonZero::new(input.messages.len()) else {
+            return Ok(MutationResult::Skipped);
+        };
+        if len < NonZero::new(2).unwrap() {
+            return Ok(MutationResult::Skipped);
+        }
+        let rand = state.rand_mut();
+        let idx1 = rand.below(len);
+        let idx2 = rand.below(len);
+        if idx1 != idx2 {
+            input.messages.swap(idx1, idx2);
+            Ok(MutationResult::Mutated)
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
 pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
 where
     S: HasRand,
 {
     tuple_list![
-        RandomHover::default(),
-        RequestSemanticTokens::default(),
-        DropRandomMessage::default()
+        RandomHover::new(),
+        RequestSemanticTokens::new(),
+        DropRandomMessage::new(),
+        AddCompletion::new(),
+        AddGotoDefinition::new(),
+        AddInlayHints::new(),
+        SwapRequests::new(),
     ]
 }

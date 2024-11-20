@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use derive_more::derive::{From, Into};
 use libafl::{
     corpus::CorpusId,
     inputs::{HasTargetBytes, Input},
@@ -10,7 +11,8 @@ use tuple_list::{tuple_list, TupleList};
 
 pub mod mutators;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, From, Into)]
+#[repr(transparent)]
 pub struct Utf8Input {
     inner: String,
 }

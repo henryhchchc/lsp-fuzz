@@ -8,6 +8,7 @@ edition = "2021"
 
 [workspace.dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
+const-str = "0.5"
 derive_more = { version = "1.0.0", features = [
   "display",
   "into_iterator",
@@ -15,7 +16,10 @@ derive_more = { version = "1.0.0", features = [
   "from_str",
   "deref",
   "deref_mut",
+  "from",
+  "into"
 ] }
+derive-new = "0.5"
 indexmap = { version = "2", features = ["serde"] }
 ordermap = { version = "0.5", features = ["serde"] }
 itertools = "0.*"
@@ -28,6 +32,8 @@ libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
 rayon = "1"
+serde_cbor = "0.11"
+serde_json = { version = "1", features = ["preserve_order"] }
 static_assertions = "1.1.0"
 thiserror = "1"
 tracing = "0.1"

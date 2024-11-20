@@ -39,7 +39,8 @@ impl<'de> Deserialize<'de> for JsonRPC20 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRPCMessage {
     jsonrpc: JsonRPC20,
-    pub id: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<usize>,
     pub method: Cow<'static, str>,
     pub params: serde_json::Value,
 }
@@ -48,7 +49,11 @@ impl JsonRPCMessage {
     pub const CONTENT_LENGTH_HEADER: &'static [u8] = b"Content-Length: ";
     pub const HEADER_BODY_SEP: &'static [u8] = b"\r\n\r\n";
 
-    pub const fn new(id: usize, method: Cow<'static, str>, params: serde_json::Value) -> Self {
+    pub const fn new(
+        id: Option<usize>,
+        method: Cow<'static, str>,
+        params: serde_json::Value,
+    ) -> Self {
         Self {
             jsonrpc: JsonRPC20,
             id,
@@ -101,7 +106,7 @@ fn test_lsp_request() {
         ..Default::default()
     });
     let (method, params) = request.as_json();
-    let jsonrpc = JsonRPCMessage::new(1, method.into(), params).to_lsp_payload();
+    let jsonrpc = JsonRPCMessage::new(Some(1), method.into(), params).to_lsp_payload();
     let header = b"Content-Length: 177\r\n\r\n";
     assert_eq!(jsonrpc[..header.len()], header[..]);
     let json_value: serde_json::Value = serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();

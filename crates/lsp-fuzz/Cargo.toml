@@ -5,7 +5,9 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+const-str.workspace = true
 derive_more.workspace = true
+derive-new.workspace = true
 indexmap.workspace = true
 ordermap.workspace = true
 itertools.workspace = true
@@ -21,7 +23,8 @@ libc = "0.2"
 regex-syntax = "0.8.5"
 static_assertions.workspace = true
 serde = "1"
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_cbor.workspace = true
+serde_json.workspace = true
 tree-sitter = { version = "0.24.3" }
 dot-structures = "0.1.1"
 os_pipe = "1.2.1"
@@ -29,3 +32,4 @@ graphviz-rust = { version = "0.9.3", default-features = false }
 tree-sitter-c.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-rust.workspace = true
+trait-gen = "0.3.2"

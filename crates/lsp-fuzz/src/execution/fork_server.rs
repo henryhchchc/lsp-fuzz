@@ -107,13 +107,21 @@ where
             .read_st()
             .afl_context("Failed to read map size from forkserver")?;
 
-        map_observer.as_mut().truncate(fsrv_map_size as usize);
-        if map_observer.as_ref().len() < fsrv_map_size as usize {
-            Err(libafl::Error::illegal_argument(format!(
-                "The map size is too small. {fsrv_map_size} is required for the target."
-            )))?;
+        let fsrv_map_size = fsrv_map_size as usize;
+
+        match map_observer.as_ref().len() {
+            map_size if map_size > fsrv_map_size => {
+                map_observer.as_mut().truncate(fsrv_map_size);
+                info!(new_size = fsrv_map_size, "Coverage map truncated");
+            }
+            map_size if map_size < fsrv_map_size => {
+                Err(libafl::Error::illegal_argument(format!(
+                    "The map size is too small. {fsrv_map_size} is required for the target."
+                )))?;
+            }
+            map_size if map_size == fsrv_map_size => {}
+            _ => unreachable!("Garenteed by the match statement above."),
         }
-        info!(new_size = fsrv_map_size, "Coverage map truncated");
     };
     if fsrv_options & FS_NEW_OPT_SHDMEM_FUZZ != 0 && test_case_shm.is_none() {
         Err(libafl::Error::unknown(

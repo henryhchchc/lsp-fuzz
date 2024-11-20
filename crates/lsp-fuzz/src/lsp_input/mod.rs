@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::once, path::Path, str::FromStr};
+use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, path::Path, str::FromStr};
 
 use libafl::{
     corpus::CorpusId,
@@ -11,11 +11,10 @@ use libafl::{
 use libafl_bolts::{rands::Rand, AsSlice, HasLen, Named};
 use lsp_types::Uri;
 use messages::LspMessages;
-use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    file_system::FileSystemEntryInput,
+    file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capatibilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
     text_document::{GrammarBasedMutation, Language, TextDocument},
     utf8::Utf8Input,
@@ -23,15 +22,12 @@ use crate::{
 
 pub type FileContentInput = BytesInput;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-pub struct SourceDirectoryInput(pub OrderMap<Utf8Input, FileSystemEntryInput<TextDocument>>);
-
 pub mod messages;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspInput {
     pub messages: LspMessages,
-    pub source_directory: SourceDirectoryInput,
+    pub source_directory: FileSystemDirectory<TextDocument>,
 }
 
 impl Input for LspInput {
@@ -41,17 +37,30 @@ impl Input for LspInput {
             id.map(|it| it.to_string()).unwrap_or("unknown".to_owned())
         )
     }
+
+    fn to_file<P>(&self, path: P) -> Result<(), libafl::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let file = File::create(path)?;
+        let buf_writer = BufWriter::new(file);
+        serde_cbor::to_writer(buf_writer, self)
+            .map_err(|e| libafl::Error::serialize(format!("{e:#?}")))
+    }
+
+    fn from_file<P>(path: P) -> Result<Self, libafl::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let file = File::open(path)?;
+        let buf_reader = std::io::BufReader::new(file);
+        serde_cbor::from_reader(buf_reader).map_err(|e| libafl::Error::serialize(format!("{e:#?}")))
+    }
 }
 
 impl HasLen for LspInput {
     fn len(&self) -> usize {
-        self.messages.len()
-            + self
-                .source_directory
-                .0
-                .iter()
-                .map(|(k, v)| k.len() + v.len())
-                .sum::<usize>()
+        self.messages.len() + self.source_directory.len()
     }
 }
 
@@ -59,8 +68,7 @@ impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
         let init_request = lsp::Message::Initialize(lsp_types::InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: lsp_types::Uri::from_str(&format!("file://{}", workspace_dir.display()))
-                    .unwrap(),
+                uri: "lsp-fuzz://".parse().unwrap(),
                 name: workspace_dir
                     .file_name()
                     .unwrap()
@@ -70,12 +78,10 @@ impl LspInput {
             capabilities: fuzzer_client_capabilities(),
             ..Default::default()
         });
-        let Some((file_name, FileSystemEntryInput::File(the_only_doc))) =
-            self.source_directory.0.iter().next()
-        else {
+        let Some((path, the_only_doc)) = self.source_directory.iter_files().next() else {
             unreachable!("We created only files");
         };
-        let uri = Uri::from_str(&format!("workspace://{}", file_name.as_str())).unwrap();
+        let uri = Uri::from_str(&format!("lsp-fuzz://{}", path.display())).unwrap();
         let did_open_request = {
             lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
@@ -86,31 +92,20 @@ impl LspInput {
                 },
             })
         };
-        let inlay_hint = lsp::Message::InlayHintRequest(lsp_types::InlayHintParams {
-            text_document: lsp_types::TextDocumentIdentifier { uri },
-            range: lsp_types::Range {
-                start: lsp_types::Position {
-                    line: 1,
-                    character: 1,
-                },
-                end: lsp_types::Position {
-                    line: 1000,
-                    character: 1,
-                },
-            },
-            work_done_progress_params: Default::default(),
-        });
         let shutdown = lsp::Message::Shutdown(());
-        let exit = lsp::Message::Exit(());
         let mut bytes = Vec::new();
+        let workspace_dir = workspace_dir
+            .to_string_lossy()
+            .trim_end_matches('/')
+            .to_string();
         for (id, request) in once(init_request)
             .chain(once(did_open_request))
-            .chain(once(inlay_hint))
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
-            .chain(once(exit))
+            .map(|it| it.with_workspace_dir(&workspace_dir))
             .enumerate()
         {
+            let id = Some(id).filter(|_| request.is_request());
             let (method, params) = request.as_json();
             let message = JsonRPCMessage::new(id, method.into(), params);
             bytes.extend(message.to_lsp_payload());
@@ -119,12 +114,12 @@ impl LspInput {
     }
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
-        for (path, entry) in self.source_directory.0.iter() {
-            let path = source_dir.join(path.as_str());
+        for (path, entry) in self.source_directory.iter() {
+            let path = source_dir.join(path);
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let FileSystemEntryInput::File(document) = entry else {
+            let FileSystemEntry::File(document) = entry else {
                 todo!("We created only files currently")
             };
             std::fs::write(path, document.target_bytes().as_slice())?;
@@ -176,13 +171,13 @@ where
     fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
         Ok(LspInput {
             messages: LspMessages::default(),
-            source_directory: SourceDirectoryInput(OrderMap::from([(
+            source_directory: FileSystemDirectory::from([(
                 Utf8Input::new("main.c".to_owned()),
-                FileSystemEntryInput::File(TextDocument::new(
+                FileSystemEntry::File(TextDocument::new(
                     b"int main() { return 0; }".to_vec(),
                     Language::C,
                 )),
-            )])),
+            )]),
         })
     }
 }

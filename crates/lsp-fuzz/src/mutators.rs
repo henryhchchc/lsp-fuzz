@@ -1,24 +1,16 @@
 use std::{borrow::Cow, collections::BTreeSet, marker::PhantomData};
 
+use derive_new::new as New;
 use libafl::{
     mutators::{ComposedByMutations, MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, Named};
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct ShortCurcuitMutator<I, MT, S> {
     mutators: MT,
     _phantom: PhantomData<(I, S)>,
-}
-
-impl<I, MT, S> ShortCurcuitMutator<I, MT, S> {
-    pub fn new(mutators: MT) -> Self {
-        Self {
-            mutators,
-            _phantom: PhantomData,
-        }
-    }
 }
 
 impl<I, MT, S> Named for ShortCurcuitMutator<I, MT, S> {

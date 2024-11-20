@@ -1,5 +1,6 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::{borrow::Cow, marker::PhantomData, path::PathBuf};
 
+use derive_new::new as New;
 use itertools::Itertools;
 use libafl::{
     mutators::{MutationResult, Mutator},
@@ -7,8 +8,8 @@ use libafl::{
 };
 use libafl_bolts::{rands::Rand, HasLen, Named};
 use node_filters::{AnyNode, ErrorNode, MissingNode};
-use node_generators::{ChooseFromDerivations, EmptyNode, GenerateNodeWithGrammar};
-use text_document_selectors::TheOnlyMainC;
+use node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar};
+use text_document_selectors::RandomDoc;
 
 use crate::lsp_input::LspInput;
 
@@ -30,7 +31,6 @@ pub struct ReplaceNodeMutation<'a, TS, NF, GEN> {
 
 impl<'a, TS, NF, GEN> ReplaceNodeMutation<'a, TS, NF, GEN>
 where
-    TS: TextDocumentSelector,
     NF: NodeFilter,
     GEN: NodeGenerator,
 {
@@ -52,8 +52,16 @@ impl<TS, NF, GEN> Named for ReplaceNodeMutation<'_, TS, NF, GEN> {
     }
 }
 
-pub trait TextDocumentSelector {
-    fn select_document(input: &mut LspInput) -> Option<(&str, &mut TextDocument)>;
+pub trait TextDocumentSelector<S> {
+    fn select_document<'i>(
+        state: &mut S,
+        input: &'i LspInput,
+    ) -> Option<(PathBuf, &'i TextDocument)>;
+
+    fn select_document_mut<'i>(
+        state: &mut S,
+        input: &'i mut LspInput,
+    ) -> Option<(PathBuf, &'i mut TextDocument)>;
 }
 
 pub trait NodeFilter {
@@ -74,7 +82,7 @@ pub trait NodeGenerator {
 
 impl<S, TS, NF, GEN> Mutator<LspInput, S> for ReplaceNodeMutation<'_, TS, NF, GEN>
 where
-    TS: TextDocumentSelector,
+    TS: TextDocumentSelector<S>,
     NF: NodeFilter,
     GEN: NodeGenerator,
     S: HasRand,
@@ -84,7 +92,7 @@ where
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let Some((_path, doc)) = TS::select_document(input) else {
+        let Some((_, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
         let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
@@ -113,28 +121,35 @@ where
 }
 
 pub mod text_document_selectors {
-    use std::option::Option;
+    use libafl::state::HasRand;
+    use libafl_bolts::rands::Rand;
+    use std::{marker::PhantomData, option::Option, path::PathBuf};
 
-    use crate::{
-        file_system::FileSystemEntryInput,
-        lsp_input::{LspInput, SourceDirectoryInput},
-        text_document::{self, TextDocument},
-        utf8::Utf8Input,
-    };
+    use crate::{lsp_input::LspInput, text_document::TextDocument};
 
     use super::TextDocumentSelector;
 
     #[derive(Debug)]
-    pub struct TheOnlyMainC;
+    pub struct RandomDoc<S>(PhantomData<S>);
 
-    impl TextDocumentSelector for TheOnlyMainC {
-        fn select_document(input: &mut LspInput) -> Option<(&str, &mut TextDocument)> {
-            let path = Utf8Input::new("main.c".to_owned());
-            let SourceDirectoryInput(entries) = &mut input.source_directory;
-            let Some(FileSystemEntryInput::File(doc)) = entries.get_mut(&path) else {
-                todo!("Currently we create only one file.")
-            };
-            Some(("main.c", doc))
+    impl<S> TextDocumentSelector<S> for RandomDoc<S>
+    where
+        S: HasRand,
+    {
+        fn select_document<'i>(
+            state: &mut S,
+            input: &'i LspInput,
+        ) -> Option<(PathBuf, &'i TextDocument)> {
+            state.rand_mut().choose(input.source_directory.iter_files())
+        }
+
+        fn select_document_mut<'i>(
+            state: &mut S,
+            input: &'i mut LspInput,
+        ) -> Option<(PathBuf, &'i mut TextDocument)> {
+            state
+                .rand_mut()
+                .choose(input.source_directory.iter_files_mut())
         }
     }
 }
@@ -222,9 +237,9 @@ pub mod node_generators {
     }
 
     #[derive(Debug)]
-    pub struct GenerateNodeWithGrammar;
+    pub struct ExpandGrammar;
 
-    impl NodeGenerator for GenerateNodeWithGrammar {
+    impl NodeGenerator for ExpandGrammar {
         const NAME: &'static str = "RandomGeneration";
         fn generate_node<R>(
             node: tree_sitter::Node<'_>,
@@ -242,29 +257,20 @@ pub mod node_generators {
     }
 }
 
-pub type ReplaceSubTreeWithDerivation<'a> =
-    ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, ChooseFromDerivations>;
-pub type ReplaceNodeWithGenerated<'a> =
-    ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, GenerateNodeWithGrammar>;
-pub type GenerateMissingNode<'a> =
-    ReplaceNodeMutation<'a, TheOnlyMainC, MissingNode, GenerateNodeWithGrammar>;
+pub type ReplaceSubTreeWithDerivation<'a, S> =
+    ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, ChooseFromDerivations>;
+pub type ReplaceNodeWithGenerated<'a, S> =
+    ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, ExpandGrammar>;
+pub type GenerateMissingNode<'a, S> =
+    ReplaceNodeMutation<'a, RandomDoc<S>, MissingNode, ExpandGrammar>;
 
-pub type RemoveErrorNode<'a> = ReplaceNodeMutation<'a, TheOnlyMainC, ErrorNode, EmptyNode>;
-pub type DropRandomNode<'a> = ReplaceNodeMutation<'a, TheOnlyMainC, AnyNode, EmptyNode>;
+pub type RemoveErrorNode<'a, S> = ReplaceNodeMutation<'a, RandomDoc<S>, ErrorNode, EmptyNode>;
+pub type DropRandomNode<'a, S> = ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, EmptyNode>;
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct DropUncoveredArea<'a, TS> {
     grammar_lookup: &'a GrammarContextLookup,
     _doc_selector: PhantomData<TS>,
-}
-
-impl<'a, TS> DropUncoveredArea<'a, TS> {
-    pub fn new(grammar_lookup: &'a GrammarContextLookup) -> Self {
-        Self {
-            grammar_lookup,
-            _doc_selector: PhantomData,
-        }
-    }
 }
 
 impl<TS> Named for DropUncoveredArea<'_, TS> {
@@ -276,7 +282,7 @@ impl<TS> Named for DropUncoveredArea<'_, TS> {
 
 impl<S, TS> Mutator<LspInput, S> for DropUncoveredArea<'_, TS>
 where
-    TS: TextDocumentSelector,
+    TS: TextDocumentSelector<S>,
     S: HasRand,
 {
     fn mutate(
@@ -284,7 +290,7 @@ where
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let Some((_path, doc)) = TS::select_document(input) else {
+        let Some((_path, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
         let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {

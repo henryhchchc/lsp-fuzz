@@ -9,7 +9,7 @@ use libafl::{
     SerdeAny,
 };
 use libafl_bolts::{ownedref::OwnedSlice, tuples::NamedTuple, HasLen};
-use mutations::text_document_selectors::TheOnlyMainC;
+use mutations::text_document_selectors::RandomDoc;
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
@@ -92,7 +92,6 @@ impl TextDocument {
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
 }
-
 
 pub trait GrammarBasedMutation {
     fn language(&self) -> Language;
@@ -207,7 +206,7 @@ where
         GenerateMissingNode::new(grammar_lookup),
         ReplaceNodeWithGenerated::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::<'_, TheOnlyMainC>::new(grammar_lookup),
+        DropUncoveredArea::<'_, RandomDoc<S>>::new(grammar_lookup),
     ]
 }
 
@@ -221,7 +220,7 @@ where
     tuple_list![
         RemoveErrorNode::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::<'_, TheOnlyMainC>::new(grammar_lookup),
+        DropUncoveredArea::<'_, RandomDoc<S>>::new(grammar_lookup),
     ]
 }
 

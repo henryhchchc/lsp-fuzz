@@ -1,10 +1,13 @@
 mod fuzz;
 mod mine_grammar_fragments;
+mod triage;
 
 use anyhow::Context;
 use fuzz::FuzzCommand;
+use mine_grammar_fragments::MineGrammarFragments;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use triage::TriageCommand;
 
 #[derive(Debug, clap::Parser)]
 #[command(version, about, styles = clap::builder::Styles::styled())]
@@ -20,6 +23,7 @@ impl Cli {
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
+            Command::Triage(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
         }
     }
@@ -46,7 +50,8 @@ impl GlobalOptions {
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Fuzz(FuzzCommand),
-    MineGrammarFragments(mine_grammar_fragments::MineGrammarFragments),
+    MineGrammarFragments(MineGrammarFragments),
+    Triage(TriageCommand)
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {
