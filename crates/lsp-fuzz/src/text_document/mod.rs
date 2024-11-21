@@ -1,7 +1,8 @@
-use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
+use std::{borrow::Cow, collections::HashMap, hash::Hash, iter, ops::Range};
 
 use derive_more::derive::{Display, FromStr};
-use grammars::GrammarContext;
+use grammars::{tree::TreeIter, GrammarContext};
+use itertools::Either;
 use libafl::{
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
@@ -17,6 +18,8 @@ use crate::lsp_input::LspInput;
 
 pub mod grammars;
 pub mod mutations;
+
+pub const LINE_SEP: u8 = b'\n';
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Display, FromStr)]
 #[non_exhaustive]
@@ -78,6 +81,36 @@ impl TextDocument {
         String::from_utf8_lossy(&self.content)
     }
 
+    pub fn lines(&self) -> impl DoubleEndedIterator<Item = &[u8]> {
+        self.content.as_slice().split(|&it| it == LINE_SEP)
+    }
+
+    pub fn lsp_range(&self) -> lsp_types::Range {
+        let start = lsp_types::Position::default();
+        let end = self
+            .lines()
+            .enumerate()
+            .last()
+            .map(|(line_idx, line)| lsp_types::Position::new(line_idx as _, line.len() as _))
+            .unwrap_or_default();
+        lsp_types::Range::new(start, end)
+    }
+
+    pub fn terminal_ranges(&self) -> impl Iterator<Item = tree_sitter::Range> + '_ {
+        if let Some(ref parse_tree) = self.parse_tree {
+            let ranges = parse_tree.iter().filter_map(|node| {
+                if node.child_count() == 0 {
+                    Some(node.range())
+                } else {
+                    None
+                }
+            });
+            Either::Left(ranges)
+        } else {
+            Either::Right(iter::empty())
+        }
+    }
+
     fn update_parse_tree(
         &mut self,
         input_edit: tree_sitter::InputEdit,
@@ -118,6 +151,7 @@ pub trait GrammarBasedMutation {
         });
     }
 }
+
 impl GrammarBasedMutation for TextDocument {
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
     where
@@ -226,6 +260,7 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -271,5 +306,28 @@ mod tests {
         let (rows, cols) = measure_fragment::<b'\n'>(fragment);
         assert_eq!(rows, 2);
         assert_eq!(cols, 4);
+    }
+
+    #[test]
+    fn text_doc_lines() {
+        let content = b"hello\nworld\nrust";
+        let doc = TextDocument::new(content.to_vec(), Language::Rust);
+        let mut lines = doc.lines();
+        assert_eq!(lines.next(), Some(b"hello".as_slice()));
+        assert_eq!(lines.next(), Some(b"world".as_slice()));
+        assert_eq!(lines.next(), Some(b"rust".as_slice()));
+        assert_eq!(lines.next(), None);
+    }
+
+    #[test]
+    fn text_doc_lines_tailing_empty() {
+        let content = b"hello\nworld\nrust\n";
+        let doc = TextDocument::new(content.to_vec(), Language::Rust);
+        let mut lines = doc.lines();
+        assert_eq!(lines.next(), Some(b"hello".as_slice()));
+        assert_eq!(lines.next(), Some(b"world".as_slice()));
+        assert_eq!(lines.next(), Some(b"rust".as_slice()));
+        assert_eq!(lines.next(), Some(b"".as_slice()));
+        assert_eq!(lines.next(), None);
     }
 }

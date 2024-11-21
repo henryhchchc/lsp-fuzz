@@ -144,3 +144,27 @@ where
         Ok(Some(params))
     }
 }
+
+#[derive(Debug)]
+pub struct RequestInlayHint<D>(PhantomData<D>);
+
+impl<D, S> LspParamsGenerator<S> for RequestInlayHint<D>
+where
+    D: TextDocumentSelector<S>,
+{
+    type Result = lsp_types::InlayHintParams;
+
+    fn generate(state: &mut S, input: &LspInput) -> Result<Option<Self::Result>, libafl::Error> {
+        let Some((path, doc)) = D::select_document(state, input) else {
+            return Ok(None);
+        };
+        let uri = format!("lsp-fuzz://{}", path.display()).parse().unwrap();
+        let text_document = TextDocumentIdentifier { uri };
+        let params = lsp_types::InlayHintParams {
+            text_document,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            range: doc.lsp_range(),
+        };
+        Ok(Some(params))
+    }
+}

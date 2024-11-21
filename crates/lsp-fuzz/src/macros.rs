@@ -124,7 +124,7 @@ macro_rules! lsp_messages {
     };
 }
 
-/// Implements the `LocalizeToWorkspace` trait for the given type 
+/// Implements the `LocalizeToWorkspace` trait for the given type
 /// by calling the `localize` method on the specified fields of the type.
 macro_rules! impl_localize {
     (
@@ -150,4 +150,21 @@ macro_rules! impl_localize {
     };
 }
 
-pub(crate) use {impl_localize, lsp_messages};
+macro_rules! prop_mutator {
+    ($vis: vis impl $mutator_ty_name: ident for $input_ty_name: ident :: $field:ident type $field_ty: ty) => {
+        const __OFFSET: usize = ::core::mem::offset_of!($input_ty_name, $field);
+
+        #[automatically_derived]
+        impl crate::mutators::HasMutProp<__OFFSET> for $input_ty_name {
+            type PropType = $field_ty;
+
+            #[inline]
+            fn get_field(&mut self) -> &mut Self::PropType {
+                &mut self.$field
+            }
+        }
+        $vis type $mutator_ty_name<PM> = crate::mutators::PropMutator<PM, __OFFSET>;
+    };
+}
+
+pub(crate) use {impl_localize, lsp_messages, prop_mutator};
