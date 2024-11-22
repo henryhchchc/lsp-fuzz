@@ -7,24 +7,14 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, tuples::NamedTuple, HasLen, Named};
-use lsp_types::request::{
-    Completion, GotoDefinition, HoverRequest, InlayHintRequest, SemanticTokensFullRequest,
-};
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
 use crate::{
-    lsp::{
-        self,
-        generation::{
-            FullSemanticTokens, GoToDef, Hover, LspParamsGenerator, RequestInlayHint,
-            TriggerCompletion,
-        },
-        LspMessage, Message, MessageParam,
-    },
+    lsp::{self, generation::LspParamsGenerator, LspMessage, Message, MessageParam},
     macros::prop_mutator,
     mutators::SliceSwapMutator,
-    text_document::{mutations::text_document_selectors::RandomDoc, TextDocument},
+    text_document::TextDocument,
 };
 
 use super::LspInput;
@@ -96,9 +86,9 @@ where
 }
 
 #[derive(Debug)]
-pub struct TerminalPosition;
+pub struct TerminalStartPosition;
 
-impl<S> PositionSelector<S> for TerminalPosition
+impl<S> PositionSelector<S> for TerminalStartPosition
 where
     S: HasRand,
 {
@@ -110,20 +100,49 @@ where
     }
 }
 
-pub type AddCompletion<S> =
-    AppendMessage<Completion, S, TriggerCompletion<RandomDoc<S>, RandomPosition>>;
+pub mod append_mutations {
 
-pub type RandomGotoDef<S> = AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, RandomPosition>>;
-pub type InRangeGotoDef<S> =
-    AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, TerminalPosition>>;
+    use lsp_types::request::{
+        Completion, GotoDeclaration, GotoDefinition, GotoImplementation, HoverRequest,
+        InlayHintRequest, SemanticTokensFullRequest,
+    };
 
-pub type RequestSemanticTokens<S> =
-    AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
+    use crate::{
+        lsp::generation::{
+            FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc, TriggerCompletion,
+        },
+        text_document::mutations::text_document_selectors::RandomDoc,
+    };
 
-pub type RandomHover<S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, RandomPosition>>;
+    use super::{AppendMessage, RandomPosition, TerminalStartPosition};
 
-pub type AddInlayHints<S> = AppendMessage<InlayHintRequest, S, RequestInlayHint<RandomDoc<S>>>;
+    pub type RandomCompletion<S> =
+        AppendMessage<Completion, S, TriggerCompletion<RandomDoc<S>, RandomPosition>>;
 
+    pub type RandomGotoDef<S> =
+        AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, RandomPosition>>;
+    pub type InRangeGotoDef<S> =
+        AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type RandomGotoImpl<S> =
+        AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, RandomPosition>>;
+    pub type InRangeGotoImpl<S> =
+        AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type RandomGotoDeclaration<S> =
+        AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, RandomPosition>>;
+    pub type InRangeGotoDeclaration<S> =
+        AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type SemanticTokensFull<S> =
+        AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
+
+    pub type RandomHover<S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, RandomPosition>>;
+    pub type InRangeHover<S> =
+        AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type InlayHints<S> = AppendMessage<InlayHintRequest, S, InlayHintWholdDoc<RandomDoc<S>>>;
+}
 #[derive(Debug, New)]
 pub struct DropRandomMessage<S> {
     _state: PhantomData<S>,
@@ -164,13 +183,25 @@ where
     S: HasRand,
 {
     tuple_list![
-        RandomHover::new(),
-        RequestSemanticTokens::new(),
+        append_mutations::RandomHover::new(),
+        append_mutations::InRangeHover::new(),
+        append_mutations::RandomGotoImpl::new(),
+        append_mutations::InRangeGotoImpl::new(),
+        append_mutations::RandomGotoDeclaration::new(),
+        append_mutations::InRangeGotoDeclaration::new(),
+        append_mutations::SemanticTokensFull::new(),
+        append_mutations::RandomCompletion::new(),
+        append_mutations::RandomGotoDef::new(),
+        append_mutations::InRangeGotoDef::new(),
+        append_mutations::InlayHints::new(),
         DropRandomMessage::new(),
-        AddCompletion::new(),
-        RandomGotoDef::new(),
-        InRangeGotoDef::new(),
-        AddInlayHints::new(),
         SwapRequests::new(SliceSwapMutator::new())
     ]
+}
+
+pub fn message_reductions<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+where
+    S: HasRand,
+{
+    tuple_list![DropRandomMessage::new(),]
 }

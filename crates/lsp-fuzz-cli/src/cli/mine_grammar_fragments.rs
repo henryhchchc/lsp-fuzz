@@ -104,12 +104,12 @@ fn write_output(
 ) -> Result<(), anyhow::Error> {
     let output_file = File::create(output_path).context("Creating output file")?;
     let output_writer = BufWriter::new(output_file);
-    let mut zstd_encoder =
-        zstd::Encoder::new(output_writer, 19).context("Creating zstd encoder")?;
-    zstd_encoder
-        .multithread(zstd_threads as u32)
-        .context("Setting zstd encoder threads")?;
-    let zstd_encoder = zstd_encoder.auto_finish();
+    let zstd_encoder = {
+        let mut enc = zstd::Encoder::new(output_writer, 19).context("Creating zstd encoder")?;
+        enc.multithread(zstd_threads as u32)
+            .context("Setting zstd encoder threads")?;
+        enc.auto_finish()
+    };
     serde_cbor::to_writer(zstd_encoder, &result).context("Serializing derivation fragments")?;
     Ok(())
 }

@@ -18,3 +18,5 @@ pub(crate) mod utils;
 pub mod debug;
 
 pub(crate) mod macros;
+pub mod fuzz_target;
+pub mod afl;

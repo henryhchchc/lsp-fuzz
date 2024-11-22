@@ -31,6 +31,14 @@ impl Language {
             Self::Rust => tree_sitter::Language::new(tree_sitter_rust::LANGUAGE),
         }
     }
+    
+    pub const fn grammar_json(&self) -> &'static str {
+        match self {
+            Self::C => super::grammars::C_GRAMMAR_JSON,
+            Self::CPlusPlus => super::grammars::CPP_GRAMMAR_JSON,
+            Self::Rust => super::grammars::RUST_GRAMMAR_JSON,
+        }
+    }
 
     pub const fn lsp_language_id<'a>(&self) -> &'a str {
         match self {

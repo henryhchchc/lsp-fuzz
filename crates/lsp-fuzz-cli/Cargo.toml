@@ -5,8 +5,8 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 core_affinity = "0.8"
+clap.workspace = true
 itertools.workspace = true
 libafl = { workspace = true, features = ["clap"] }
 libafl_bolts.workspace = true
@@ -23,3 +23,6 @@ zstd.workspace = true
 num_cpus.workspace = true
 tree-sitter-c.workspace = true
 tree-sitter-rust.workspace = true
+
+[features]
+profiling = ["lsp-fuzz/profiling"]

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeSet, marker::PhantomData, num::NonZero};
+use std::{borrow::Cow, collections::BTreeSet, marker::PhantomData, num::NonZero, sync::OnceLock};
 
 use derive_new::new as New;
 use libafl::{
@@ -93,26 +93,82 @@ pub trait HasMutProp<const OFFSET: usize> {
 }
 
 #[derive(Debug, New)]
-pub struct PropMutator<PM, const OFFSET: usize> {
+pub struct PropMutator<PM, const PROP_ID: usize> {
     mutator: PM,
 }
 
-impl<M, const OFFSET: usize> Named for PropMutator<M, OFFSET> {
+impl<M, const PROP_ID: usize> Named for PropMutator<M, PROP_ID> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("FieldMutator");
         &NAME
     }
 }
 
-impl<I, T, M, S, const OFFSET: usize> Mutator<I, S> for PropMutator<M, OFFSET>
+impl<I, T, M, S, const PROP_ID: usize> Mutator<I, S> for PropMutator<M, PROP_ID>
 where
     M: Mutator<T, S>,
     S: HasRand,
-    I: HasMutProp<OFFSET, PropType = T>,
+    I: HasMutProp<PROP_ID, PropType = T>,
 {
     #[inline]
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
         let field_mut = I::get_field(input);
         self.mutator.mutate(state, field_mut)
+    }
+}
+
+impl<PM, const PROP_ID: usize> ComposedByMutations for PropMutator<PM, PROP_ID> {
+    type Mutations = PM;
+
+    fn mutations(&self) -> &Self::Mutations {
+        &self.mutator
+    }
+
+    fn mutations_mut(&mut self) -> &mut Self::Mutations {
+        &mut self.mutator
+    }
+}
+
+#[derive(Debug)]
+pub struct OptionMutator<M> {
+    mutator: M,
+    name: OnceLock<Cow<'static, str>>,
+}
+
+impl<M> OptionMutator<M> {
+    pub fn new(mutator: M) -> Self {
+        Self {
+            mutator,
+            name: OnceLock::default(),
+        }
+    }
+}
+
+impl<M> Named for OptionMutator<M>
+where
+    M: Named,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        self.name.get_or_init(|| {
+            let name = format!("OptionMutator<{}>", self.mutator.name());
+            Cow::Owned(name)
+        })
+    }
+}
+
+impl<I, M, S> Mutator<Option<I>, S> for OptionMutator<M>
+where
+    M: Mutator<I, S>,
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut Option<I>,
+    ) -> Result<MutationResult, libafl::Error> {
+        input
+            .as_mut()
+            .map(|it| self.mutator.mutate(state, it))
+            .unwrap_or(Ok(MutationResult::Skipped))
     }
 }

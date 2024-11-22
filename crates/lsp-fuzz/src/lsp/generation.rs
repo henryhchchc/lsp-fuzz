@@ -146,9 +146,9 @@ where
 }
 
 #[derive(Debug)]
-pub struct RequestInlayHint<D>(PhantomData<D>);
+pub struct InlayHintWholdDoc<D>(PhantomData<D>);
 
-impl<D, S> LspParamsGenerator<S> for RequestInlayHint<D>
+impl<D, S> LspParamsGenerator<S> for InlayHintWholdDoc<D>
 where
     D: TextDocumentSelector<S>,
 {

@@ -17,16 +17,17 @@ derive_more = { version = "1.0.0", features = [
   "deref",
   "deref_mut",
   "from",
-  "into"
+  "into",
 ] }
 derive-new = "0.5"
 indexmap = { version = "2", features = ["serde"] }
+memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
+clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = [
-"errors_backtrace",
-"introspection",
-# "tui_monitor"
+  "errors_backtrace",
+  # "tui_monitor"
 ] }
 libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
@@ -38,7 +39,7 @@ static_assertions = "1.1.0"
 thiserror = "1"
 tracing = "0.1"
 tuple_list = "0.1"
-zstd = { version = "0.13", features = ["zstdmt"] }
+zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 num_cpus = "1.16"
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"

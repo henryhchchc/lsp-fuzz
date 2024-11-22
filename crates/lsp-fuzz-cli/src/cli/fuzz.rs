@@ -1,13 +1,17 @@
 use std::{
+    collections::HashMap,
     env::temp_dir,
     fs::File,
+    hash::Hash,
     io::BufReader,
     path::{Path, PathBuf},
+    str::FromStr,
     time::Duration,
 };
 
 use anyhow::Context;
 use core_affinity::CoreId;
+use itertools::Itertools;
 use libafl::{
     corpus::{
         Corpus, CorpusId, HasTestcase, InMemoryCorpus, OnDiskCorpus, SchedulerTestcaseMetadata,
@@ -24,7 +28,7 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StatsStage, StdPowerMutationalStage},
+    stages::{CalibrationStage, StdPowerMutationalStage},
     state::{HasCorpus, HasRand, StdState, UsesState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
@@ -35,11 +39,13 @@ use libafl_bolts::{
     AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
+    afl,
     execution::LspExecutor,
+    fuzz_target::FuzzBinaryInfo,
     lsp_input::{messages::message_mutations, LspInpuGenerator, LspInput, LspInputMutator},
     stages::CleanupWorkspaceDirs,
     text_document::{
-        grammars::{DerivationFragments, DerivationGrammar, GrammarContext, C_GRAMMAR_JSON},
+        grammars::{DerivationFragments, DerivationGrammar, GrammarContext},
         text_document_mutations, GrammarContextLookup, Language,
     },
 };
@@ -51,7 +57,6 @@ use tuple_list::tuple_list;
 use super::GlobalOptions;
 
 const DEFAULT_COVERAGE_MAP_SIZE: usize = 65536;
-const AFL_SHMEM_ADDR_ENV: &str = "__AFL_SHM_ID";
 const AFL_SHMEM_SIZE_ENV: &str = "AFL_MAP_SIZE";
 
 /// Fuzz a Language Server Protocol (LSP) server.
@@ -62,8 +67,8 @@ pub(super) struct FuzzCommand {
     seeds_dir: Option<PathBuf>,
 
     /// Directory to store crash artifacts.
-    #[clap(long, default_value = "crashes")]
-    crashes: PathBuf,
+    #[clap(long)]
+    crashes: Option<PathBuf>,
 
     /// Working directory for the Language Server Protocol (LSP).
     #[clap(long)]
@@ -78,24 +83,20 @@ pub(super) struct FuzzCommand {
     target_args: Vec<String>,
 
     /// Size of the coverage map.
-    #[clap(long, short, default_value_t = DEFAULT_COVERAGE_MAP_SIZE)]
+    #[clap(long, short, env = AFL_SHMEM_SIZE_ENV, default_value_t = DEFAULT_COVERAGE_MAP_SIZE)]
     coverage_map_size: usize,
 
     /// Shareed memory fuzzing.
     #[clap(long, short)]
     shared_memory_fuzzing: Option<usize>,
 
-    /// Enable Persistent mode.
-    #[clap(long, short)]
-    persistent_mode: bool,
-
-    /// Use deferred fork server.
-    #[clap(long, short)]
-    deferred_fork_server: bool,
-
     /// Enable auto tokens.
-    #[clap(long)]
-    auto_tokens: bool,
+    #[clap(long, env = "AFL_NO_AUTODICT")]
+    no_auto_dict: bool,
+
+    /// Number of seeds to generate if no seeds are provided.
+    #[clap(long, default_value_t = 32)]
+    generate_seeds: usize,
 
     /// Timeout runing the fuzz target in milliseconds.
     #[clap(long, short, default_value_t = 1200)]
@@ -106,11 +107,11 @@ pub(super) struct FuzzCommand {
     kill_signal: Signal,
 
     /// Enable debugging for the child process.
-    #[clap(long, default_value_t = false)]
+    #[clap(long, env = "AFL_DEBUG", default_value_t = false)]
     debug_child: bool,
 
     /// Power schedule to use for fuzzing.
-    #[clap(long, value_enum, default_value_t = BaseSchedule::FAST)]
+    #[clap(long, value_enum, default_value_t = BaseSchedule::EXPLORE)]
     power_schedule: BaseSchedule,
 
     /// Whether to cycle power schedules.
@@ -120,20 +121,46 @@ pub(super) struct FuzzCommand {
     #[clap(long)]
     cpu_affinity: Option<usize>,
 
-    #[clap(long)]
-    c_derivation_fragment: PathBuf,
+    #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
+    language_fragments: HashMap<Language, PathBuf>,
+}
+
+fn parse_hash_map<K, V>(s: &str) -> Result<HashMap<K, V>, anyhow::Error>
+where
+    K: FromStr + Hash + Eq,
+    V: FromStr,
+    <K as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    let mut result = HashMap::new();
+    for pair in s.split(',') {
+        let (key, value) = pair.split_once('=').context("Splitting key and value")?;
+        let key = key.parse().context("Parsing key")?;
+        let value = value.parse().context("Parsing value")?;
+        result.insert(key, value);
+    }
+    Ok(result)
 }
 
 impl FuzzCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
-        if self.persistent_mode {
-            info!("Persistent fuzzing is enabled.");
+        info!("Analyzing fuzz target");
+        let binary_info =
+            FuzzBinaryInfo::from_binary(&self.lsp_executable).context("Analyzing fuzz traget")?;
+
+        if binary_info.is_afl_instrumented {
+            info!("Fuzz target is instrumented with AFL++");
+        } else {
+            warn!("The fuzz target is not instrumented with AFL++");
+        }
+        if binary_info.is_persistent_mode {
+            info!("Persistent fuzzing detected.");
+        }
+        if binary_info.is_defer_fork_server {
+            info!("Deferred fork server detected.");
         }
         if let Some(shm_size) = self.shared_memory_fuzzing {
             info!(shm_size, "Shared memory fuzzing is enabled.");
-        }
-        if self.deferred_fork_server {
-            info!("Deferred fork server is enabled.");
         }
         let grammar_ctx = self
             .create_grammar_context()
@@ -148,7 +175,7 @@ impl FuzzCommand {
             .context("Creating shared memory")?;
         // let the forkserver know the shmid
         shmem
-            .write_to_env(AFL_SHMEM_ADDR_ENV)
+            .write_to_env(afl::SHMEM_ADDR_ENV)
             .context("Writing shared memory config to env")?;
         std::env::set_var(AFL_SHMEM_SIZE_ENV, self.coverage_map_size.to_string());
 
@@ -170,12 +197,16 @@ impl FuzzCommand {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
-            MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
+            MaxMapFeedback::with_name("edges_objective", &edges_observer)
         );
 
         let corpus = InMemoryCorpus::<LspInput>::new();
-        let solution_corpus =
-            OnDiskCorpus::new(self.crashes).context("Creating solution corpus")?;
+        let crashes_dir = self
+            .crashes
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(format!("crashes_{}", current_nanos())));
+        info!("Objectives will be saved at {}", &crashes_dir.display());
+        let solution_corpus = OnDiskCorpus::new(crashes_dir).context("Creating solution corpus")?;
 
         let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
         let mut state = StdState::new(
@@ -187,7 +218,7 @@ impl FuzzCommand {
         )
         .context("Creating state")?;
 
-        let mut tokens = if self.auto_tokens {
+        let mut tokens = if !self.no_auto_dict {
             Some(Tokens::new())
         } else {
             None
@@ -225,14 +256,8 @@ impl FuzzCommand {
                 let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
                 StdPowerMutationalStage::new(mutator)
             };
-            let user_stats = StatsStage::new(Duration::from_secs(5));
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            tuple_list![
-                calibration_stage,
-                mutation_stage,
-                user_stats,
-                cleanup_workspace_stage
-            ]
+            tuple_list![calibration_stage, mutation_stage, cleanup_workspace_stage]
         };
 
         let mut executor = LspExecutor::new(
@@ -243,8 +268,8 @@ impl FuzzCommand {
             self.debug_child,
             self.kill_signal,
             test_case_shm,
-            self.persistent_mode,
-            self.deferred_fork_server,
+            binary_info.is_persistent_mode,
+            binary_info.is_defer_fork_server,
             tokens.as_mut(),
             edges_observer,
             tuple_list!(time_observer),
@@ -267,6 +292,8 @@ impl FuzzCommand {
             &mut fuzzer,
             &mut executor,
             &mut event_manager,
+            &grammar_ctx,
+            self.generate_seeds,
         )?;
 
         state
@@ -295,23 +322,26 @@ impl FuzzCommand {
     }
 
     fn create_grammar_context(&self) -> Result<GrammarContextLookup, anyhow::Error> {
-        let derivation_fragement = load_c_derivation_fragment(&self.c_derivation_fragment)
-            .context("Loading C derivation fragements")?;
-        let c_grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::C, C_GRAMMAR_JSON)
-                .context("Constructing C grammar")?;
-        let c_grammar_ctx = GrammarContext::new(c_grammar, derivation_fragement);
-        let grammar_ctx = GrammarContextLookup::from_iter([(Language::C, c_grammar_ctx)]);
+        let contexts: Vec<_> = self
+            .language_fragments
+            .iter()
+            .map(|(&lang, frag_path)| -> Result<_, anyhow::Error> {
+                let frags = load_derivation_fragments(frag_path)?;
+                let grammar =
+                    DerivationGrammar::from_tree_sitter_grammar_json(lang, lang.grammar_json())?;
+                let grammar_ctx = GrammarContext::new(grammar, frags);
+                Ok((lang, grammar_ctx))
+            })
+            .try_collect()?;
+        let grammar_ctx = GrammarContextLookup::from_iter(contexts);
         Ok(grammar_ctx)
     }
 }
 
-fn load_c_derivation_fragment(path: &Path) -> Result<DerivationFragments, anyhow::Error> {
-    info!(file = %path.display(), "Loading C derivation fragements");
-    let file = File::open(path).context("Opening c derivation fragment")?;
+fn load_derivation_fragments(path: &Path) -> Result<DerivationFragments, anyhow::Error> {
+    let file = File::open(path).context("Opening derivation fragment")?;
     let reader = zstd::Decoder::new(BufReader::new(file))?;
     let result = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
-    info!("C derivation fragments loaded");
     Ok(result)
 }
 
@@ -343,6 +373,8 @@ fn initialize_corpus<E, Z, EM, C, R, SC>(
     fuzzer: &mut Z,
     executor: &mut E,
     event_manager: &mut EM,
+    grammar_context_lookup: &GrammarContextLookup,
+    num_seeds: usize,
 ) -> Result<(), anyhow::Error>
 where
     C: Corpus<Input = LspInput>,
@@ -360,9 +392,15 @@ where
             info!(num_inputs = state.corpus().count(), "Seed inputs imported");
         } else {
             warn!("No seed inputs provided, starting from scratch");
-            let mut generator = LspInpuGenerator;
+            let mut generator = LspInpuGenerator::new(grammar_context_lookup);
             state
-                .generate_initial_inputs_forced(fuzzer, executor, &mut generator, event_manager, 1)
+                .generate_initial_inputs_forced(
+                    fuzzer,
+                    executor,
+                    &mut generator,
+                    event_manager,
+                    num_seeds,
+                )
                 .context("Generating initial input")?;
         }
     }

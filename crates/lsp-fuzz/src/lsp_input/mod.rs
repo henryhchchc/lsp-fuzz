@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, path::Path, str::FromStr};
 
+use derive_new::new as New;
 use libafl::{
     corpus::CorpusId,
     generators::Generator,
@@ -16,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capatibilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
-    text_document::{GrammarBasedMutation, Language, TextDocument},
+    text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
     utf8::Utf8Input,
 };
 
@@ -161,22 +162,41 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct LspInpuGenerator;
+#[derive(Debug, New)]
+pub struct LspInpuGenerator<'a> {
+    grammar_lookup: &'a GrammarContextLookup,
+}
 
-impl<S> Generator<LspInput, S> for LspInpuGenerator
+impl<S> Generator<LspInput, S> for LspInpuGenerator<'_>
 where
     S: HasRand,
 {
-    fn generate(&mut self, _state: &mut S) -> Result<LspInput, libafl::Error> {
+    fn generate(&mut self, state: &mut S) -> Result<LspInput, libafl::Error> {
+        let rand = state.rand_mut();
+        let (&language, grammar) =
+            rand.choose(self.grammar_lookup.iter())
+                .ok_or(libafl::Error::illegal_state(
+                    "The grammar lookup context is empry",
+                ))?;
+        let ext = rand
+            .choose(language.file_extensions())
+            .ok_or(libafl::Error::illegal_state(
+                "The language has no extensions",
+            ))?;
+        let single_file_name = format!("main.{ext}");
+        let whole_programs = grammar
+            .whole_programs()
+            .map_err(|_| libafl::Error::illegal_state("The grammar has no whole programs"))?;
+        let program = rand
+            .choose(whole_programs)
+            .ok_or(libafl::Error::illegal_state(
+                "The grammar has no whole programs",
+            ))?;
         Ok(LspInput {
             messages: LspMessages::default(),
             source_directory: FileSystemDirectory::from([(
-                Utf8Input::new("main.c".to_owned()),
-                FileSystemEntry::File(TextDocument::new(
-                    b"int main() { return 0; }".to_vec(),
-                    Language::C,
-                )),
+                Utf8Input::new(single_file_name),
+                FileSystemEntry::File(TextDocument::new(program.to_vec(), language)),
             )]),
         })
     }
