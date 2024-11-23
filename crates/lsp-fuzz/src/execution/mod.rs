@@ -1,17 +1,17 @@
-use std::{env::temp_dir, marker::PhantomData, mem, path::Path};
+use std::{env::temp_dir, fs, marker::PhantomData, mem, path::Path};
 
 use libafl::{
     executors::{Executor, ExitKind, Forkserver as ForkServer, HasObservers},
     inputs::UsesInput,
     mutators::Tokens,
-    observers::{MapObserver, Observer, ObserversTuple},
+    observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::{HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
     current_nanos,
     fs::InputFile,
     shmem::ShMem,
-    tuples::{Prepend, RefIndexable},
+    tuples::{Handle, MatchNameRef, Prepend, RefIndexable},
     AsSliceMut, Truncate,
 };
 use nix::{
@@ -37,6 +37,7 @@ pub struct LspExecutor<S, OT, SHM> {
     input_file: InputFile,
     test_case_shmem: Option<SHM>,
     observers: OT,
+    asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
     _state: PhantomData<S>,
 }
 
@@ -57,6 +58,7 @@ where
         is_deferred_fork_server: bool,
         auto_tokens: Option<&mut Tokens>,
         mut map_observer: A,
+        asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
         other_observers: OT,
     ) -> Result<Self, libafl::Error>
     where
@@ -77,25 +79,27 @@ where
         });
         let args = target_args.into_iter().map(|it| it.into()).collect();
 
-        let asan_options = [
+        let mut asan_options = vec![
             "detect_odr_violation=0",
             "abort_on_error=1",
             "symbolize=0",
             "allocator_may_return_null=1",
-            "handle_segv=0",
-            "handle_sigbus=0",
-            "handle_abort=0",
-            "handle_sigfpe=0",
-            "handle_sigill=0",
+            "handle_segv=1",
+            "handle_sigbus=1",
+            "handle_sigfpe=1",
+            "handle_sigill=1",
+            "handle_abort=2", // Some targets may have their own abort handler
             "detect_stack_use_after_return=0",
             "check_initialization_order=0",
             "detect_leaks=0",
             "malloc_context_size=0",
-        ]
-        .join(":")
-        .into();
+        ];
 
-        let envs = vec![("ASAN_OPTIONS".into(), asan_options)];
+        if asan_observer_handle.is_some() {
+            asan_options.push("log_path=/tmp/asan");
+        }
+
+        let envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
 
         // This must be done before the fork server is created
         if let Some(ref shmem) = test_case_shmem {
@@ -135,6 +139,7 @@ where
             test_case_shmem,
             observers,
             input_file,
+            asan_observer_handle,
             _state: PhantomData,
         })
     }
@@ -167,6 +172,7 @@ where
     S: State + UsesInput<Input = LspInput> + HasExecutions,
     EM: UsesState<State = S>,
     Z: UsesState<State = S>,
+    OT: ObserversTuple<S::Input, S>,
     SHM: ShMem,
 {
     fn run_target(
@@ -216,6 +222,21 @@ where
                 .map(|it| (libc::WEXITSTATUS(self.fork_server.status()) as i8) == it)
                 .unwrap_or_default();
             if libc::WIFSIGNALED(self.fork_server.status()) || exitcode_is_crash {
+                if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
+                    let mut observers = self.observers_mut();
+                    let asan_observer =
+                        observers
+                            .get_mut(handle)
+                            .ok_or(libafl::Error::illegal_state(
+                                "ASAN handle is attached but ASAN observer not found",
+                            ))?;
+                    let asan_log_file = format!("/tmp/asan.{child_pid}");
+                    if fs::exists(&asan_log_file)? {
+                        let asan_log = fs::read(&asan_log_file)?;
+                        let asan_log = String::from_utf8_lossy(&asan_log);
+                        asan_observer.parse_asan_output(&asan_log);
+                    }
+                }
                 ExitKind::Crash
             } else {
                 ExitKind::Ok

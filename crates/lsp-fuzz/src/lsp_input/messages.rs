@@ -71,7 +71,7 @@ pub trait PositionSelector<S> {
 }
 
 #[derive(Debug)]
-pub struct RandomPosition<const MAX: u32 = { u32::MAX }>;
+pub struct RandomPosition<const MAX: u32 = 1024>;
 
 impl<S, const MAX: u32> PositionSelector<S> for RandomPosition<MAX>
 where
@@ -103,13 +103,14 @@ where
 pub mod append_mutations {
 
     use lsp_types::request::{
-        Completion, GotoDeclaration, GotoDefinition, GotoImplementation, HoverRequest,
-        InlayHintRequest, SemanticTokensFullRequest,
+        Completion, GotoDeclaration, GotoDefinition, GotoImplementation, GotoTypeDefinition,
+        HoverRequest, InlayHintRequest, SemanticTokensFullRequest, TypeHierarchyPrepare,
     };
 
     use crate::{
         lsp::generation::{
-            FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc, TriggerCompletion,
+            FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc, PrepareTypeHierarchy,
+            TriggerCompletion,
         },
         text_document::mutations::text_document_selectors::RandomDoc,
     };
@@ -133,6 +134,19 @@ pub mod append_mutations {
         AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, RandomPosition>>;
     pub type InRangeGotoDeclaration<S> =
         AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type RandomGotoTypeDef<S> =
+        AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, RandomPosition>>;
+    pub type InRangeGotoTypeDef<S> =
+        AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
+
+    pub type RandomPrepareTypeHierarchy<S> =
+        AppendMessage<TypeHierarchyPrepare, S, PrepareTypeHierarchy<RandomDoc<S>, RandomPosition>>;
+    pub type InRangePrepareTypeHierarchy<S> = AppendMessage<
+        TypeHierarchyPrepare,
+        S,
+        PrepareTypeHierarchy<RandomDoc<S>, TerminalStartPosition>,
+    >;
 
     pub type SemanticTokensFull<S> =
         AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
@@ -189,7 +203,11 @@ where
         append_mutations::InRangeGotoImpl::new(),
         append_mutations::RandomGotoDeclaration::new(),
         append_mutations::InRangeGotoDeclaration::new(),
+        append_mutations::RandomGotoTypeDef::new(),
+        append_mutations::InRangeGotoTypeDef::new(),
         append_mutations::SemanticTokensFull::new(),
+        append_mutations::RandomPrepareTypeHierarchy::new(),
+        append_mutations::InRangePrepareTypeHierarchy::new(),
         append_mutations::RandomCompletion::new(),
         append_mutations::RandomGotoDef::new(),
         append_mutations::InRangeGotoDef::new(),

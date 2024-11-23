@@ -168,3 +168,36 @@ where
         Ok(Some(params))
     }
 }
+
+#[derive(Debug)]
+pub struct PrepareTypeHierarchy<D, P> {
+    _document: PhantomData<D>,
+    _position: PhantomData<P>,
+}
+
+impl<D, P, S> LspParamsGenerator<S> for PrepareTypeHierarchy<D, P>
+where
+    D: TextDocumentSelector<S>,
+    P: PositionSelector<S>,
+{
+    type Result = lsp_types::TypeHierarchyPrepareParams;
+
+    fn generate(state: &mut S, input: &LspInput) -> Result<Option<Self::Result>, libafl::Error> {
+        let Some((path, doc)) = D::select_document(state, input) else {
+            return Ok(None);
+        };
+        let uri = format!("lsp-fuzz://{}", path.display()).parse().unwrap();
+        let text_document = TextDocumentIdentifier { uri };
+        let Some(position) = P::select_position(state, doc) else {
+            return Ok(None);
+        };
+        let params = lsp_types::TypeHierarchyPrepareParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document,
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        Ok(Some(params))
+    }
+}

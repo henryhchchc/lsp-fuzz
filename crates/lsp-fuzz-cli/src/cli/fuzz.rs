@@ -18,11 +18,12 @@ use libafl::{
     },
     events::{EventFirer, SimpleEventManager},
     feedback_and_fast, feedback_or,
-    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
+    feedbacks::{CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::{StdScheduledMutator, Tokens},
     observers::{
-        CanTrack, HitcountsMapObserver, MapObserver, Observer, StdMapObserver, TimeObserver,
+        AsanBacktraceObserver, CanTrack, HitcountsMapObserver, MapObserver, Observer,
+        StdMapObserver, TimeObserver,
     },
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
@@ -36,6 +37,7 @@ use libafl_bolts::{
     current_nanos,
     rands::{Rand, StdRand},
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
+    tuples::Handled,
     AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
@@ -186,6 +188,15 @@ impl FuzzCommand {
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
+        let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
+
+        let asan_handle = if binary_info.uses_address_sanitizer {
+            info!("Fuzz target is compiled with AddressSanitizer.");
+            Some(asan_observer.handle())
+        } else {
+            None
+        };
+
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
 
         // Create an observation channel to keep track of the execution time
@@ -197,7 +208,8 @@ impl FuzzCommand {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
-            MaxMapFeedback::with_name("edges_objective", &edges_observer)
+            NewHashFeedback::new(&asan_observer),
+            // MaxMapFeedback::with_name("edges_objective", &edges_observer)
         );
 
         let corpus = InMemoryCorpus::<LspInput>::new();
@@ -272,7 +284,8 @@ impl FuzzCommand {
             binary_info.is_defer_fork_server,
             tokens.as_mut(),
             edges_observer,
-            tuple_list!(time_observer),
+            asan_handle,
+            tuple_list![time_observer, asan_observer],
         )
         .context("Creating executor")?;
 
@@ -322,6 +335,7 @@ impl FuzzCommand {
     }
 
     fn create_grammar_context(&self) -> Result<GrammarContextLookup, anyhow::Error> {
+        info!("Loading grammar files");
         let contexts: Vec<_> = self
             .language_fragments
             .iter()

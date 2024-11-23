@@ -85,6 +85,7 @@ pub fn fuzzer_client_capabilities() -> ClientCapabilities {
             implementation: Some(goto_capability()),
             document_highlight: Some(DynamicRegistrationClientCapabilities::default()),
             references: Some(DynamicRegistrationClientCapabilities::default()),
+            type_hierarchy: Some(DynamicRegistrationClientCapabilities::default()),
             ..Default::default()
         }),
         general: Some(GeneralClientCapabilities {

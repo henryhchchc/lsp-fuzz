@@ -27,6 +27,7 @@ clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = [
   "errors_backtrace",
+  "casr",
   # "tui_monitor"
 ] }
 libafl_bolts = { version = "0.*" }

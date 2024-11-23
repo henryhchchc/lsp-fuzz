@@ -69,7 +69,6 @@ use trait_gen::trait_gen;
     ShowMessageParams,
     ShowMessageRequestParams,
     SignatureHelpParams,
-    TypeHierarchyPrepareParams,
     TypeHierarchySubtypesParams,
     TypeHierarchySupertypesParams,
     UnregistrationParams,
@@ -157,3 +156,4 @@ impl_localize!(TextDocumentIdentifier; uri);
 impl_localize!(TextDocumentItem; uri);
 impl_localize!(TextDocumentPositionParams; text_document);
 impl_localize!(WorkspaceFolder; uri);
+impl_localize!(TypeHierarchyPrepareParams; text_document_position_params);
