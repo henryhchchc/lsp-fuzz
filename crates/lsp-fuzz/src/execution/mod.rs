@@ -31,7 +31,7 @@ mod fork_server;
 #[derive(Debug)]
 pub struct LspExecutor<S, OT, SHM> {
     fork_server: ForkServer,
-    crash_exit_code: Option<i8>,
+    crash_exit_code: Option<u8>,
     kill_signal: Signal,
     timeout: TimeSpec,
     input_file: InputFile,
@@ -49,7 +49,7 @@ where
     pub fn new<MO>(
         fuzz_target: &Path,
         mut target_args: Vec<String>,
-        crash_exit_code: Option<i8>,
+        crash_exit_code: Option<u8>,
         timeout: TimeSpec,
         debug_child: bool,
         kill_signal: Signal,
@@ -219,7 +219,8 @@ where
             self.fork_server.set_status(status);
             let exitcode_is_crash = self
                 .crash_exit_code
-                .map(|it| (libc::WEXITSTATUS(self.fork_server.status()) as i8) == it)
+                .filter(|_| libc::WIFEXITED(status))
+                .map(|it| (libc::WEXITSTATUS(self.fork_server.status()) as u8) == it)
                 .unwrap_or_default();
             if libc::WIFSIGNALED(self.fork_server.status()) || exitcode_is_crash {
                 if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
