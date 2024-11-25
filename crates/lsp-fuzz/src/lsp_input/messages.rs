@@ -103,57 +103,38 @@ where
 pub mod append_mutations {
 
     use lsp_types::request::{
-        Completion, GotoDeclaration, GotoDefinition, GotoImplementation, GotoTypeDefinition,
-        HoverRequest, InlayHintRequest, SemanticTokensFullRequest, TypeHierarchyPrepare,
+        DocumentHighlightRequest, GotoDeclaration, GotoDefinition, GotoImplementation,
+        GotoTypeDefinition, HoverRequest, InlayHintRequest, References, SemanticTokensFullRequest,
+        TypeHierarchyPrepare,
     };
 
     use crate::{
         lsp::generation::{
-            FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc, PrepareTypeHierarchy,
-            TriggerCompletion,
+            self, FindReferences, FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc,
+            TriggerCompletion, TypeHierarchyPrep,
         },
         text_document::mutations::text_document_selectors::RandomDoc,
     };
 
-    use super::{AppendMessage, RandomPosition, TerminalStartPosition};
+    use super::AppendMessage;
 
-    pub type RandomCompletion<S> =
-        AppendMessage<Completion, S, TriggerCompletion<RandomDoc<S>, RandomPosition>>;
+    pub type Completion<P, S> =
+        AppendMessage<lsp_types::request::Completion, S, TriggerCompletion<RandomDoc<S>, P>>;
 
-    pub type RandomGotoDef<S> =
-        AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, RandomPosition>>;
-    pub type InRangeGotoDef<S> =
-        AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
-
-    pub type RandomGotoImpl<S> =
-        AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, RandomPosition>>;
-    pub type InRangeGotoImpl<S> =
-        AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
-
-    pub type RandomGotoDeclaration<S> =
-        AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, RandomPosition>>;
-    pub type InRangeGotoDeclaration<S> =
-        AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
-
-    pub type RandomGotoTypeDef<S> =
-        AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, RandomPosition>>;
-    pub type InRangeGotoTypeDef<S> =
-        AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, TerminalStartPosition>>;
-
-    pub type RandomPrepareTypeHierarchy<S> =
-        AppendMessage<TypeHierarchyPrepare, S, PrepareTypeHierarchy<RandomDoc<S>, RandomPosition>>;
-    pub type InRangePrepareTypeHierarchy<S> = AppendMessage<
-        TypeHierarchyPrepare,
-        S,
-        PrepareTypeHierarchy<RandomDoc<S>, TerminalStartPosition>,
-    >;
+    pub type GotoDecl<P, S> = AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, P>>;
+    pub type GotoDef<P, S> = AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, P>>;
+    pub type GotoTypeDef<P, S> = AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, P>>;
+    pub type GotoImpl<P, S> = AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, P>>;
+    pub type FindRef<P, S> = AppendMessage<References, S, FindReferences<RandomDoc<S>, P>>;
+    pub type PrepTypeHierarchy<P, S> =
+        AppendMessage<TypeHierarchyPrepare, S, TypeHierarchyPrep<RandomDoc<S>, P>>;
+    pub type DocumentHighlight<P, S> =
+        AppendMessage<DocumentHighlightRequest, S, generation::DocumentHighlight<RandomDoc<S>, P>>;
 
     pub type SemanticTokensFull<S> =
         AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
 
-    pub type RandomHover<S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, RandomPosition>>;
-    pub type InRangeHover<S> =
-        AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, TerminalStartPosition>>;
+    pub type PerformHover<P, S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, P>>;
 
     pub type InlayHints<S> = AppendMessage<InlayHintRequest, S, InlayHintWholdDoc<RandomDoc<S>>>;
 }
@@ -197,22 +178,25 @@ where
     S: HasRand,
 {
     tuple_list![
-        append_mutations::RandomHover::new(),
-        append_mutations::InRangeHover::new(),
-        append_mutations::RandomGotoImpl::new(),
-        append_mutations::InRangeGotoImpl::new(),
-        append_mutations::RandomGotoDeclaration::new(),
-        append_mutations::InRangeGotoDeclaration::new(),
-        append_mutations::RandomGotoTypeDef::new(),
-        append_mutations::InRangeGotoTypeDef::new(),
+        append_mutations::GotoDef::<RandomPosition, _>::new(),
+        append_mutations::GotoDef::<TerminalStartPosition, _>::new(),
+        append_mutations::GotoDecl::<RandomPosition, _>::new(),
+        append_mutations::GotoDecl::<TerminalStartPosition, _>::new(),
+        append_mutations::GotoTypeDef::<RandomPosition, _>::new(),
+        append_mutations::GotoTypeDef::<TerminalStartPosition, _>::new(),
+        append_mutations::GotoImpl::<RandomPosition, _>::new(),
+        append_mutations::GotoImpl::<TerminalStartPosition, _>::new(),
+        append_mutations::FindRef::<RandomPosition, _>::new(),
+        append_mutations::FindRef::<TerminalStartPosition, _>::new(),
+        append_mutations::PrepTypeHierarchy::<RandomPosition, _>::new(),
+        append_mutations::PrepTypeHierarchy::<TerminalStartPosition, _>::new(),
+        append_mutations::DocumentHighlight::<RandomPosition, _>::new(),
+        append_mutations::DocumentHighlight::<TerminalStartPosition, _>::new(),
+        append_mutations::PerformHover::<RandomPosition, _>::new(),
+        append_mutations::PerformHover::<TerminalStartPosition, _>::new(),
         append_mutations::SemanticTokensFull::new(),
-        append_mutations::RandomPrepareTypeHierarchy::new(),
-        append_mutations::InRangePrepareTypeHierarchy::new(),
-        append_mutations::RandomCompletion::new(),
-        append_mutations::RandomGotoDef::new(),
-        append_mutations::InRangeGotoDef::new(),
+        append_mutations::Completion::<RandomPosition, _>::new(),
         append_mutations::InlayHints::new(),
-        DropRandomMessage::new(),
         SwapRequests::new(SliceSwapMutator::new())
     ]
 }
@@ -221,5 +205,5 @@ pub fn message_reductions<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
 where
     S: HasRand,
 {
-    tuple_list![DropRandomMessage::new(),]
+    tuple_list![DropRandomMessage::new()]
 }

@@ -39,7 +39,6 @@ use trait_gen::trait_gen;
     DocumentColorParams,
     DocumentDiagnosticParams,
     DocumentFormattingParams,
-    DocumentHighlightParams,
     DocumentLink,
     DocumentLinkParams,
     DocumentOnTypeFormattingParams,
@@ -57,7 +56,6 @@ use trait_gen::trait_gen;
     MonikerParams,
     ProgressParams,
     PublishDiagnosticsParams,
-    ReferenceParams,
     RegistrationParams,
     RenameFilesParams,
     RenameParams,
@@ -157,3 +155,5 @@ impl_localize!(TextDocumentItem; uri);
 impl_localize!(TextDocumentPositionParams; text_document);
 impl_localize!(WorkspaceFolder; uri);
 impl_localize!(TypeHierarchyPrepareParams; text_document_position_params);
+impl_localize!(ReferenceParams; text_document_position);
+impl_localize!(DocumentHighlightParams; text_document_position_params);

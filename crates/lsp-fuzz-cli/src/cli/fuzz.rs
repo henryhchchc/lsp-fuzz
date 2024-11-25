@@ -113,7 +113,7 @@ pub(super) struct FuzzCommand {
     debug_child: bool,
 
     /// Power schedule to use for fuzzing.
-    #[clap(long, value_enum, default_value_t = BaseSchedule::EXPLORE)]
+    #[clap(long, short, value_enum, default_value_t = BaseSchedule::FAST)]
     power_schedule: BaseSchedule,
 
     /// Whether to cycle power schedules.
@@ -206,11 +206,8 @@ impl FuzzCommand {
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
 
-        let mut objective = feedback_and_fast!(
-            CrashFeedback::new(),
-            NewHashFeedback::new(&asan_observer),
-            // MaxMapFeedback::with_name("edges_objective", &edges_observer)
-        );
+        let mut objective =
+            feedback_and_fast!(CrashFeedback::new(), NewHashFeedback::new(&asan_observer),);
 
         let corpus = InMemoryCorpus::<LspInput>::new();
         let crashes_dir = self

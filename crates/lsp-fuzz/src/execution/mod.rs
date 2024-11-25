@@ -24,9 +24,14 @@ use nix::{
 };
 use tracing::info;
 
-use crate::{lsp_input::LspInput, utils::ResultExt};
+use crate::{
+    lsp_input::LspInput,
+    utils::{OptionExt, ResultExt},
+};
 
 mod fork_server;
+
+const ASAN_LOG_PATH: &str = "/tmp/asan";
 
 #[derive(Debug)]
 pub struct LspExecutor<S, OT, SHM> {
@@ -96,7 +101,7 @@ where
         ];
 
         if asan_observer_handle.is_some() {
-            asan_options.push("log_path=/tmp/asan");
+            asan_options.push(const_str::concat!("log_path=", ASAN_LOG_PATH));
         }
 
         let envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
@@ -224,19 +229,7 @@ where
                 .unwrap_or_default();
             if libc::WIFSIGNALED(self.fork_server.status()) || exitcode_is_crash {
                 if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
-                    let mut observers = self.observers_mut();
-                    let asan_observer =
-                        observers
-                            .get_mut(handle)
-                            .ok_or(libafl::Error::illegal_state(
-                                "ASAN handle is attached but ASAN observer not found",
-                            ))?;
-                    let asan_log_file = format!("/tmp/asan.{child_pid}");
-                    if fs::exists(&asan_log_file)? {
-                        let asan_log = fs::read(&asan_log_file)?;
-                        let asan_log = String::from_utf8_lossy(&asan_log);
-                        asan_observer.parse_asan_output(&asan_log);
-                    }
+                    self.update_asan_observer(child_pid, handle)?;
                 }
                 ExitKind::Crash
             } else {
@@ -256,11 +249,9 @@ where
                     Err(libafl::Error::unknown(message))?;
                 }
             }
-            if self.fork_server.read_st().is_err() {
-                return Err(libafl::Error::unknown(
-                    "Could not kill timed-out child".to_string(),
-                ));
-            }
+            self.fork_server
+                .read_st()
+                .afl_context("Could not kill time-out child")?;
             ExitKind::Timeout
         };
         if !libc::WIFSTOPPED(self.fork_server.status()) {
@@ -270,6 +261,32 @@ where
         // std::fs::remove_dir_all(&workspace_dir)?;
         *state.executions_mut() += 1;
         Ok(exit_kind)
+    }
+}
+
+impl<S, OT, SHM> LspExecutor<S, OT, SHM>
+where
+    S: State + UsesInput<Input = LspInput> + HasExecutions,
+    OT: ObserversTuple<S::Input, S>,
+    SHM: ShMem,
+{
+    fn update_asan_observer(
+        &mut self,
+        child_pid: i32,
+        handle: &Handle<AsanBacktraceObserver>,
+    ) -> Result<(), libafl::Error> {
+        let mut observers = self.observers_mut();
+        let asan_observer = observers
+            .get_mut(handle)
+            .afl_context("ASAN handle is attached but ASAN observer not found")?;
+        let asan_log_file = format!("{ASAN_LOG_PATH}.{child_pid}");
+        if fs::exists(&asan_log_file)? {
+            let asan_log = fs::read(&asan_log_file).afl_context("Reading ASAN log file")?;
+            let asan_log = String::from_utf8_lossy(&asan_log);
+            asan_observer.parse_asan_output(&asan_log);
+            fs::remove_file(asan_log_file).afl_context("Fail to cleanup ASAN log file")?;
+        }
+        Ok(())
     }
 }
 

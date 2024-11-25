@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData, path::PathBuf};
+use std::{borrow::Cow, marker::PhantomData};
 
 use derive_new::new as New;
 use itertools::Itertools;
@@ -7,6 +7,7 @@ use libafl::{
     state::HasRand,
 };
 use libafl_bolts::{rands::Rand, HasLen, Named};
+use lsp_types::Uri;
 use node_filters::{AnyNode, ErrorNode, MissingNode};
 use node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar};
 use text_document_selectors::RandomDoc;
@@ -53,15 +54,12 @@ impl<TS, NF, GEN> Named for ReplaceNodeMutation<'_, TS, NF, GEN> {
 }
 
 pub trait TextDocumentSelector<S> {
-    fn select_document<'i>(
-        state: &mut S,
-        input: &'i LspInput,
-    ) -> Option<(PathBuf, &'i TextDocument)>;
+    fn select_document<'i>(state: &mut S, input: &'i LspInput) -> Option<(Uri, &'i TextDocument)>;
 
     fn select_document_mut<'i>(
         state: &mut S,
         input: &'i mut LspInput,
-    ) -> Option<(PathBuf, &'i mut TextDocument)>;
+    ) -> Option<(Uri, &'i mut TextDocument)>;
 }
 
 pub trait NodeFilter {
@@ -123,7 +121,8 @@ where
 pub mod text_document_selectors {
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
-    use std::{marker::PhantomData, option::Option, path::PathBuf};
+    use lsp_types::Uri;
+    use std::{marker::PhantomData, option::Option};
 
     use crate::{lsp_input::LspInput, text_document::TextDocument};
 
@@ -139,17 +138,27 @@ pub mod text_document_selectors {
         fn select_document<'i>(
             state: &mut S,
             input: &'i LspInput,
-        ) -> Option<(PathBuf, &'i TextDocument)> {
-            state.rand_mut().choose(input.source_directory.iter_files())
+        ) -> Option<(Uri, &'i TextDocument)> {
+            let iter = input.source_directory.iter_files().map(|(path, doc)| {
+                (
+                    format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
+                    doc,
+                )
+            });
+            state.rand_mut().choose(iter)
         }
 
         fn select_document_mut<'i>(
             state: &mut S,
             input: &'i mut LspInput,
-        ) -> Option<(PathBuf, &'i mut TextDocument)> {
-            state
-                .rand_mut()
-                .choose(input.source_directory.iter_files_mut())
+        ) -> Option<(Uri, &'i mut TextDocument)> {
+            let iter = input.source_directory.iter_files_mut().map(|(path, doc)| {
+                (
+                    format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
+                    doc,
+                )
+            });
+            state.rand_mut().choose(iter)
         }
     }
 }
