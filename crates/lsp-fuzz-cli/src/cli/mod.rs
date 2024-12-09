@@ -51,7 +51,7 @@ impl GlobalOptions {
 enum Command {
     Fuzz(FuzzCommand),
     MineGrammarFragments(MineGrammarFragments),
-    Triage(TriageCommand)
+    Triage(TriageCommand),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

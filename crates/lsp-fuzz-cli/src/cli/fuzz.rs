@@ -127,23 +127,6 @@ pub(super) struct FuzzCommand {
     language_fragments: HashMap<Language, PathBuf>,
 }
 
-fn parse_hash_map<K, V>(s: &str) -> Result<HashMap<K, V>, anyhow::Error>
-where
-    K: FromStr + Hash + Eq,
-    V: FromStr,
-    <K as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-{
-    let mut result = HashMap::new();
-    for pair in s.split(',') {
-        let (key, value) = pair.split_once('=').context("Splitting key and value")?;
-        let key = key.parse().context("Parsing key")?;
-        let value = value.parse().context("Parsing value")?;
-        result.insert(key, value);
-    }
-    Ok(result)
-}
-
 impl FuzzCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         info!("Analyzing fuzz target");
@@ -190,12 +173,10 @@ impl FuzzCommand {
 
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
-        let asan_handle = if binary_info.uses_address_sanitizer {
+        let asan_handle = binary_info.uses_address_sanitizer.then(|| {
             info!("Fuzz target is compiled with AddressSanitizer.");
-            Some(asan_observer.handle())
-        } else {
-            None
-        };
+            asan_observer.handle()
+        });
 
         let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
 
@@ -416,4 +397,21 @@ where
         }
     }
     Ok(())
+}
+
+fn parse_hash_map<K, V>(s: &str) -> Result<HashMap<K, V>, anyhow::Error>
+where
+    K: FromStr + Hash + Eq,
+    V: FromStr,
+    <K as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    let mut result = HashMap::new();
+    for pair in s.split(',') {
+        let (key, value) = pair.split_once('=').context("Splitting key and value")?;
+        let key = key.parse().context("Parsing key")?;
+        let value = value.parse().context("Parsing value")?;
+        result.insert(key, value);
+    }
+    Ok(result)
 }

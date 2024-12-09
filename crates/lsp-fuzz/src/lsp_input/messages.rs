@@ -138,6 +138,7 @@ pub mod append_mutations {
 
     pub type InlayHints<S> = AppendMessage<InlayHintRequest, S, InlayHintWholdDoc<RandomDoc<S>>>;
 }
+
 #[derive(Debug, New)]
 pub struct DropRandomMessage<S> {
     _state: PhantomData<S>,

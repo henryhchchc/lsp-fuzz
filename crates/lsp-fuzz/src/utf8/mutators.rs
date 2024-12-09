@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashSet, num::NonZero, ops::DerefMut};
+use std::{borrow::Cow, char, collections::HashSet, num::NonZero, ops::DerefMut};
 
 use libafl::{
     inputs::Input,
@@ -191,9 +191,9 @@ where
 
         let shift_amount = rand.zero_upto(32);
         let new_char = if rand.coinflip(0.5) {
-            (picked..).nth(shift_amount)
+            (picked..char::MAX).nth(shift_amount)
         } else {
-            ('\u{0001}'..picked).rev().nth(shift_amount)
+            (char::MIN..picked).rev().nth(shift_amount)
         };
 
         if let Some(new_char) = new_char {

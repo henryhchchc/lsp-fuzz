@@ -27,4 +27,3 @@ where
 pub trait LocalizeToWorkspace {
     fn localize(self, workspace_dir: &str) -> Self;
 }
-
