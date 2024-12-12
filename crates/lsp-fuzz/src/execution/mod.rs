@@ -18,6 +18,7 @@ use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
+use tracing::warn;
 
 use crate::{
     lsp_input::LspInput,
@@ -62,6 +63,16 @@ impl<SHM: ShMem> FuzzInput<SHM> {
             }
         }
         Ok(())
+    }
+}
+
+impl<SHM> Drop for FuzzInput<SHM> {
+    fn drop(&mut self) {
+        if let FuzzInput::File(file) | FuzzInput::Stdin(file) = self {
+            if let Err(e) = fs::remove_file(&file.path) {
+                warn!("Failed to delete file: {}", e);
+            }
+        }
     }
 }
 
@@ -258,13 +269,5 @@ where
             fs::remove_file(asan_log_file).afl_context("Fail to cleanup ASAN log file")?;
         }
         Ok(())
-    }
-}
-
-impl<S, OT, SHM> Drop for LspExecutor<S, OT, SHM> {
-    fn drop(&mut self) {
-        if let FuzzInput::File(file) | FuzzInput::Stdin(file) = &self.fuzz_input {
-            let _ = std::fs::remove_file(&file.path);
-        }
     }
 }

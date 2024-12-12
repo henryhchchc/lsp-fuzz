@@ -4,19 +4,21 @@ use std::{
     fs::File,
     hash::Hash,
     io::BufReader,
+    ops::Not,
     path::{Path, PathBuf},
     str::FromStr,
     time::Duration,
 };
 
 use anyhow::{bail, Context};
+use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use itertools::Itertools;
 use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::{EventFirer, SimpleEventManager},
-    feedback_and_fast, feedback_or,
-    feedbacks::{CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    feedback_and_fast, feedback_or, feedback_or_fast,
+    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::{StdScheduledMutator, Tokens},
     observers::{
@@ -39,6 +41,7 @@ use libafl_bolts::{
     AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
+    afl,
     execution::{FuzzInput, LspExecutor},
     fuzz_target::FuzzBinaryInfo,
     lsp_input::{messages::message_mutations, LspInpuGenerator, LspInput, LspInputMutator},
@@ -87,11 +90,11 @@ pub(super) struct FuzzCommand {
     shared_memory_fuzzing: Option<usize>,
 
     /// Enable auto tokens.
-    #[clap(long, env = "AFL_NO_AUTODICT")]
+    #[clap(long, env = "AFL_NO_AUTODICT", value_parser = BoolishValueParser::new())]
     no_auto_dict: bool,
 
     /// Exit code that indicates a crash.
-    #[clap(long, env = "AFL_CRASH_EXITCODE")]
+    #[clap(long, env = "AFL_CRASH_EXITCODE", value_parser = BoolishValueParser::new())]
     crash_exit_code: Option<i8>,
 
     /// Number of seeds to generate if no seeds are provided.
@@ -107,11 +110,11 @@ pub(super) struct FuzzCommand {
     kill_signal: Signal,
 
     /// Enable debugging for the child process.
-    #[clap(long, env = "AFL_DEBUG_CHILD", default_value_t = false)]
+    #[clap(long, env = "AFL_DEBUG_CHILD", value_parser = BoolishValueParser::new())]
     debug_child: bool,
 
     /// Enable debugging for AFL itself.
-    #[clap(long, env = "AFL_DEBUG", default_value_t = false)]
+    #[clap(long, env = "AFL_DEBUG", value_parser = BoolishValueParser::new())]
     debug_afl: bool,
 
     /// The path to the temporary directory.
@@ -123,7 +126,7 @@ pub(super) struct FuzzCommand {
     power_schedule: BaseSchedule,
 
     /// Whether to cycle power schedules.
-    #[clap(long, env = "AFL_CYCLE_SCHEDULES", default_value_t = false)]
+    #[clap(long, env = "AFL_CYCLE_SCHEDULES", value_parser = BoolishValueParser::new())]
     cycle_power_schedule: bool,
 
     #[clap(long)]
@@ -189,8 +192,13 @@ impl FuzzCommand {
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
 
-        let mut objective =
-            feedback_and_fast!(CrashFeedback::new(), NewHashFeedback::new(&asan_observer),);
+        let mut objective = feedback_and_fast!(
+            CrashFeedback::new(),
+            feedback_or_fast!(
+                ConstFeedback::new(binary_info.uses_address_sanitizer.not()),
+                NewHashFeedback::new(&asan_observer)
+            )
+        );
 
         let corpus = InMemoryCorpus::<LspInput>::new();
         let crashes_dir = self
@@ -210,11 +218,7 @@ impl FuzzCommand {
         )
         .context("Creating state")?;
 
-        let mut tokens = if !self.no_auto_dict {
-            Some(Tokens::new())
-        } else {
-            None
-        };
+        let mut tokens = self.no_auto_dict.not().then(Tokens::new);
 
         let scheduler = {
             let power_schedule = PowerSchedule::new(self.power_schedule);
@@ -277,6 +281,8 @@ impl FuzzCommand {
             }
         };
 
+        let coverage_map_info = Some((map_shmem_id, edges_observer.as_ref().len()));
+
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
             self.target_args,
@@ -289,7 +295,7 @@ impl FuzzCommand {
             binary_info.is_persistent_mode,
             binary_info.is_defer_fork_server,
             tokens.as_mut(),
-            Some((map_shmem_id, edges_observer.as_ref().len())),
+            coverage_map_info,
             edges_observer,
             asan_handle,
             tuple_list![time_observer, asan_observer],
@@ -436,16 +442,17 @@ fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
 }
 
 fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
-    target_args
+    let replaced = target_args
         .iter_mut()
         .filter_map(|input_file| {
-            if input_file == "@@" {
+            if input_file == afl::ARG_FILE_PLACE_HOLDER {
                 *input_file = input_file_path_str.clone();
                 Some(())
             } else {
                 None
             }
         })
-        .count()
-        > 0
+        .count();
+
+    replaced > 0
 }

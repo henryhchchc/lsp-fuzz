@@ -90,9 +90,6 @@ const FORKSRV_ST_FD: i32 = FORKSRV_CTL_FD + 1;
 
 impl Drop for NeoForkServer {
     fn drop(&mut self) {
-        // Modelled after <https://github.com/AFLplusplus/AFLplusplus/blob/dee76993812fa9b5d8c1b75126129887a10befae/src/afl-forkserver.c#L1429>
-        debug!("Dropping forkserver",);
-
         if let Some(pid) = self.child_pid {
             debug!("Sending {} to child {pid}", self.kill_signal);
             if let Err(err) = nix::sys::signal::kill(pid, self.kill_signal) {
@@ -104,22 +101,10 @@ impl Drop for NeoForkServer {
             }
         }
 
-        let forkserver_pid = Pid::from_raw(self.fork_server_child.id().try_into().unwrap());
-        if let Err(err) = nix::sys::signal::kill(forkserver_pid, self.kill_signal) {
-            warn!(
-                "Failed to deliver {} signal to forkserver {}: {err} ({})",
-                self.kill_signal,
-                forkserver_pid,
-                io::Error::last_os_error()
-            );
-            let _ = nix::sys::signal::kill(forkserver_pid, Signal::SIGKILL);
-        } else if let Err(err) = nix::sys::wait::waitpid(forkserver_pid, None) {
-            warn!(
-                "Waitpid on forkserver {} failed: {err} ({})",
-                forkserver_pid,
-                io::Error::last_os_error()
-            );
-            let _ = nix::sys::signal::kill(forkserver_pid, Signal::SIGKILL);
+        if let Err(err) = self.fork_server_child.kill() {
+            warn!(%err, "Fail to kill fork server process.");
+        } else if let Err(err) = self.fork_server_child.wait() {
+            warn!(%err, "Fail to wait fork server process.");
         }
     }
 }
