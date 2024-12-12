@@ -1,28 +1,23 @@
 use std::{env::temp_dir, fs, marker::PhantomData, mem, path::Path};
 
+use fork_server::NeoForkServer;
 use libafl::{
-    executors::{Executor, ExitKind, Forkserver as ForkServer, HasObservers},
+    executors::{Executor, ExitKind, HasObservers},
     inputs::UsesInput,
     mutators::Tokens,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::{HasExecutions, State, UsesState},
 };
 use libafl_bolts::{
-    current_nanos,
     fs::InputFile,
-    shmem::ShMem,
+    shmem::{ShMem, ShMemId},
     tuples::{Handle, MatchNameRef, Prepend, RefIndexable},
     AsSliceMut, Truncate,
 };
 use nix::{
-    errno::Errno,
-    sys::{
-        signal::{kill, Signal},
-        time::TimeSpec,
-    },
+    sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
-use tracing::info;
 
 use crate::{
     lsp_input::LspInput,
@@ -34,13 +29,48 @@ mod fork_server;
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
 #[derive(Debug)]
+pub enum FuzzInput<SHM> {
+    Stdin(InputFile),
+    File(InputFile),
+    SharedMemory(SHM),
+}
+
+impl<SHM: ShMem> FuzzInput<SHM> {
+    const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<u32>();
+
+    pub fn feed(&mut self, input_bytes: &[u8]) -> Result<(), libafl::Error> {
+        match self {
+            FuzzInput::Stdin(file) | FuzzInput::File(file) => {
+                file.write_buf(input_bytes)?;
+            }
+            FuzzInput::SharedMemory(shmem) => {
+                std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+                if shmem.len() < input_bytes.len() + Self::SHM_FUZZ_HEADER_SIZE {
+                    Err(libafl::Error::unknown(
+                        "The shared memory is too small for the input.",
+                    ))?;
+                }
+                let input_size = u32::try_from(input_bytes.len())
+                    .afl_context("The length of input bytes cannot fit into u32")?;
+                let input_size_encoded = input_size.to_ne_bytes();
+                let shmem_slice = shmem.as_slice_mut();
+                shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
+                let input_body_range =
+                    Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
+                shmem_slice[input_body_range].copy_from_slice(input_bytes);
+                std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub struct LspExecutor<S, OT, SHM> {
-    fork_server: ForkServer,
-    crash_exit_code: Option<u8>,
-    kill_signal: Signal,
+    fork_server: NeoForkServer,
+    crash_exit_code: Option<i8>,
     timeout: TimeSpec,
-    input_file: InputFile,
-    test_case_shmem: Option<SHM>,
+    fuzz_input: FuzzInput<SHM>,
     observers: OT,
     asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
     _state: PhantomData<S>,
@@ -53,15 +83,17 @@ where
     #[allow(clippy::too_many_arguments, reason = "To be refactored later")]
     pub fn new<MO>(
         fuzz_target: &Path,
-        mut target_args: Vec<String>,
-        crash_exit_code: Option<u8>,
+        target_args: Vec<String>,
+        crash_exit_code: Option<i8>,
         timeout: TimeSpec,
         debug_child: bool,
+        debug_afl: bool,
         kill_signal: Signal,
-        test_case_shmem: Option<SHM>,
+        fuzz_input: FuzzInput<SHM>,
         is_persistent: bool,
         is_deferred_fork_server: bool,
         auto_tokens: Option<&mut Tokens>,
+        coverage_map_info: Option<(ShMemId, usize)>,
         mut map_observer: A,
         asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
         other_observers: OT,
@@ -72,16 +104,6 @@ where
         A: Observer<S::Input, S> + AsMut<MO> + AsRef<MO>,
         OT: ObserversTuple<S::Input, S> + Prepend<A>,
     {
-        let filename = format!("lsp-fuzz-input_{}", current_nanos());
-        let input_file_path = temp_dir().join(filename);
-        let input_file = InputFile::create(input_file_path)?;
-        info!(path = %input_file.path.display(), "Created input file");
-
-        target_args.iter_mut().for_each(|arg| {
-            if arg == "@@" {
-                *arg = input_file.path.to_string_lossy().to_string();
-            }
-        });
         let args = target_args.into_iter().map(|it| it.into()).collect();
 
         let mut asan_options = vec![
@@ -106,23 +128,16 @@ where
 
         let envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
 
-        // This must be done before the fork server is created
-        if let Some(ref shmem) = test_case_shmem {
-            const AFL_TEST_CASE_SHM_ID_ENV: &str = "__AFL_SHM_FUZZ_ID";
-            shmem.write_to_env(AFL_TEST_CASE_SHM_ID_ENV)?;
-        }
-
-        let mut fork_server = ForkServer::with_kill_signal(
+        let mut fork_server = fork_server::NeoForkServer::new(
             fuzz_target.as_os_str().to_owned(),
             args,
             envs,
-            input_file.as_raw_fd(),
-            test_case_shmem.is_none(),
+            (&fuzz_input).into(),
             0,
             is_persistent,
             is_deferred_fork_server,
-            false,
-            Some(map_observer.as_ref().len()),
+            coverage_map_info,
+            debug_afl,
             debug_child,
             kill_signal,
         )?;
@@ -130,7 +145,7 @@ where
         fork_server::initialize(
             &mut fork_server,
             &mut map_observer,
-            &test_case_shmem,
+            &fuzz_input,
             auto_tokens,
         )?;
 
@@ -139,16 +154,15 @@ where
         Ok(Self {
             fork_server,
             crash_exit_code,
-            kill_signal,
             timeout,
-            test_case_shmem,
+            fuzz_input,
             observers,
-            input_file,
             asan_observer_handle,
             _state: PhantomData,
         })
     }
 }
+
 impl<S, OT, SHM> UsesState for LspExecutor<S, OT, SHM>
 where
     S: State + UsesInput<Input = LspInput>,
@@ -194,40 +208,17 @@ where
 
         // Transfer input to the fork server
         let input_bytes = input.request_bytes(&workspace_dir);
-        if let Some(shmem) = self.test_case_shmem.as_mut() {
-            write_shm_input(shmem, &input_bytes)?;
-        } else {
-            self.input_file.write_buf(&input_bytes)?;
-        }
+        self.fuzz_input.feed(&input_bytes)?;
 
-        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+        let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
-        // Run the fuzzing target
-        let last_run_timed_out = self.fork_server.last_run_timed_out_raw();
-        self.fork_server
-            .write_ctl(last_run_timed_out)
-            .afl_context("Oops the fork server is dead.")?;
-
-        self.fork_server.set_last_run_timed_out(false);
-        let child_pid = self
-            .fork_server
-            .read_st()
-            .afl_context("Fail to get child PID from fork server")?;
-
-        if child_pid <= 0 {
-            Err(libafl::Error::unknown(
-                "Get an invalid PID from fork server.",
-            ))?;
-        }
-        self.fork_server.set_child_pid(Pid::from_raw(child_pid));
-        let exit_kind = if let Some(status) = self.fork_server.read_st_timed(&self.timeout)? {
-            self.fork_server.set_status(status);
+        let exit_kind = if let Some(status) = status {
             let exitcode_is_crash = self
                 .crash_exit_code
                 .filter(|_| libc::WIFEXITED(status))
-                .map(|it| (libc::WEXITSTATUS(self.fork_server.status()) as u8) == it)
+                .map(|it| libc::WEXITSTATUS(status) as i8 == it)
                 .unwrap_or_default();
-            if libc::WIFSIGNALED(self.fork_server.status()) || exitcode_is_crash {
+            if libc::WIFSIGNALED(status) || exitcode_is_crash {
                 if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
                     self.update_asan_observer(child_pid, handle)?;
                 }
@@ -236,28 +227,8 @@ where
                 ExitKind::Ok
             }
         } else {
-            self.fork_server.set_last_run_timed_out(true);
-            // We need to kill the child in case he has timed out, or we can't get the correct
-            // pid in the next call to self.executor.forkserver_mut().read_st()?
-            match kill(self.fork_server.child_pid(), self.kill_signal) {
-                Ok(_) | Err(Errno::ESRCH) => {
-                    // It is OK if the child terminated before we could kill it
-                }
-                Err(errno) => {
-                    let message =
-                        format!("Oops we could not kill timed-out child: {}", errno.desc());
-                    Err(libafl::Error::unknown(message))?;
-                }
-            }
-            self.fork_server
-                .read_st()
-                .afl_context("Could not kill time-out child")?;
             ExitKind::Timeout
         };
-        if !libc::WIFSTOPPED(self.fork_server.status()) {
-            self.fork_server.reset_child_pid();
-        }
-        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // std::fs::remove_dir_all(&workspace_dir)?;
         *state.executions_mut() += 1;
         Ok(exit_kind)
@@ -272,7 +243,7 @@ where
 {
     fn update_asan_observer(
         &mut self,
-        child_pid: i32,
+        child_pid: Pid,
         handle: &Handle<AsanBacktraceObserver>,
     ) -> Result<(), libafl::Error> {
         let mut observers = self.observers_mut();
@@ -290,28 +261,10 @@ where
     }
 }
 
-fn write_shm_input<SHM>(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libafl::Error>
-where
-    SHM: ShMem,
-{
-    const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<u32>();
-    if shmem.len() < input_bytes.len() + SHM_FUZZ_HEADER_SIZE {
-        Err(libafl::Error::unknown(
-            "The shared memory is too small for the input.",
-        ))?;
-    }
-    let input_size = u32::try_from(input_bytes.len())
-        .afl_context("The length of input bytes cannot fit into u32")?;
-    let input_size_encoded = input_size.to_ne_bytes();
-    let shmem_slice = shmem.as_slice_mut();
-    shmem_slice[..SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
-    let input_body_range = SHM_FUZZ_HEADER_SIZE..(SHM_FUZZ_HEADER_SIZE + input_bytes.len());
-    shmem_slice[input_body_range].copy_from_slice(input_bytes);
-    Ok(())
-}
-
 impl<S, OT, SHM> Drop for LspExecutor<S, OT, SHM> {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.input_file.path);
+        if let FuzzInput::File(file) | FuzzInput::Stdin(file) = &self.fuzz_input {
+            let _ = std::fs::remove_file(&file.path);
+        }
     }
 }

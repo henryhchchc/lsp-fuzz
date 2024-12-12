@@ -48,6 +48,7 @@ impl GlobalOptions {
 }
 
 #[derive(Debug, clap::Subcommand)]
+#[allow(clippy::large_enum_variant, reason = "This is CMD args")]
 enum Command {
     Fuzz(FuzzCommand),
     MineGrammarFragments(MineGrammarFragments),

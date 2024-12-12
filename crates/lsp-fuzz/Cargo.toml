@@ -5,37 +5,37 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-const-str.workspace = true
 clap.workspace = true
-derive_more.workspace = true
+const-str.workspace = true
 derive-new.workspace = true
+derive_more.workspace = true
+dot-structures = "0.1.1"
+fluent-uri = "0.3"
+graphviz-rust = { version = "0.9.3", default-features = false }
 indexmap.workspace = true
-ordermap.workspace = true
 itertools.workspace = true
-memmap2.workspace = true
 kmp = "0.1"
 libafl.workspace = true
 libafl_bolts.workspace = true
-lsp-types.workspace = true
-nix.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-tuple_list.workspace = true
-fluent-uri = "0.3"
 libc = "0.2"
+lsp-types.workspace = true
+memmap2.workspace = true
+nix.workspace = true
+ordermap.workspace = true
+os_pipe = "1.2.1"
 regex-syntax = "0.8.5"
-static_assertions.workspace = true
 serde = "1"
 serde_cbor.workspace = true
 serde_json.workspace = true
+static_assertions.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+trait-gen = "0.3.2"
 tree-sitter = { version = "0.24.3" }
-dot-structures = "0.1.1"
-os_pipe = "1.2.1"
-graphviz-rust = { version = "0.9.3", default-features = false }
 tree-sitter-c.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-rust.workspace = true
-trait-gen = "0.3.2"
+tuple_list.workspace = true
 
 [features]
 profiling = ["libafl/introspection"]

@@ -35,14 +35,14 @@ use libafl::{
 };
 use libafl_bolts::{
     current_nanos,
+    fs::InputFile,
     rands::{Rand, StdRand},
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     tuples::Handled,
     AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
-    afl,
-    execution::LspExecutor,
+    execution::{FuzzInput, LspExecutor},
     fuzz_target::FuzzBinaryInfo,
     lsp_input::{messages::message_mutations, LspInpuGenerator, LspInput, LspInputMutator},
     stages::CleanupWorkspaceDirs,
@@ -96,6 +96,10 @@ pub(super) struct FuzzCommand {
     #[clap(long, env = "AFL_NO_AUTODICT")]
     no_auto_dict: bool,
 
+    /// Exit code that indicates a crash.
+    #[clap(long, env = "AFL_CRASH_EXITCODE")]
+    crash_exit_code: Option<i8>,
+
     /// Number of seeds to generate if no seeds are provided.
     #[clap(long, default_value_t = 32)]
     generate_seeds: usize,
@@ -105,19 +109,27 @@ pub(super) struct FuzzCommand {
     timeout: u64,
 
     /// Signal to send to terminate the child process.
-    #[clap(long, short, default_value_t = Signal::SIGKILL)]
+    #[clap(long, short, env = "AFL_KILL_SIGNAL", default_value_t = Signal::SIGKILL)]
     kill_signal: Signal,
 
     /// Enable debugging for the child process.
-    #[clap(long, env = "AFL_DEBUG", default_value_t = false)]
+    #[clap(long, env = "AFL_DEBUG_CHILD", default_value_t = false)]
     debug_child: bool,
+
+    /// Enable debugging for AFL itself.
+    #[clap(long, env = "AFL_DEBUG", default_value_t = false)]
+    debug_afl: bool,
+
+    /// The path to the temporary directory.
+    #[clap(long, env = "AFL_TMPDIR")]
+    temp_dir: Option<PathBuf>,
 
     /// Power schedule to use for fuzzing.
     #[clap(long, short, value_enum, default_value_t = BaseSchedule::FAST)]
     power_schedule: BaseSchedule,
 
     /// Whether to cycle power schedules.
-    #[clap(long, default_value_t = false)]
+    #[clap(long, env = "AFL_CYCLE_SCHEDULES", default_value_t = false)]
     cycle_power_schedule: bool,
 
     #[clap(long)]
@@ -128,7 +140,7 @@ pub(super) struct FuzzCommand {
 }
 
 impl FuzzCommand {
-    pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+    pub(super) fn run(mut self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         info!("Analyzing fuzz target");
         let binary_info =
             FuzzBinaryInfo::from_binary(&self.lsp_executable).context("Analyzing fuzz traget")?;
@@ -158,11 +170,7 @@ impl FuzzCommand {
         let mut shmem = shmem_provider
             .new_shmem(self.coverage_map_size)
             .context("Creating shared memory")?;
-        // let the forkserver know the shmid
-        shmem
-            .write_to_env(afl::SHMEM_ADDR_ENV)
-            .context("Writing shared memory config to env")?;
-        std::env::set_var(AFL_SHMEM_SIZE_ENV, self.coverage_map_size.to_string());
+        let map_shmem_id = shmem.id();
 
         // Create an observation channel using the signals map
         let shmem_observer = {
@@ -230,7 +238,7 @@ impl FuzzCommand {
             .transpose()
             .context("Creating shared memory for test case passing")?;
 
-        let temp_dir = temp_dir();
+        let temp_dir = self.temp_dir.unwrap_or_else(temp_dir);
         let temp_dir_str = temp_dir
             .to_str()
             .context("temp_dir is not a vaild UTF-8 string")?;
@@ -250,17 +258,45 @@ impl FuzzCommand {
             tuple_list![calibration_stage, mutation_stage, cleanup_workspace_stage]
         };
 
+        let fuzz_input = if let Some(shm) = test_case_shm {
+            FuzzInput::SharedMemory(shm)
+        } else {
+            let filename = format!("lsp-fuzz-input_{}", current_nanos());
+            let input_file_path = temp_dir.join(filename);
+            let input_file_path_str = input_file_path
+                .to_str()
+                .context("Invalid temp file path")?
+                .to_owned();
+            let input_file = InputFile::create(input_file_path)?;
+            info!(path = %input_file.path.display(), "Created input file");
+
+            let mut use_file_input = false;
+            for input_file in self.target_args.iter_mut() {
+                if input_file == "@@" {
+                    *input_file = input_file_path_str.clone();
+                    use_file_input = true;
+                }
+            }
+            if use_file_input {
+                FuzzInput::File(input_file)
+            } else {
+                FuzzInput::Stdin(input_file)
+            }
+        };
+
         let mut executor = LspExecutor::new(
             &self.lsp_executable,
             self.target_args,
-            None,
+            self.crash_exit_code,
             Duration::from_millis(self.timeout).into(),
             self.debug_child,
+            self.debug_afl,
             self.kill_signal,
-            test_case_shm,
+            fuzz_input,
             binary_info.is_persistent_mode,
             binary_info.is_defer_fork_server,
             tokens.as_mut(),
+            Some((map_shmem_id, edges_observer.as_ref().len())),
             edges_observer,
             asan_handle,
             tuple_list![time_observer, asan_observer],
