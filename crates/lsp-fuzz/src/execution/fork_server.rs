@@ -1,3 +1,4 @@
+use core::slice;
 use std::{
     ffi::OsString,
     io::{self, Read, Write},
@@ -266,17 +267,14 @@ impl NeoForkServer {
     /// Read bytes of any length from the st pipe
     pub fn read_vec(&mut self, size: usize) -> Result<Vec<u8>, libafl::Error> {
         let mut buf = Vec::with_capacity(size);
-        // SAFETY: `buf` will not be returned with `Ok` unless it is filled with `size` bytes.
-        //         So it is ok to set the length to `size` such that the length of `&mut buf` is `size`
-        //         and the `read_exact` call will try to read `size` bytes.
-        #[allow(
-            clippy::uninit_vec,
-            reason = "The vec will be filled right after setting the length."
-        )]
         unsafe {
+            // SAFETY: `buf` is guaranteed to have a capacity of `size` bytes.
+            //         Therefore the `slice` will not reach non-accessible memory.
+            let slice = slice::from_raw_parts_mut(buf.as_mut_ptr(), size);
+            self.rx.read_exact(slice)?;
+            // SAFETY: `buf` must have been filled with `size` bytes upon this point.
             buf.set_len(size);
-        }
-        self.rx.read_exact(&mut buf)?;
+        };
         Ok(buf)
     }
 
@@ -288,7 +286,6 @@ impl NeoForkServer {
 
     /// Read a message from the child process.
     pub fn read_st_timed(&mut self, timeout: &TimeSpec) -> Result<Option<i32>, libafl::Error> {
-        let mut buf: [u8; 4] = [0_u8; 4];
         let st_read = self.rx.as_raw_fd();
 
         // # Safety
@@ -308,14 +305,13 @@ impl NeoForkServer {
             Some(&SigSet::empty()),
         )?;
         if sret > 0 {
-            if self.rx.read_exact(&mut buf).is_ok() {
-                let val: i32 = i32::from_ne_bytes(buf);
-                Ok(Some(val))
-            } else {
-                Err(libafl::Error::unknown(
-                    "Unable to communicate with fork server (OOM?)".to_string(),
-                ))
-            }
+            let mut buf: [u8; 4] = [0_u8; 4];
+            self.rx
+                .read_exact(&mut buf)
+                .map(move |()| Some(i32::from_ne_bytes(buf)))
+                .map_err(|_| {
+                    libafl::Error::unknown("Unable to communicate with fork server (OOM?)")
+                })
         } else {
             Ok(None)
         }

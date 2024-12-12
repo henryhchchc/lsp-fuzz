@@ -1,6 +1,6 @@
 use std::{env::temp_dir, fs, marker::PhantomData, mem, path::Path};
 
-use fork_server::NeoForkServer;
+use fork_server::{FuzzInputSetup, NeoForkServer};
 use libafl::{
     executors::{Executor, ExitKind, HasObservers},
     inputs::UsesInput,
@@ -132,7 +132,7 @@ where
             fuzz_target.as_os_str().to_owned(),
             args,
             envs,
-            (&fuzz_input).into(),
+            FuzzInputSetup::from(&fuzz_input),
             0,
             is_persistent,
             is_deferred_fork_server,

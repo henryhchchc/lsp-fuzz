@@ -9,28 +9,25 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use core_affinity::CoreId;
 use itertools::Itertools;
 use libafl::{
-    corpus::{
-        Corpus, CorpusId, HasTestcase, InMemoryCorpus, OnDiskCorpus, SchedulerTestcaseMetadata,
-    },
+    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::{EventFirer, SimpleEventManager},
     feedback_and_fast, feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::{StdScheduledMutator, Tokens},
     observers::{
-        AsanBacktraceObserver, CanTrack, HitcountsMapObserver, MapObserver, Observer,
-        StdMapObserver, TimeObserver,
+        AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
     schedulers::{
         powersched::{BaseSchedule, PowerSchedule},
-        IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
+        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
-    state::{HasCorpus, HasRand, StdState, UsesState},
+    state::{HasCorpus, StdState, UsesState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
 use libafl_bolts::{
@@ -58,9 +55,6 @@ use tuple_list::tuple_list;
 
 use super::GlobalOptions;
 
-const DEFAULT_COVERAGE_MAP_SIZE: usize = 65536;
-const AFL_SHMEM_SIZE_ENV: &str = "AFL_MAP_SIZE";
-
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
 pub(super) struct FuzzCommand {
@@ -85,11 +79,11 @@ pub(super) struct FuzzCommand {
     target_args: Vec<String>,
 
     /// Size of the coverage map.
-    #[clap(long, short, env = AFL_SHMEM_SIZE_ENV, default_value_t = DEFAULT_COVERAGE_MAP_SIZE)]
+    #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size, default_value = "64k")]
     coverage_map_size: usize,
 
     /// Shareed memory fuzzing.
-    #[clap(long, short)]
+    #[clap(long, short, value_parser = parse_size)]
     shared_memory_fuzzing: Option<usize>,
 
     /// Enable auto tokens.
@@ -222,12 +216,18 @@ impl FuzzCommand {
             None
         };
 
-        let scheduler = create_scheduler(
-            &mut state,
-            self.power_schedule,
-            self.cycle_power_schedule,
-            &edges_observer,
-        );
+        let scheduler = {
+            let power_schedule = PowerSchedule::new(self.power_schedule);
+            let mut weighted_scheduler = StdWeightedScheduler::with_schedule(
+                &mut state,
+                &edges_observer,
+                Some(power_schedule),
+            );
+            if self.cycle_power_schedule {
+                weighted_scheduler = weighted_scheduler.cycling_scheduler();
+            }
+            IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
+        };
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -270,14 +270,7 @@ impl FuzzCommand {
             let input_file = InputFile::create(input_file_path)?;
             info!(path = %input_file.path.display(), "Created input file");
 
-            let mut use_file_input = false;
-            for input_file in self.target_args.iter_mut() {
-                if input_file == "@@" {
-                    *input_file = input_file_path_str.clone();
-                    use_file_input = true;
-                }
-            }
-            if use_file_input {
+            if replace_at_args(&mut self.target_args, input_file_path_str) {
                 FuzzInput::File(input_file)
             } else {
                 FuzzInput::Stdin(input_file)
@@ -323,18 +316,12 @@ impl FuzzCommand {
             self.generate_seeds,
         )?;
 
-        state
-            .corpus()
-            .testcase_mut(CorpusId(0))
-            .unwrap()
-            .add_metadata(SchedulerTestcaseMetadata::new(0));
-
         if let Some(id) = self.cpu_affinity {
             let core_id = CoreId { id };
             if core_affinity::set_for_current(core_id) {
-                info!("Set CPU affinity to core {}", id);
+                info!("Set CPU affinity to core {id}");
             } else {
-                warn!("Failed to set CPU affinity to core {}", id);
+                warn!("Failed to set CPU affinity to core {id}");
             }
         }
 
@@ -371,28 +358,6 @@ fn load_derivation_fragments(path: &Path) -> Result<DerivationFragments, anyhow:
     let reader = zstd::Decoder::new(BufReader::new(file))?;
     let result = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
     Ok(result)
-}
-
-fn create_scheduler<S, I, O, MO>(
-    state: &mut S,
-    power_schedule: BaseSchedule,
-    cycle_power_schedule: bool,
-    edges_observer: &O,
-) -> impl Scheduler<I, S>
-where
-    I: HasLen,
-    S: HasCorpus + HasMetadata + HasRand + HasTestcase,
-    <S as HasCorpus>::Corpus: Corpus<Input = I>,
-    O: Observer<I, S> + CanTrack + AsRef<MO>,
-    MO: MapObserver,
-{
-    let power_schedule = PowerSchedule::new(power_schedule);
-    let mut weighted_scheduler =
-        StdWeightedScheduler::with_schedule(state, edges_observer, Some(power_schedule));
-    if cycle_power_schedule {
-        weighted_scheduler = weighted_scheduler.cycling_scheduler();
-    }
-    IndexesLenTimeMinimizerScheduler::new(edges_observer, weighted_scheduler)
 }
 
 fn initialize_corpus<E, Z, EM, C, R, SC>(
@@ -450,4 +415,37 @@ where
         result.insert(key, value);
     }
     Ok(result)
+}
+
+fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
+    if s.chars().last().is_some_and(|it| it.is_alphabetic()) {
+        let (size, unit) = s.split_at(s.len() - 1);
+        let muiltiplier = match unit.to_uppercase().as_str() {
+            "B" => 1 << 0,
+            "K" => 1 << 10,
+            "M" => 1 << 20,
+            "G" => 1 << 30,
+            "T" => 1 << 40,
+            _ => bail!("Invalid unit"),
+        };
+        let base_size: usize = size.parse()?;
+        Ok(base_size * muiltiplier)
+    } else {
+        Ok(s.parse()?)
+    }
+}
+
+fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
+    target_args
+        .iter_mut()
+        .filter_map(|input_file| {
+            if input_file == "@@" {
+                *input_file = input_file_path_str.clone();
+                Some(())
+            } else {
+                None
+            }
+        })
+        .count()
+        > 0
 }
