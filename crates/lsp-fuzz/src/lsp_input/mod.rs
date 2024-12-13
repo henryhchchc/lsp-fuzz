@@ -163,11 +163,11 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct LspInpuGenerator<'a> {
+pub struct LspInputGenerator<'a> {
     grammar_lookup: &'a GrammarContextLookup,
 }
 
-impl<S> Generator<LspInput, S> for LspInpuGenerator<'_>
+impl<S> Generator<LspInput, S> for LspInputGenerator<'_>
 where
     S: HasRand,
 {

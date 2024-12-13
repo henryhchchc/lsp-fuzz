@@ -44,7 +44,7 @@ use lsp_fuzz::{
     afl,
     execution::{FuzzInput, LspExecutor},
     fuzz_target::FuzzBinaryInfo,
-    lsp_input::{messages::message_mutations, LspInpuGenerator, LspInput, LspInputMutator},
+    lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
     stages::CleanupWorkspaceDirs,
     text_document::{
         grammars::{DerivationFragments, DerivationGrammar, GrammarContext},
@@ -85,7 +85,7 @@ pub(super) struct FuzzCommand {
     #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size, default_value = "64k")]
     coverage_map_size: usize,
 
-    /// Shareed memory fuzzing.
+    /// Shared memory fuzzing.
     #[clap(long, short, value_parser = parse_size)]
     shared_memory_fuzzing: Option<usize>,
 
@@ -101,7 +101,7 @@ pub(super) struct FuzzCommand {
     #[clap(long, default_value_t = 32)]
     generate_seeds: usize,
 
-    /// Timeout runing the fuzz target in milliseconds.
+    /// Timeout running the fuzz target in milliseconds.
     #[clap(long, short, default_value_t = 1200)]
     timeout: u64,
 
@@ -140,7 +140,7 @@ impl FuzzCommand {
     pub(super) fn run(mut self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         info!("Analyzing fuzz target");
         let binary_info =
-            FuzzBinaryInfo::from_binary(&self.lsp_executable).context("Analyzing fuzz traget")?;
+            FuzzBinaryInfo::from_binary(&self.lsp_executable).context("Analyzing fuzz target")?;
 
         if binary_info.is_afl_instrumented {
             info!("Fuzz target is instrumented with AFL++");
@@ -179,7 +179,7 @@ impl FuzzCommand {
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
         let asan_handle = binary_info.uses_address_sanitizer.then(|| {
-            info!("Fuzz target is compiled with AddressSanitizer.");
+            info!("Fuzz target is compiled with Address Sanitizer. Crash stack hashing wi");
             asan_observer.handle()
         });
 
@@ -245,7 +245,7 @@ impl FuzzCommand {
         let temp_dir = self.temp_dir.unwrap_or_else(temp_dir);
         let temp_dir_str = temp_dir
             .to_str()
-            .context("temp_dir is not a vaild UTF-8 string")?;
+            .context("temp_dir is not a valid UTF-8 string")?;
 
         let mut fuzz_stages = {
             let mutation_stage = {
@@ -391,7 +391,7 @@ where
             info!(num_inputs = state.corpus().count(), "Seed inputs imported");
         } else {
             warn!("No seed inputs provided, starting from scratch");
-            let mut generator = LspInpuGenerator::new(grammar_context_lookup);
+            let mut generator = LspInputGenerator::new(grammar_context_lookup);
             state
                 .generate_initial_inputs_forced(
                     fuzzer,
