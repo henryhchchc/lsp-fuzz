@@ -1,10 +1,14 @@
 mod fuzz;
 mod mine_grammar_fragments;
+mod minimize;
 mod triage;
 
-use anyhow::Context;
+use std::{collections::HashMap, str::FromStr};
+
+use anyhow::{bail, Context};
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
+use minimize::MinimizeCommand;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use triage::TriageCommand;
@@ -20,9 +24,13 @@ pub struct Cli {
 }
 impl Cli {
     pub(super) fn run(self) -> anyhow::Result<()> {
+        self.global_options
+            .setup_rayon()
+            .context("Setting up rayon")?;
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
+            Command::Minimize(cmd) => cmd.run(self.global_options),
             Command::Triage(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
         }
@@ -42,6 +50,12 @@ struct GlobalOptions {
 }
 
 impl GlobalOptions {
+    pub fn setup_rayon(&self) -> Result<(), rayon::ThreadPoolBuildError> {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(self.parallel_workers())
+            .build_global()
+    }
+
     pub fn parallel_workers(&self) -> usize {
         self.parallel_workers.unwrap_or_else(num_cpus::get)
     }
@@ -51,6 +65,7 @@ impl GlobalOptions {
 #[allow(clippy::large_enum_variant, reason = "This is CMD args")]
 enum Command {
     Fuzz(FuzzCommand),
+    Minimize(MinimizeCommand),
     MineGrammarFragments(MineGrammarFragments),
     Triage(TriageCommand),
 }
@@ -67,4 +82,39 @@ fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {
         .init();
 
     Ok(())
+}
+
+pub fn parse_hash_map<K, V>(s: &str) -> Result<HashMap<K, V>, anyhow::Error>
+where
+    K: FromStr + std::hash::Hash + Eq,
+    V: FromStr,
+    <K as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+{
+    let mut result = HashMap::new();
+    for pair in s.split(',') {
+        let (key, value) = pair.split_once('=').context("Splitting key and value")?;
+        let key = key.parse().context("Parsing key")?;
+        let value = value.parse().context("Parsing value")?;
+        result.insert(key, value);
+    }
+    Ok(result)
+}
+
+pub fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
+    if s.chars().last().is_some_and(|it| it.is_alphabetic()) {
+        let (size, unit) = s.split_at(s.len() - 1);
+        let muiltiplier = match unit.to_uppercase().as_str() {
+            "B" => 1 << 0,
+            "K" => 1 << 10,
+            "M" => 1 << 20,
+            "G" => 1 << 30,
+            "T" => 1 << 40,
+            _ => bail!("Invalid unit"),
+        };
+        let base_size: usize = size.parse()?;
+        Ok(base_size * muiltiplier)
+    } else {
+        Ok(s.parse()?)
+    }
 }

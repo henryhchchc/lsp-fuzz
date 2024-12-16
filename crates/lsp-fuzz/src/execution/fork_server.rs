@@ -9,11 +9,9 @@ use std::{
     process::{self, Child, Command, Stdio},
 };
 
-use libafl::{executors::forkserver::ConfigTarget, mutators::Tokens, observers::MapObserver};
-use libafl_bolts::{
-    shmem::{ShMem, ShMemId},
-    Truncate,
-};
+use bitflags::bitflags;
+use libafl::executors::forkserver::ConfigTarget;
+use libafl_bolts::shmem::{ShMem, ShMemId};
 use nix::{
     errno::Errno,
     sys::{
@@ -26,7 +24,7 @@ use nix::{
 use os_pipe::{PipeReader, PipeWriter};
 use tracing::{debug, info, warn};
 
-use crate::utils::ResultExt;
+use crate::utils::{OptionExt, ResultExt};
 
 use super::FuzzInput;
 
@@ -35,6 +33,25 @@ pub enum FuzzInputSetup {
     Stdin(RawFd),
     FileArg,
     SharedMemory(ShMemId, usize),
+}
+
+const FS_NEW_OPT_MAPSIZE: i32 = 1 << 0;
+const FS_NEW_OPT_SHDMEM_FUZZ: i32 = 1 << 1;
+const FS_NEW_OPT_AUTODICT: i32 = 1 << 11;
+
+bitflags! {
+    struct ForkServerFlags: i32 {
+        const MAP_SIZE = FS_NEW_OPT_MAPSIZE;
+        const SHMEM_FUZZ = FS_NEW_OPT_SHDMEM_FUZZ;
+        const AUTODICT = FS_NEW_OPT_AUTODICT;
+    }
+}
+
+#[derive(Debug)]
+pub struct ForkServerOptions {
+    pub map_size: Option<usize>,
+    pub shmem_fuzz: bool,
+    pub autodict: Option<Vec<u8>>,
 }
 
 impl FuzzInputSetup {
@@ -109,21 +126,37 @@ impl Drop for NeoForkServer {
     }
 }
 
+#[derive(Debug)]
+pub struct NeoForkServerOptions {
+    pub target: OsString,
+    pub args: Vec<OsString>,
+    pub envs: Vec<(OsString, OsString)>,
+    pub input_setup: FuzzInputSetup,
+    pub memlimit: u64,
+    pub persistent_fuzzing: bool,
+    pub deferred: bool,
+    pub coverage_map_info: Option<(ShMemId, usize)>,
+    pub afl_debug: bool,
+    pub debug_output: bool,
+    pub kill_signal: Signal,
+}
+
 impl NeoForkServer {
-    #[allow(clippy::too_many_arguments, reason = "Shut the fuck up")]
-    pub fn new(
-        target: OsString,
-        args: Vec<OsString>,
-        envs: Vec<(OsString, OsString)>,
-        input_setup: FuzzInputSetup,
-        memlimit: u64,
-        is_persistent: bool,
-        is_deferred_frksrv: bool,
-        coverage_map_info: Option<(ShMemId, usize)>,
-        afl_debug: bool,
-        debug_output: bool,
-        kill_signal: Signal,
-    ) -> Result<Self, libafl::Error> {
+    pub fn new(options: NeoForkServerOptions) -> Result<Self, libafl::Error> {
+        let NeoForkServerOptions {
+            target,
+            args,
+            envs,
+            input_setup,
+            memlimit,
+            persistent_fuzzing,
+            deferred,
+            coverage_map_info,
+            afl_debug,
+            debug_output,
+            kill_signal,
+        } = options;
+
         let (rx, child_writer) = os_pipe::pipe().afl_context("Fal to create ex pipe.")?;
         let (child_reader, tx) = os_pipe::pipe().afl_context("Fail to create tx pipe.")?;
 
@@ -147,8 +180,8 @@ impl NeoForkServer {
             command.env("AFL_MAP_SIZE", format!("{}", map_size));
         }
 
-        is_persistent.then(|| command.env("__AFL_PERSISTENT", "1"));
-        is_deferred_frksrv.then(|| command.env("__AFL_DEFER_FORKSRV", "1"));
+        persistent_fuzzing.then(|| command.env("__AFL_PERSISTENT", "1"));
+        deferred.then(|| command.env("__AFL_DEFER_FORKSRV", "1"));
 
         command
             .env("LD_BIND_NOW", "1")
@@ -194,6 +227,57 @@ impl NeoForkServer {
         Ok(handshake_msg)
     }
 
+    /// Initialize the fork server and return the options
+    pub fn initialize(&mut self) -> Result<ForkServerOptions, libafl::Error> {
+        let handshake_msg = self.handshake()?;
+        let flags = self
+            .read_i32()
+            .afl_context("Fail to read option flags from fork server.")?;
+        let flags = ForkServerFlags::from_bits(flags)
+            .afl_context("Fail to parse option flags from fork server.")?;
+        let map_size = flags
+            .contains(ForkServerFlags::MAP_SIZE)
+            .then(|| self.read_i32().map(|it| it as usize))
+            .transpose()
+            .afl_context("Fail to read map size from fork server.")?;
+        let shmem_fuzz = flags.contains(ForkServerFlags::SHMEM_FUZZ);
+        let autodict = flags
+            .contains(ForkServerFlags::AUTODICT)
+            .then(|| -> Result<_, libafl::Error> {
+                let autotokens_size = self
+                    .read_i32()
+                    .afl_context("Fail to read autotokens size from fork server.")?;
+                let tokens_size_max = 0xffffff;
+
+                if !(2..=tokens_size_max).contains(&autotokens_size) {
+                    let message = format!(
+                        "Autotokens size is incorrect, expected 2 to {tokens_size_max} (inclusive), \
+                            but got {autotokens_size}. Make sure your afl-cc version is up to date."
+                    );
+                    Err(libafl::Error::illegal_state(message))?;
+                }
+                info!(size = autotokens_size, "AUTODICT detected.");
+                let autotokens = self
+                    .read_vec(autotokens_size as usize)
+                    .afl_context("Fail to read autotokens from fork server.")?;
+                Ok(autotokens)
+            })
+            .transpose()?;
+        let final_handshake_msg = self
+            .read_i32()
+            .afl_context("Fail to read final handshake information from fork server.")?;
+        if final_handshake_msg != handshake_msg {
+            Err(libafl::Error::unknown(
+                "Final handshake message does not match",
+            ))?;
+        }
+        Ok(ForkServerOptions {
+            map_size,
+            shmem_fuzz,
+            autodict,
+        })
+    }
+
     pub fn run_child(&mut self, timeout: &TimeSpec) -> Result<(Pid, Option<i32>), libafl::Error> {
         let notification = u32::from(self.last_run_timed_out);
         self.write_u32(notification)
@@ -236,21 +320,21 @@ impl NeoForkServer {
     }
 
     /// Read from the st pipe
-    pub fn read_u32(&mut self) -> Result<u32, libafl::Error> {
+    fn read_u32(&mut self) -> Result<u32, libafl::Error> {
         let mut buf: [u8; 4] = [0_u8; 4];
         self.rx.read_exact(&mut buf)?;
         Ok(u32::from_ne_bytes(buf))
     }
 
     /// Read from the st pipe
-    pub fn read_i32(&mut self) -> Result<i32, libafl::Error> {
+    fn read_i32(&mut self) -> Result<i32, libafl::Error> {
         let mut buf: [u8; 4] = [0_u8; 4];
         self.rx.read_exact(&mut buf)?;
         Ok(i32::from_ne_bytes(buf))
     }
 
     /// Read bytes of any length from the st pipe
-    pub fn read_vec(&mut self, size: usize) -> Result<Vec<u8>, libafl::Error> {
+    fn read_vec(&mut self, size: usize) -> Result<Vec<u8>, libafl::Error> {
         let mut buf = Vec::with_capacity(size);
         unsafe {
             // SAFETY: `buf` is guaranteed to have a capacity of `size` bytes.
@@ -264,13 +348,13 @@ impl NeoForkServer {
     }
 
     /// Write to the ctl pipe
-    pub fn write_u32(&mut self, val: u32) -> Result<(), libafl::Error> {
+    fn write_u32(&mut self, val: u32) -> Result<(), libafl::Error> {
         self.tx.write_all(&val.to_ne_bytes())?;
         Ok(())
     }
 
     /// Read a message from the child process.
-    pub fn read_st_timed(&mut self, timeout: &TimeSpec) -> Result<Option<i32>, libafl::Error> {
+    fn read_st_timed(&mut self, timeout: &TimeSpec) -> Result<Option<i32>, libafl::Error> {
         let st_read = self.rx.as_raw_fd();
 
         // # Safety
@@ -325,7 +409,7 @@ fn reject_old_forkserver(handshake_msg: i32) -> Result<(), libafl::Error> {
     match handshake_msg {
         0x41464c00..0x41464cff => Ok(()),
         _ => Err(libafl::Error::unknown(
-            "Old fork server model is used by the target, it is nolonger supportted",
+            "Old fork server model is used by the target, it is nolonger supported",
         )),
     }
 }
@@ -374,85 +458,4 @@ pub(super) fn check_handshake_error_bits(handshake_msg: i32) -> Result<(), libaf
     } else {
         Ok(())
     }
-}
-
-const FS_NEW_OPT_MAPSIZE: i32 = 1 << 0;
-const FS_NEW_OPT_SHDMEM_FUZZ: i32 = 1 << 1;
-const FS_NEW_OPT_AUTODICT: i32 = 1 << 11;
-
-pub(super) fn initialize<MO, A, SHM>(
-    fork_server: &mut NeoForkServer,
-    map_observer: &mut A,
-    fuzz_input: &FuzzInput<SHM>,
-    auto_tokens: Option<&mut Tokens>,
-) -> Result<(), libafl::Error>
-where
-    A: AsRef<MO> + AsMut<MO>,
-    MO: MapObserver + Truncate,
-{
-    let handshake_msg = fork_server.handshake()?;
-    let fsrv_options = fork_server
-        .read_i32()
-        .afl_context("Fail to read options from forkserver")?;
-    if fsrv_options & FS_NEW_OPT_MAPSIZE == FS_NEW_OPT_MAPSIZE {
-        let fsrv_map_size = fork_server
-            .read_i32()
-            .afl_context("Failed to read map size from forkserver")?;
-
-        let fsrv_map_size = fsrv_map_size as usize;
-
-        match map_observer.as_ref().len() {
-            map_size if map_size > fsrv_map_size => {
-                map_observer.as_mut().truncate(fsrv_map_size);
-                info!(new_size = fsrv_map_size, "Coverage map truncated");
-            }
-            map_size if map_size < fsrv_map_size => {
-                Err(libafl::Error::illegal_argument(format!(
-                    "The map size is too small. {fsrv_map_size} is required for the target."
-                )))?;
-            }
-            map_size if map_size == fsrv_map_size => {}
-            _ => unreachable!("Garenteed by the match statement above."),
-        }
-    };
-    if fsrv_options & FS_NEW_OPT_SHDMEM_FUZZ != 0
-        && !matches!(fuzz_input, FuzzInput::SharedMemory(_))
-    {
-        Err(libafl::Error::unknown(
-            "Target requested sharedmem fuzzing, but you didn't prepare shmem",
-        ))?;
-    }
-    if fsrv_options & FS_NEW_OPT_AUTODICT != 0 {
-        // Here unlike shmem input fuzzing, we are forced to read things
-        // hence no self.autotokens.is_some() to check if we proceed
-        let autotokens_size = fork_server
-            .read_i32()
-            .afl_context("Failed to read autotokens size from forkserver")?;
-
-        let tokens_size_max = 0xffffff;
-
-        if !(2..=tokens_size_max).contains(&autotokens_size) {
-            let message = format!(
-                "Autotokens size is incorrect, expected 2 to {tokens_size_max} (inclusive), \
-                    but got {autotokens_size}. Make sure your afl-cc verison is up to date."
-            );
-            Err(libafl::Error::illegal_state(message))?;
-        }
-        info!(size = autotokens_size, "AUTODICT detected.");
-        let auto_tokens_buf = fork_server
-            .read_vec(autotokens_size as usize)
-            .afl_context("Failed to load autotokens")?;
-        if let Some(t) = auto_tokens {
-            info!("Updating autotokens.");
-            t.parse_autodict(&auto_tokens_buf, autotokens_size as usize);
-        }
-    }
-    let aflx = fork_server
-        .read_i32()
-        .afl_context("Reading from forkserver failed")?;
-    if aflx != handshake_msg {
-        let message = format!("Error in forkserver communication ({aflx:?}=>{handshake_msg:?})");
-        Err(libafl::Error::unknown(message))?;
-    }
-    Ok(())
 }

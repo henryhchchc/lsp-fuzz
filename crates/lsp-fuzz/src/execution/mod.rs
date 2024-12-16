@@ -1,6 +1,6 @@
-use std::{env::temp_dir, fs, marker::PhantomData, mem, path::Path};
+use std::{env::temp_dir, fs, marker::PhantomData, mem, path::PathBuf};
 
-use fork_server::{FuzzInputSetup, NeoForkServer};
+use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
     executors::{Executor, ExitKind, HasObservers},
     inputs::UsesInput,
@@ -18,14 +18,14 @@ use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
     lsp_input::LspInput,
     utils::{OptionExt, ResultExt},
 };
 
-mod fork_server;
+pub mod fork_server;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
@@ -77,45 +77,55 @@ impl<SHM> Drop for FuzzInput<SHM> {
 }
 
 #[derive(Debug)]
-pub struct LspExecutor<S, OT, SHM> {
+pub struct FuzzTargetInfo {
+    pub path: PathBuf,
+    pub args: Vec<String>,
+    pub persistent_fuzzing: bool,
+    pub defer_fork_server: bool,
+    pub crash_exit_code: Option<i8>,
+    pub timeout: TimeSpec,
+    pub kill_signal: Signal,
+}
+
+#[derive(Debug)]
+pub struct FuzzExecutionConfig<'a, SHM, A, OBS> {
+    pub debug_child: bool,
+    pub debug_afl: bool,
+    pub fuzz_input: FuzzInput<SHM>,
+    pub auto_tokens: Option<&'a mut Tokens>,
+    pub coverage_map_info: Option<(ShMemId, usize)>,
+    pub map_observer: A,
+    pub asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
+    pub other_observers: OBS,
+}
+
+#[derive(Debug)]
+pub struct LspExecutor<S, OBS, SHM> {
     fork_server: NeoForkServer,
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
-    observers: OT,
+    observers: OBS,
     asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
     _state: PhantomData<S>,
 }
 
-impl<S, OT, A, SHM> LspExecutor<S, (A, OT), SHM>
+impl<S, OBS, A, SHM> LspExecutor<S, (A, OBS), SHM>
 where
     SHM: ShMem,
 {
-    #[allow(clippy::too_many_arguments, reason = "To be refactored later")]
-    pub fn new<MO>(
-        fuzz_target: &Path,
-        target_args: Vec<String>,
-        crash_exit_code: Option<i8>,
-        timeout: TimeSpec,
-        debug_child: bool,
-        debug_afl: bool,
-        kill_signal: Signal,
-        fuzz_input: FuzzInput<SHM>,
-        is_persistent: bool,
-        is_deferred_fork_server: bool,
-        auto_tokens: Option<&mut Tokens>,
-        coverage_map_info: Option<(ShMemId, usize)>,
-        mut map_observer: A,
-        asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
-        other_observers: OT,
+    /// Create and initialize a new LSP executor.
+    pub fn start<MO>(
+        target_info: FuzzTargetInfo,
+        mut config: FuzzExecutionConfig<'_, SHM, A, OBS>,
     ) -> Result<Self, libafl::Error>
     where
         S: State + UsesInput<Input = LspInput>,
         MO: MapObserver + Truncate,
         A: Observer<S::Input, S> + AsMut<MO> + AsRef<MO>,
-        OT: ObserversTuple<S::Input, S> + Prepend<A>,
+        OBS: ObserversTuple<S::Input, S> + Prepend<A>,
     {
-        let args = target_args.into_iter().map(|it| it.into()).collect();
+        let args = target_info.args.into_iter().map(|it| it.into()).collect();
 
         let mut asan_options = vec![
             "detect_odr_violation=0",
@@ -133,76 +143,102 @@ where
             "malloc_context_size=0",
         ];
 
-        if asan_observer_handle.is_some() {
+        if config.asan_observer_handle.is_some() {
             asan_options.push(const_str::concat!("log_path=", ASAN_LOG_PATH));
         }
 
         let envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
 
-        let mut fork_server = fork_server::NeoForkServer::new(
-            fuzz_target.as_os_str().to_owned(),
+        let opts = NeoForkServerOptions {
+            target: target_info.path.as_os_str().to_owned(),
             args,
             envs,
-            FuzzInputSetup::from(&fuzz_input),
-            0,
-            is_persistent,
-            is_deferred_fork_server,
-            coverage_map_info,
-            debug_afl,
-            debug_child,
-            kill_signal,
-        )?;
+            input_setup: FuzzInputSetup::from(&config.fuzz_input),
+            memlimit: 0,
+            persistent_fuzzing: target_info.persistent_fuzzing,
+            deferred: target_info.defer_fork_server,
+            coverage_map_info: config.coverage_map_info,
+            afl_debug: config.debug_afl,
+            debug_output: config.debug_child,
+            kill_signal: target_info.kill_signal,
+        };
+        let mut fork_server = fork_server::NeoForkServer::new(opts)?;
 
-        fork_server::initialize(
-            &mut fork_server,
-            &mut map_observer,
-            &fuzz_input,
-            auto_tokens,
-        )?;
+        let options = fork_server
+            .initialize()
+            .afl_context("Initializing fork server")?;
 
-        let observers = (map_observer, other_observers);
+        if let Some(fsrv_map_size) = options.map_size {
+            match config.map_observer.as_ref().len() {
+                map_size if map_size > fsrv_map_size => {
+                    config.map_observer.as_mut().truncate(fsrv_map_size);
+                    info!(new_size = fsrv_map_size, "Coverage map truncated");
+                }
+                map_size if map_size < fsrv_map_size => {
+                    Err(libafl::Error::illegal_argument(format!(
+                        "The map size is too small. {fsrv_map_size} is required for the target."
+                    )))?;
+                }
+                map_size if map_size == fsrv_map_size => {}
+                _ => unreachable!("Garenteed by the match statement above."),
+            }
+        }
+
+        if matches!(config.fuzz_input, FuzzInput::SharedMemory(_) if !options.shmem_fuzz) {
+            Err(libafl::Error::unknown(
+                "Target requested sharedmem fuzzing, but you didn't prepare shmem",
+            ))?;
+        }
+
+        if let (Some(auto_dict), Some(ref auto_dict_content)) =
+            (config.auto_tokens, options.autodict)
+        {
+            auto_dict.parse_autodict(auto_dict_content, auto_dict_content.len());
+        }
+
+        let observers = (config.map_observer, config.other_observers);
 
         Ok(Self {
             fork_server,
-            crash_exit_code,
-            timeout,
-            fuzz_input,
+            crash_exit_code: target_info.crash_exit_code,
+            timeout: target_info.timeout,
+            fuzz_input: config.fuzz_input,
             observers,
-            asan_observer_handle,
+            asan_observer_handle: config.asan_observer_handle,
             _state: PhantomData,
         })
     }
 }
 
-impl<S, OT, SHM> UsesState for LspExecutor<S, OT, SHM>
+impl<S, OBS, SHM> UsesState for LspExecutor<S, OBS, SHM>
 where
     S: State + UsesInput<Input = LspInput>,
 {
     type State = S;
 }
 
-impl<S, OT, SHM> HasObservers for LspExecutor<S, OT, SHM>
+impl<S, OBS, SHM> HasObservers for LspExecutor<S, OBS, SHM>
 where
     S: State + UsesInput<Input = LspInput>,
-    OT: ObserversTuple<S::Input, S>,
+    OBS: ObserversTuple<S::Input, S>,
 {
-    type Observers = OT;
+    type Observers = OBS;
 
-    fn observers(&self) -> RefIndexable<&OT, OT> {
+    fn observers(&self) -> RefIndexable<&OBS, OBS> {
         RefIndexable::from(&self.observers)
     }
 
-    fn observers_mut(&mut self) -> RefIndexable<&mut OT, OT> {
+    fn observers_mut(&mut self) -> RefIndexable<&mut OBS, OBS> {
         RefIndexable::from(&mut self.observers)
     }
 }
 
-impl<EM, Z, S, OT, SHM> Executor<EM, Z> for LspExecutor<S, OT, SHM>
+impl<EM, Z, S, OBS, SHM> Executor<EM, Z> for LspExecutor<S, OBS, SHM>
 where
     S: State + UsesInput<Input = LspInput> + HasExecutions,
     EM: UsesState<State = S>,
     Z: UsesState<State = S>,
-    OT: ObserversTuple<S::Input, S>,
+    OBS: ObserversTuple<S::Input, S>,
     SHM: ShMem,
 {
     fn run_target(
@@ -246,10 +282,10 @@ where
     }
 }
 
-impl<S, OT, SHM> LspExecutor<S, OT, SHM>
+impl<S, OBS, SHM> LspExecutor<S, OBS, SHM>
 where
     S: State + UsesInput<Input = LspInput> + HasExecutions,
-    OT: ObserversTuple<S::Input, S>,
+    OBS: ObserversTuple<S::Input, S>,
     SHM: ShMem,
 {
     fn update_asan_observer(

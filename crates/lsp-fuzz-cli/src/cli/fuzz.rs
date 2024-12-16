@@ -1,21 +1,10 @@
-use std::{
-    collections::HashMap,
-    env::temp_dir,
-    fs::File,
-    hash::Hash,
-    io::BufReader,
-    ops::Not,
-    path::{Path, PathBuf},
-    str::FromStr,
-    time::Duration,
-};
+use std::{collections::HashMap, env::temp_dir, ops::Not, path::PathBuf, time::Duration};
 
 use anyhow::{bail, Context};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
-use itertools::Itertools;
 use libafl::{
-    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{Corpus, InMemoryOnDiskCorpus},
     events::{EventFirer, SimpleEventManager},
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
@@ -42,37 +31,23 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     afl,
-    execution::{FuzzInput, LspExecutor},
-    fuzz_target::FuzzBinaryInfo,
+    execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
+    fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
     lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
     stages::CleanupWorkspaceDirs,
-    text_document::{
-        grammars::{DerivationFragments, DerivationGrammar, GrammarContext},
-        text_document_mutations, GrammarContextLookup, Language,
-    },
+    text_document::{text_document_mutations, GrammarContextLookup, Language},
 };
 
 use nix::sys::signal::Signal;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use tuple_list::tuple_list;
 
-use super::GlobalOptions;
+use crate::{fuzzing::FuzzerStateDir, language_fragments::load_grammar_lookup};
 
-/// Fuzz a Language Server Protocol (LSP) server.
+use super::{parse_hash_map, parse_size, GlobalOptions};
+
 #[derive(Debug, clap::Parser)]
-pub(super) struct FuzzCommand {
-    /// Directory containing seed inputs for the fuzzer.
-    #[clap(long)]
-    seeds_dir: Option<PathBuf>,
-
-    /// Directory to store crash artifacts.
-    #[clap(long)]
-    crashes: Option<PathBuf>,
-
-    /// Working directory for the Language Server Protocol (LSP).
-    #[clap(long)]
-    lsp_work_dir: Option<PathBuf>,
-
+pub struct ExecutorOptions {
     /// Path to the LSP executable.
     #[clap(long)]
     lsp_executable: PathBuf,
@@ -82,24 +57,16 @@ pub(super) struct FuzzCommand {
     target_args: Vec<String>,
 
     /// Size of the coverage map.
-    #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size, default_value = "64k")]
-    coverage_map_size: usize,
+    #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size)]
+    coverage_map_size: Option<usize>,
 
     /// Shared memory fuzzing.
     #[clap(long, short, value_parser = parse_size)]
     shared_memory_fuzzing: Option<usize>,
 
-    /// Enable auto tokens.
-    #[clap(long, env = "AFL_NO_AUTODICT", value_parser = BoolishValueParser::new())]
-    no_auto_dict: bool,
-
     /// Exit code that indicates a crash.
     #[clap(long, env = "AFL_CRASH_EXITCODE", value_parser = BoolishValueParser::new())]
     crash_exit_code: Option<i8>,
-
-    /// Number of seeds to generate if no seeds are provided.
-    #[clap(long, default_value_t = 32)]
-    generate_seeds: usize,
 
     /// Timeout running the fuzz target in milliseconds.
     #[clap(long, short, default_value_t = 1200)]
@@ -116,6 +83,29 @@ pub(super) struct FuzzCommand {
     /// Enable debugging for AFL itself.
     #[clap(long, env = "AFL_DEBUG", value_parser = BoolishValueParser::new())]
     debug_afl: bool,
+}
+
+/// Fuzz a Language Server Protocol (LSP) server.
+#[derive(Debug, clap::Parser)]
+pub(super) struct FuzzCommand {
+    /// Directory containing seed inputs for the fuzzer.
+    #[clap(long)]
+    seeds_dir: Option<PathBuf>,
+
+    /// Directory containing the fuzzer states.
+    #[clap(long)]
+    state: FuzzerStateDir,
+
+    /// Enable auto tokens.
+    #[clap(long, env = "AFL_NO_AUTODICT", value_parser = BoolishValueParser::new())]
+    no_auto_dict: bool,
+
+    /// Number of seeds to generate if no seeds are provided.
+    #[clap(long, default_value_t = 32)]
+    generate_seeds: usize,
+
+    #[clap(flatten)]
+    execution: ExecutorOptions,
 
     /// The path to the temporary directory.
     #[clap(long, env = "AFL_TMPDIR")]
@@ -138,40 +128,54 @@ pub(super) struct FuzzCommand {
 
 impl FuzzCommand {
     pub(super) fn run(mut self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
-        info!("Analyzing fuzz target");
-        let binary_info =
-            FuzzBinaryInfo::from_binary(&self.lsp_executable).context("Analyzing fuzz target")?;
+        let mut shmem_provider =
+            UnixShMemProvider::new().context("Creating shared memory provider")?;
 
+        info!("Analyzing fuzz target");
+        let binary_info = StaticTargetBinaryInfo::scan(&self.execution.lsp_executable)
+            .context("Analyzing fuzz target")?;
         if binary_info.is_afl_instrumented {
             info!("Fuzz target is instrumented with AFL++");
         } else {
             warn!("The fuzz target is not instrumented with AFL++");
         }
+
+        let binary_info = TargetBinaryInfo::detect(
+            &self.execution.lsp_executable,
+            &mut shmem_provider,
+            binary_info,
+        )?;
+
         if binary_info.is_persistent_mode {
             info!("Persistent fuzzing detected.");
         }
         if binary_info.is_defer_fork_server {
             info!("Deferred fork server detected.");
         }
-        if let Some(shm_size) = self.shared_memory_fuzzing {
+        if let Some(shm_size) = self.execution.shared_memory_fuzzing {
             info!(shm_size, "Shared memory fuzzing is enabled.");
+        } else if binary_info.is_shmem_fuzzing {
+            error!("Target requires shared memory fuzzing but the size of the shared memory is not specified.");
+            bail!("Invalid configuration");
         }
-        let grammar_ctx = self
-            .create_grammar_context()
-            .context("Creating grammar context")?;
-
-        let mut shmem_provider =
-            UnixShMemProvider::new().context("Creating shared memory provider")?;
 
         // The coverage map shared between observer and executor
-        let mut shmem = shmem_provider
-            .new_shmem(self.coverage_map_size)
+        let Some(shmem_size) = binary_info
+            .map_size
+            .inspect(|it| info!("Detected coverage map size: {}", it))
+            .or(self.execution.coverage_map_size)
+        else {
+            error!("Coverage map size could not be detected and is not specified.");
+            bail!("Invalid configuration");
+        };
+        let mut cov_shmem = shmem_provider
+            .new_shmem(shmem_size)
             .context("Creating shared memory")?;
-        let map_shmem_id = shmem.id();
+        let cov_map_shmem_id = cov_shmem.id();
 
         // Create an observation channel using the signals map
-        let shmem_observer = {
-            let shmem_buf = shmem.as_slice_mut();
+        let cov_map_observer = {
+            let shmem_buf = cov_shmem.as_slice_mut();
             // SAFETY: We never move the pirce of the shared memory.
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
@@ -179,11 +183,11 @@ impl FuzzCommand {
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
         let asan_handle = binary_info.uses_address_sanitizer.then(|| {
-            info!("Fuzz target is compiled with Address Sanitizer. Crash stack hashing wi");
+            info!("Fuzz target is compiled with Address Sanitizer. Crash stack hashing will be enabled");
             asan_observer.handle()
         });
 
-        let edges_observer = HitcountsMapObserver::new(shmem_observer).track_indices();
+        let edges_observer = HitcountsMapObserver::new(cov_map_observer).track_indices();
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -200,19 +204,17 @@ impl FuzzCommand {
             )
         );
 
-        let corpus = InMemoryCorpus::<LspInput>::new();
-        let crashes_dir = self
-            .crashes
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(format!("crashes_{}", current_nanos())));
-        info!("Objectives will be saved at {}", &crashes_dir.display());
-        let solution_corpus = OnDiskCorpus::new(crashes_dir).context("Creating solution corpus")?;
+        let corpus =
+            InMemoryOnDiskCorpus::new(self.state.corpus_dir()).context("Creating corpus")?;
+
+        let solutions = InMemoryOnDiskCorpus::new(self.state.solution_dir())
+            .context("Creating solution corpus")?;
 
         let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
         let mut state = StdState::new(
             StdRand::with_seed(random_seed),
             corpus,
-            solution_corpus,
+            solutions,
             &mut feedback,
             &mut objective,
         )
@@ -237,6 +239,7 @@ impl FuzzCommand {
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         let test_case_shm = self
+            .execution
             .shared_memory_fuzzing
             .map(|size| shmem_provider.new_shmem(size))
             .transpose()
@@ -246,6 +249,10 @@ impl FuzzCommand {
         let temp_dir_str = temp_dir
             .to_str()
             .context("temp_dir is not a valid UTF-8 string")?;
+
+        info!("Loading grammar context");
+        let grammar_ctx =
+            load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
         let mut fuzz_stages = {
             let mutation_stage = {
@@ -274,33 +281,38 @@ impl FuzzCommand {
             let input_file = InputFile::create(input_file_path)?;
             info!(path = %input_file.path.display(), "Created input file");
 
-            if replace_at_args(&mut self.target_args, input_file_path_str) {
+            if replace_at_args(&mut self.execution.target_args, input_file_path_str) {
                 FuzzInput::File(input_file)
             } else {
                 FuzzInput::Stdin(input_file)
             }
         };
 
-        let coverage_map_info = Some((map_shmem_id, edges_observer.as_ref().len()));
+        let coverage_map_info = Some((cov_map_shmem_id, edges_observer.as_ref().len()));
 
-        let mut executor = LspExecutor::new(
-            &self.lsp_executable,
-            self.target_args,
-            self.crash_exit_code,
-            Duration::from_millis(self.timeout).into(),
-            self.debug_child,
-            self.debug_afl,
-            self.kill_signal,
+        let target_info = FuzzTargetInfo {
+            path: self.execution.lsp_executable,
+            args: self.execution.target_args,
+            persistent_fuzzing: binary_info.is_persistent_mode,
+            defer_fork_server: binary_info.is_defer_fork_server,
+            crash_exit_code: self.execution.crash_exit_code,
+            timeout: Duration::from_millis(self.execution.timeout).into(),
+            kill_signal: self.execution.kill_signal,
+        };
+
+        let exec_config = FuzzExecutionConfig {
+            debug_child: self.execution.debug_child,
+            debug_afl: self.execution.debug_afl,
             fuzz_input,
-            binary_info.is_persistent_mode,
-            binary_info.is_defer_fork_server,
-            tokens.as_mut(),
+            auto_tokens: tokens.as_mut(),
             coverage_map_info,
-            edges_observer,
-            asan_handle,
-            tuple_list![time_observer, asan_observer],
-        )
-        .context("Creating executor")?;
+            map_observer: edges_observer,
+            asan_observer_handle: asan_handle,
+            other_observers: tuple_list![time_observer, asan_observer],
+        };
+
+        let mut executor =
+            LspExecutor::start(target_info, exec_config).context("Starting executor")?;
 
         let mut event_manager = {
             let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
@@ -340,30 +352,6 @@ impl FuzzCommand {
             )
             .context("In fuzz loop")
     }
-
-    fn create_grammar_context(&self) -> Result<GrammarContextLookup, anyhow::Error> {
-        info!("Loading grammar files");
-        let contexts: Vec<_> = self
-            .language_fragments
-            .iter()
-            .map(|(&lang, frag_path)| -> Result<_, anyhow::Error> {
-                let frags = load_derivation_fragments(frag_path)?;
-                let grammar =
-                    DerivationGrammar::from_tree_sitter_grammar_json(lang, lang.grammar_json())?;
-                let grammar_ctx = GrammarContext::new(grammar, frags);
-                Ok((lang, grammar_ctx))
-            })
-            .try_collect()?;
-        let grammar_ctx = GrammarContextLookup::from_iter(contexts);
-        Ok(grammar_ctx)
-    }
-}
-
-fn load_derivation_fragments(path: &Path) -> Result<DerivationFragments, anyhow::Error> {
-    let file = File::open(path).context("Opening derivation fragment")?;
-    let reader = zstd::Decoder::new(BufReader::new(file))?;
-    let result = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
-    Ok(result)
 }
 
 fn initialize_corpus<E, Z, EM, C, R, SC>(
@@ -404,41 +392,6 @@ where
         }
     }
     Ok(())
-}
-
-fn parse_hash_map<K, V>(s: &str) -> Result<HashMap<K, V>, anyhow::Error>
-where
-    K: FromStr + Hash + Eq,
-    V: FromStr,
-    <K as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-{
-    let mut result = HashMap::new();
-    for pair in s.split(',') {
-        let (key, value) = pair.split_once('=').context("Splitting key and value")?;
-        let key = key.parse().context("Parsing key")?;
-        let value = value.parse().context("Parsing value")?;
-        result.insert(key, value);
-    }
-    Ok(result)
-}
-
-fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
-    if s.chars().last().is_some_and(|it| it.is_alphabetic()) {
-        let (size, unit) = s.split_at(s.len() - 1);
-        let muiltiplier = match unit.to_uppercase().as_str() {
-            "B" => 1 << 0,
-            "K" => 1 << 10,
-            "M" => 1 << 20,
-            "G" => 1 << 30,
-            "T" => 1 << 40,
-            _ => bail!("Invalid unit"),
-        };
-        let base_size: usize = size.parse()?;
-        Ok(base_size * muiltiplier)
-    } else {
-        Ok(s.parse()?)
-    }
 }
 
 fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {

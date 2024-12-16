@@ -42,7 +42,7 @@ impl MineGrammarFragments {
         let source_files = self.find_source_files()?;
 
         info!("Found {} source files", source_files.len());
-        let extracted_fragements: Vec<_> = source_files
+        let extracted_fragments: Vec<_> = source_files
             .into_par_iter()
             .inspect(|source_file_path| info!("Parsing: {}", source_file_path.display()))
             .map(|source_file| extract_fragmemts(&source_file, &self.language))
@@ -52,7 +52,7 @@ impl MineGrammarFragments {
         let mut fragments = HashMap::new();
 
         info!("Merging fragments");
-        for (file_content, file_fragments) in extracted_fragements {
+        for (file_content, file_fragments) in extracted_fragments {
             let offset = code.len();
             code.extend(file_content);
             for (node_kind, ranges) in file_fragments {

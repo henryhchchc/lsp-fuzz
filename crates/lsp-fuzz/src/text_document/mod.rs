@@ -37,11 +37,10 @@ pub struct GrammarContextLookup {
     inner: HashMap<Language, grammars::GrammarContext>,
 }
 
-impl FromIterator<(Language, grammars::GrammarContext)> for GrammarContextLookup {
-    fn from_iter<T: IntoIterator<Item = (Language, grammars::GrammarContext)>>(iter: T) -> Self {
-        Self {
-            inner: HashMap::from_iter(iter),
-        }
+impl FromIterator<grammars::GrammarContext> for GrammarContextLookup {
+    fn from_iter<T: IntoIterator<Item = grammars::GrammarContext>>(iter: T) -> Self {
+        let inner = iter.into_iter().map(|gc| (gc.language(), gc)).collect();
+        Self { inner }
     }
 }
 

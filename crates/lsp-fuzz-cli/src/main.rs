@@ -1,4 +1,7 @@
 mod cli;
+mod fuzzing;
+
+mod language_fragments;
 
 use anyhow::Context;
 use clap::Parser;
