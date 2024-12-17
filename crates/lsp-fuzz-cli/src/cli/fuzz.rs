@@ -38,52 +38,15 @@ use lsp_fuzz::{
     text_document::{text_document_mutations, GrammarContextLookup, Language},
 };
 
-use nix::sys::signal::Signal;
 use tracing::{error, info, warn};
 use tuple_list::tuple_list;
 
-use crate::{fuzzing::FuzzerStateDir, language_fragments::load_grammar_lookup};
+use crate::{
+    fuzzing::{ExecutorOptions, FuzzerStateDir},
+    language_fragments::load_grammar_lookup,
+};
 
-use super::{parse_hash_map, parse_size, GlobalOptions};
-
-#[derive(Debug, clap::Parser)]
-pub struct ExecutorOptions {
-    /// Path to the LSP executable.
-    #[clap(long)]
-    lsp_executable: PathBuf,
-
-    /// Arguments to pass to the child process.
-    #[clap(long)]
-    target_args: Vec<String>,
-
-    /// Size of the coverage map.
-    #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size)]
-    coverage_map_size: Option<usize>,
-
-    /// Shared memory fuzzing.
-    #[clap(long, short, value_parser = parse_size)]
-    shared_memory_fuzzing: Option<usize>,
-
-    /// Exit code that indicates a crash.
-    #[clap(long, env = "AFL_CRASH_EXITCODE", value_parser = BoolishValueParser::new())]
-    crash_exit_code: Option<i8>,
-
-    /// Timeout running the fuzz target in milliseconds.
-    #[clap(long, short, default_value_t = 1200)]
-    timeout: u64,
-
-    /// Signal to send to terminate the child process.
-    #[clap(long, short, env = "AFL_KILL_SIGNAL", default_value_t = Signal::SIGKILL)]
-    kill_signal: Signal,
-
-    /// Enable debugging for the child process.
-    #[clap(long, env = "AFL_DEBUG_CHILD", value_parser = BoolishValueParser::new())]
-    debug_child: bool,
-
-    /// Enable debugging for AFL itself.
-    #[clap(long, env = "AFL_DEBUG", value_parser = BoolishValueParser::new())]
-    debug_afl: bool,
-}
+use super::{parse_hash_map, GlobalOptions};
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
@@ -139,7 +102,6 @@ impl FuzzCommand {
         } else {
             warn!("The fuzz target is not instrumented with AFL++");
         }
-
         let binary_info = TargetBinaryInfo::detect(
             &self.execution.lsp_executable,
             &mut shmem_provider,
@@ -154,12 +116,13 @@ impl FuzzCommand {
         }
         if let Some(shm_size) = self.execution.shared_memory_fuzzing {
             info!(shm_size, "Shared memory fuzzing is enabled.");
-        } else if binary_info.is_shmem_fuzzing {
+        }
+
+        if binary_info.is_shmem_fuzzing && self.execution.shared_memory_fuzzing.is_none() {
             error!("Target requires shared memory fuzzing but the size of the shared memory is not specified.");
             bail!("Invalid configuration");
         }
 
-        // The coverage map shared between observer and executor
         let Some(shmem_size) = binary_info
             .map_size
             .inspect(|it| info!("Detected coverage map size: {}", it))
@@ -394,7 +357,7 @@ where
     Ok(())
 }
 
-fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
+pub fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
     let replaced = target_args
         .iter_mut()
         .filter_map(|input_file| {
