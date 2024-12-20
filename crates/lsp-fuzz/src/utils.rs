@@ -4,10 +4,6 @@ pub(crate) trait OptionExt<T> {
     fn get_or_try_insert_with<F, E>(&mut self, generator: F) -> Result<&mut T, E>
     where
         F: FnOnce() -> Result<T, E>;
-    fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error>;
-    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
-    where
-        F: FnOnce() -> String;
 }
 
 impl<T> OptionExt<T> for Option<T> {
@@ -25,7 +21,9 @@ impl<T> OptionExt<T> for Option<T> {
             Ok(value)
         }
     }
+}
 
+impl<T> AflContext<T> for Option<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
         self.ok_or(()).afl_context(message)
     }
@@ -38,14 +36,14 @@ impl<T> OptionExt<T> for Option<T> {
     }
 }
 
-pub(crate) trait ResultExt<T> {
+pub(crate) trait AflContext<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error>;
     fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
     where
         F: FnOnce() -> String;
 }
 
-impl<T, E> ResultExt<T> for Result<T, E> {
+impl<T, E> AflContext<T> for Result<T, E> {
     /// Wraps the error in an [`libafl::Error::Unknown`] with the given message.
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
         self.map_err(|_| libafl::Error::unknown(message))

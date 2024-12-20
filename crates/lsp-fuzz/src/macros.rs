@@ -80,17 +80,14 @@ macro_rules! lsp_messages {
                 M::Params::into_message(params)
             }
 
-            pub fn with_workspace_dir(self, workspsace_dir: &str) -> Self {
+            pub fn with_workspace_dir(mut self, workspace_dir: &str) -> Self {
                 match self {
                     $(
-                        $(
-                            Self::$req_variant(params) => Self::$req_variant(params.localize(workspsace_dir))
-                        )?
-                        $(
-                            Self::$not_variant(params) => Self::$not_variant(params.localize(workspsace_dir))
-                        )?
+                        $( Self::$req_variant(ref mut params) => params.localize(workspace_dir) )?
+                        $( Self::$not_variant(ref mut params) => params.localize(workspace_dir) )?
                     ),*
-                }
+                };
+                self
             }
         }
 
@@ -121,6 +118,19 @@ macro_rules! lsp_messages {
             )?
         )*
 
+        pub(crate) fn append_random_message_mutations<S>() -> impl libafl::mutators::MutatorsTuple<crate::lsp_input::LspInput, S>
+                                                          + libafl_bolts::tuples::NamedTuple
+            where
+                S: libafl::state::HasRand + 'static
+        {
+            tuple_list::tuple_list![
+                $(
+                    $(crate::lsp_input::messages::AppendRandomlyGeneratedMessage::<request::$req_variant, S>::with_predefined(),)?
+                    $(crate::lsp_input::messages::AppendRandomlyGeneratedMessage::<notification::$not_variant, S>::with_predefined(),)?
+                )*
+            ]
+        }
+
     };
 }
 
@@ -137,14 +147,10 @@ macro_rules! impl_localize {
         impl LocalizeToWorkspace for $type {
 
             #[inline]
-            #[allow(clippy::needless_update)]
-            fn localize(self, workspace_dir: &str) -> Self {
-                Self {
-                    $(
-                        $( $field: self.$field.localize(workspace_dir),)*
-                        ..self
-                    )?
-                }
+            fn localize(&mut self, workspace_dir: &str) {
+                $(
+                    $( self.$field.localize(workspace_dir);)*
+                )?
             }
         }
     };

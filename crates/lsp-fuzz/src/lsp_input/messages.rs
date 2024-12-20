@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::{borrow::Cow, fmt::Debug, iter::once, marker::PhantomData, rc::Rc};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -8,10 +8,15 @@ use libafl::{
 };
 use libafl_bolts::{rands::Rand, tuples::NamedTuple, HasLen, Named};
 use serde::{Deserialize, Serialize};
+use trait_gen::trait_gen;
 use tuple_list::tuple_list;
 
 use crate::{
-    lsp::{self, generation::LspParamsGenerator, LspMessage, Message, MessageParam},
+    lsp::{
+        self,
+        generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
+        LspMessage, Message, MessageParam,
+    },
     macros::prop_mutator,
     mutators::SliceSwapMutator,
     text_document::TextDocument,
@@ -27,42 +32,6 @@ pub struct LspMessages {
 impl HasLen for LspMessages {
     fn len(&self) -> usize {
         self.inner.len()
-    }
-}
-
-#[derive(Debug, New)]
-pub struct AppendMessage<M, S, G> {
-    _message: PhantomData<M>,
-    _state: PhantomData<S>,
-    _gen: PhantomData<G>,
-}
-
-impl<M, S, G> Named for AppendMessage<M, S, G> {
-    fn name(&self) -> &Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("AppendMessage");
-        &NAME
-    }
-}
-
-impl<M, S, P, G> Mutator<LspInput, S> for AppendMessage<M, S, G>
-where
-    S: HasRand,
-    M: LspMessage<Params = P>,
-    P: MessageParam<M>,
-    G: LspParamsGenerator<S, Result = P>,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut LspInput,
-    ) -> Result<MutationResult, libafl::Error> {
-        if let Some(params) = G::generate(state, input)? {
-            let message = Message::from_params::<M>(params);
-            input.messages.push(message);
-            Ok(MutationResult::Mutated)
-        } else {
-            Ok(MutationResult::Skipped)
-        }
     }
 }
 
@@ -100,45 +69,6 @@ where
     }
 }
 
-pub mod append_mutations {
-
-    use lsp_types::request::{
-        DocumentHighlightRequest, GotoDeclaration, GotoDefinition, GotoImplementation,
-        GotoTypeDefinition, HoverRequest, InlayHintRequest, References, SemanticTokensFullRequest,
-        TypeHierarchyPrepare,
-    };
-
-    use crate::{
-        lsp::generation::{
-            self, FindReferences, FullSemanticTokens, GoToDef, Hover, InlayHintWholdDoc,
-            TriggerCompletion, TypeHierarchyPrep,
-        },
-        text_document::mutations::text_document_selectors::RandomDoc,
-    };
-
-    use super::AppendMessage;
-
-    pub type Completion<P, S> =
-        AppendMessage<lsp_types::request::Completion, S, TriggerCompletion<RandomDoc<S>, P>>;
-
-    pub type GotoDecl<P, S> = AppendMessage<GotoDeclaration, S, GoToDef<RandomDoc<S>, P>>;
-    pub type GotoDef<P, S> = AppendMessage<GotoDefinition, S, GoToDef<RandomDoc<S>, P>>;
-    pub type GotoTypeDef<P, S> = AppendMessage<GotoTypeDefinition, S, GoToDef<RandomDoc<S>, P>>;
-    pub type GotoImpl<P, S> = AppendMessage<GotoImplementation, S, GoToDef<RandomDoc<S>, P>>;
-    pub type FindRef<P, S> = AppendMessage<References, S, FindReferences<RandomDoc<S>, P>>;
-    pub type PrepTypeHierarchy<P, S> =
-        AppendMessage<TypeHierarchyPrepare, S, TypeHierarchyPrep<RandomDoc<S>, P>>;
-    pub type DocumentHighlight<P, S> =
-        AppendMessage<DocumentHighlightRequest, S, generation::DocumentHighlight<RandomDoc<S>, P>>;
-
-    pub type SemanticTokensFull<S> =
-        AppendMessage<SemanticTokensFullRequest, S, FullSemanticTokens<RandomDoc<S>>>;
-
-    pub type PerformHover<P, S> = AppendMessage<HoverRequest, S, Hover<RandomDoc<S>, P>>;
-
-    pub type InlayHints<S> = AppendMessage<InlayHintRequest, S, InlayHintWholdDoc<RandomDoc<S>>>;
-}
-
 #[derive(Debug, New)]
 pub struct DropRandomMessage<S> {
     _state: PhantomData<S>,
@@ -174,32 +104,213 @@ prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::Mess
 
 pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::Message, S>>;
 
-pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+pub trait HasPredefinedGenerators<S> {
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
+    where
+        S: 'static;
+}
+
+use lsp_types::*;
+
+#[trait_gen(P ->
+    ApplyWorkspaceEditParams,
+    CallHierarchyIncomingCallsParams,
+    CallHierarchyOutgoingCallsParams,
+    CallHierarchyPrepareParams,
+    CancelParams,
+    CodeAction,
+    CodeActionParams,
+    CodeLens,
+    CodeLensParams,
+    ColorPresentationParams,
+    CompletionItem,
+    ConfigurationParams,
+    CreateFilesParams,
+    DeleteFilesParams,
+    DidChangeConfigurationParams,
+    DidChangeNotebookDocumentParams,
+    DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams,
+    DidChangeWorkspaceFoldersParams,
+    DidCloseNotebookDocumentParams,
+    DidCloseTextDocumentParams,
+    DidOpenNotebookDocumentParams,
+    DidSaveNotebookDocumentParams,
+    DidSaveTextDocumentParams,
+    DocumentColorParams,
+    DocumentDiagnosticParams,
+    DocumentFormattingParams,
+    DocumentLink,
+    DocumentLinkParams,
+    DocumentOnTypeFormattingParams,
+    DocumentRangeFormattingParams,
+    DocumentSymbolParams,
+    ExecuteCommandParams,
+    FoldingRangeParams,
+    InitializeResult,
+    InitializedParams,
+    InlayHint,
+    InlineValueParams,
+    LinkedEditingRangeParams,
+    LogMessageParams,
+    LogTraceParams,
+    MonikerParams,
+    ProgressParams,
+    PublishDiagnosticsParams,
+    RegistrationParams,
+    RenameFilesParams,
+    RenameParams,
+    SelectionRangeParams,
+    SemanticTokensDeltaParams,
+    SemanticTokensRangeParams,
+    SetTraceParams,
+    ShowDocumentParams,
+    ShowMessageParams,
+    ShowMessageRequestParams,
+    SignatureHelpParams,
+    TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams,
+    UnregistrationParams,
+    WillSaveTextDocumentParams,
+    WorkDoneProgressCancelParams,
+    WorkDoneProgressCreateParams,
+    WorkspaceDiagnosticParams,
+    WorkspaceSymbol,
+    WorkspaceSymbolParams,
+    CompletionParams,
+    DidOpenTextDocumentParams,
+    // GotoDefinitionParams,
+    HoverParams,
+    InitializeParams,
+    InlayHintParams,
+    SemanticTokensParams,
+    TextDocumentIdentifier,
+    TextDocumentItem,
+    TextDocumentPositionParams,
+    WorkspaceFolder,
+    TypeHierarchyPrepareParams,
+    ReferenceParams,
+    DocumentHighlightParams,
+)]
+impl<S> HasPredefinedGenerators<S> for P {
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![]
+    }
+}
+
+#[trait_gen(P ->
+    WorkDoneProgressParams,
+    PartialResultParams,
+    (),
+    serde_json::Map<String, serde_json::Value>,
+    serde_json::Value,
+)]
+impl<S: 'static> HasPredefinedGenerators<S> for P {
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![Rc::new(DefaultGenerator::new())]
+    }
+}
+
+impl<S, A, B> HasPredefinedGenerators<S> for OneOf<A, B>
+where
+    A: HasPredefinedGenerators<S>,
+    B: HasPredefinedGenerators<S>,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![]
+    }
+}
+
+impl<S, T> HasPredefinedGenerators<S> for Option<T>
+where
+    S: 'static,
+    T: HasPredefinedGenerators<S> + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        T::generators()
+            .into_iter()
+            .map(|g| Rc::new(g.map(Some)) as _)
+            .chain(once(Rc::new(DefaultGenerator::new()) as _))
+            .collect()
+    }
+}
+
+impl<S, T> HasPredefinedGenerators<S> for Vec<T>
+where
+    S: 'static,
+    T: HasPredefinedGenerators<S> + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![Rc::new(DefaultGenerator::new())]
+    }
+}
+
+pub struct AppendRandomlyGeneratedMessage<M: LspMessage, S> {
+    generators: Vec<Rc<dyn LspParamsGenerator<S, Output = M::Params>>>,
+}
+
+impl<M: LspMessage, S> Debug for AppendRandomlyGeneratedMessage<M, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppendRandomlyGeneratedMessage")
+            .field(
+                "generators",
+                &format!("({} dyn generators)", self.generators.len()),
+            )
+            .finish()
+    }
+}
+
+impl<M, S: 'static> AppendRandomlyGeneratedMessage<M, S>
+where
+    M: LspMessage,
+    <M as LspMessage>::Params: HasPredefinedGenerators<S>,
+{
+    pub fn with_predefined() -> Self {
+        let generators = M::Params::generators();
+        Self { generators }
+    }
+}
+
+impl<M, S> Named for AppendRandomlyGeneratedMessage<M, S>
+where
+    M: LspMessage,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("AppendRandomlyGeneratedMessage");
+        &NAME
+    }
+}
+
+impl<M, S, P> Mutator<LspInput, S> for AppendRandomlyGeneratedMessage<M, S>
 where
     S: HasRand,
+    M: LspMessage<Params = P>,
+    P: MessageParam<M>,
 {
-    tuple_list![
-        append_mutations::GotoDef::<RandomPosition, _>::new(),
-        append_mutations::GotoDef::<TerminalStartPosition, _>::new(),
-        append_mutations::GotoDecl::<RandomPosition, _>::new(),
-        append_mutations::GotoDecl::<TerminalStartPosition, _>::new(),
-        append_mutations::GotoTypeDef::<RandomPosition, _>::new(),
-        append_mutations::GotoTypeDef::<TerminalStartPosition, _>::new(),
-        append_mutations::GotoImpl::<RandomPosition, _>::new(),
-        append_mutations::GotoImpl::<TerminalStartPosition, _>::new(),
-        append_mutations::FindRef::<RandomPosition, _>::new(),
-        append_mutations::FindRef::<TerminalStartPosition, _>::new(),
-        append_mutations::PrepTypeHierarchy::<RandomPosition, _>::new(),
-        append_mutations::PrepTypeHierarchy::<TerminalStartPosition, _>::new(),
-        append_mutations::DocumentHighlight::<RandomPosition, _>::new(),
-        append_mutations::DocumentHighlight::<TerminalStartPosition, _>::new(),
-        append_mutations::PerformHover::<RandomPosition, _>::new(),
-        append_mutations::PerformHover::<TerminalStartPosition, _>::new(),
-        append_mutations::SemanticTokensFull::new(),
-        append_mutations::Completion::<RandomPosition, _>::new(),
-        append_mutations::InlayHints::new(),
-        SwapRequests::new(SliceSwapMutator::new())
-    ]
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut LspInput,
+    ) -> Result<MutationResult, libafl::Error> {
+        let Some(generator) = state.rand_mut().choose(&self.generators) else {
+            return Ok(MutationResult::Skipped);
+        };
+        let params = match generator.generate(state, input) {
+            Ok(params) => params,
+            Err(GenerationError::NothingGenerated) => return Ok(MutationResult::Skipped),
+            Err(GenerationError::Error(e)) => return Err(e),
+        };
+        let message = Message::from_params::<M>(params);
+        input.messages.push(message);
+        Ok(MutationResult::Mutated)
+    }
+}
+
+pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+where
+    S: HasRand + 'static,
+{
+    lsp::message::append_random_message_mutations()
 }
 
 pub fn message_reductions<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple

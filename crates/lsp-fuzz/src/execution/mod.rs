@@ -20,10 +20,7 @@ use nix::{
 };
 use tracing::{info, warn};
 
-use crate::{
-    lsp_input::LspInput,
-    utils::{OptionExt, ResultExt},
-};
+use crate::{lsp_input::LspInput, utils::AflContext};
 
 pub mod fork_server;
 

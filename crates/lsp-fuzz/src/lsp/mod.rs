@@ -1,16 +1,12 @@
-pub(crate) mod capatibilities;
+pub(crate) mod capabilities;
 pub mod message;
 
 pub use message::Message;
 
-use crate::lsp_input::LspInput;
 pub mod generation;
 pub mod json_rpc;
 
 pub mod workspace_localization;
-pub trait LspParamsGen {
-    fn generate_one<S>(state: &mut S, input: &LspInput) -> Self;
-}
 
 pub trait LspMessage {
     type Params;
@@ -25,5 +21,5 @@ where
 }
 
 pub trait LocalizeToWorkspace {
-    fn localize(self, workspace_dir: &str) -> Self;
+    fn localize(&mut self, workspace_dir: &str);
 }

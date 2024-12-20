@@ -79,9 +79,10 @@ use trait_gen::trait_gen;
     WorkspaceSymbolParams,
 )]
 impl LocalizeToWorkspace for T {
-    fn localize(self, _workspace_dir: &str) -> Self {
+    fn localize(&mut self, _workspace_dir: &str) {
         todo!(
-            "Ouch! LocalizeToWorkspace not (meaningfully) implemented for {}",
+            "Generic LocalizeToWorkspace should not be used. \
+            This trait should be meaningfully implemented for {}",
             type_name::<Self>()
         );
     }
@@ -93,9 +94,7 @@ impl LocalizeToWorkspace for T {
     serde_json::Value
 )]
 impl LocalizeToWorkspace for T {
-    fn localize(self, _workspace_dir: &str) -> Self {
-        self
-    }
+    fn localize(&mut self, _workspace_dir: &str) {}
 }
 
 impl<A, B> LocalizeToWorkspace for OneOf<A, B>
@@ -103,10 +102,10 @@ where
     A: LocalizeToWorkspace,
     B: LocalizeToWorkspace,
 {
-    fn localize(self, workspace_dir: &str) -> Self {
+    fn localize(&mut self, workspace_dir: &str) {
         match self {
-            Self::Left(lhs) => Self::Left(lhs.localize(workspace_dir)),
-            Self::Right(rhs) => Self::Right(rhs.localize(workspace_dir)),
+            Self::Left(lhs) => lhs.localize(workspace_dir),
+            Self::Right(rhs) => rhs.localize(workspace_dir),
         }
     }
 }
@@ -115,8 +114,10 @@ impl<T> LocalizeToWorkspace for Option<T>
 where
     T: LocalizeToWorkspace,
 {
-    fn localize(self, workspace_dir: &str) -> Self {
-        self.map(|it| it.localize(workspace_dir))
+    fn localize(&mut self, workspace_dir: &str) {
+        if let Some(inner) = self {
+            inner.localize(workspace_dir);
+        }
     }
 }
 
@@ -124,22 +125,20 @@ impl<T> LocalizeToWorkspace for Vec<T>
 where
     T: LocalizeToWorkspace,
 {
-    fn localize(self, workspace_dir: &str) -> Self {
-        self.into_iter()
-            .map(|it| it.localize(workspace_dir))
-            .collect()
+    fn localize(&mut self, workspace_dir: &str) {
+        self.iter_mut().for_each(|it| it.localize(workspace_dir))
     }
 }
 
 impl LocalizeToWorkspace for lsp_types::Uri {
-    fn localize(self, workspace_dir: &str) -> Self {
-        format!(
+    fn localize(&mut self, workspace_dir: &str) {
+        *self = format!(
             "file://{}/{}",
             workspace_dir,
             self.to_string().strip_prefix("lsp-fuzz://").unwrap()
         )
         .parse()
-        .unwrap()
+        .unwrap();
     }
 }
 

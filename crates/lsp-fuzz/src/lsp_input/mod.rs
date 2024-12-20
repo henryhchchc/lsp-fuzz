@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
-    lsp::{self, capatibilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
+    lsp::{self, capabilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
     text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
     utf8::Utf8Input,
 };
