@@ -9,21 +9,18 @@ use lsp_types::{
     InitializeParams, InlayHintParams, OneOf, SemanticTokensParams, TextDocumentIdentifier,
     TextDocumentItem, TextDocumentPositionParams, WorkspaceFolder,
 };
+use ordermap::OrderMap;
 use trait_gen::trait_gen;
 
 #[trait_gen(T ->
-    ApplyWorkspaceEditParams,
     CallHierarchyIncomingCallsParams,
     CallHierarchyOutgoingCallsParams,
-    CallHierarchyPrepareParams,
-    CancelParams,
     CodeAction,
     CodeActionParams,
     CodeLens,
     CodeLensParams,
     ColorPresentationParams,
     CompletionItem,
-    ConfigurationParams,
     CreateFilesParams,
     DeleteFilesParams,
     DidChangeConfigurationParams,
@@ -36,9 +33,6 @@ use trait_gen::trait_gen;
     DidOpenNotebookDocumentParams,
     DidSaveNotebookDocumentParams,
     DidSaveTextDocumentParams,
-    DocumentColorParams,
-    DocumentDiagnosticParams,
-    DocumentFormattingParams,
     DocumentLink,
     DocumentLinkParams,
     DocumentOnTypeFormattingParams,
@@ -47,11 +41,8 @@ use trait_gen::trait_gen;
     ExecuteCommandParams,
     FoldingRangeParams,
     InitializeResult,
-    InitializedParams,
     InlayHint,
-    InlineValueParams,
     LinkedEditingRangeParams,
-    LogMessageParams,
     LogTraceParams,
     MonikerParams,
     ProgressParams,
@@ -60,23 +51,12 @@ use trait_gen::trait_gen;
     RenameFilesParams,
     RenameParams,
     SelectionRangeParams,
-    SemanticTokensDeltaParams,
-    SemanticTokensRangeParams,
     SetTraceParams,
     ShowDocumentParams,
-    ShowMessageParams,
-    ShowMessageRequestParams,
-    SignatureHelpParams,
     TypeHierarchySubtypesParams,
     TypeHierarchySupertypesParams,
-    UnregistrationParams,
     WillSaveTextDocumentParams,
-    WorkDoneProgressCancelParams,
-    WorkDoneProgressCreateParams,
-    WorkDoneProgressParams,
     WorkspaceDiagnosticParams,
-    WorkspaceSymbol,
-    WorkspaceSymbolParams,
 )]
 impl LocalizeToWorkspace for T {
     fn localize(&mut self, _workspace_dir: &str) {
@@ -91,9 +71,21 @@ impl LocalizeToWorkspace for T {
 #[trait_gen(T ->
     (),
     serde_json::Map<String, serde_json::Value>,
-    serde_json::Value
+    serde_json::Value,
+    CancelParams,
+    WorkDoneProgressParams,
+    WorkDoneProgressCancelParams,
+    WorkDoneProgressCreateParams,
+    UnregistrationParams,
+    ShowMessageParams,
+    ShowMessageRequestParams,
+    TextEdit,
+    LogMessageParams,
+    WorkspaceSymbolParams,
+    InitializedParams
 )]
 impl LocalizeToWorkspace for T {
+    #[inline]
     fn localize(&mut self, _workspace_dir: &str) {}
 }
 
@@ -121,6 +113,22 @@ where
     }
 }
 
+impl<K, V> LocalizeToWorkspace for OrderMap<K, V>
+where
+    K: LocalizeToWorkspace + Eq + std::hash::Hash,
+    V: LocalizeToWorkspace,
+{
+    fn localize(&mut self, workspace_dir: &str) {
+        let mut new = OrderMap::new();
+        for (mut k, mut v) in self.drain(..) {
+            k.localize(workspace_dir);
+            v.localize(workspace_dir);
+            new.insert(k, v);
+        }
+        *self = new;
+    }
+}
+
 impl<T> LocalizeToWorkspace for Vec<T>
 where
     T: LocalizeToWorkspace,
@@ -143,16 +151,94 @@ impl LocalizeToWorkspace for lsp_types::Uri {
 }
 
 impl_localize!(CompletionParams; text_document_position);
-impl_localize!(DidOpenTextDocumentParams; text_document);
-impl_localize!(GotoDefinitionParams; text_document_position_params);
-impl_localize!(HoverParams; text_document_position_params);
 impl_localize!(InitializeParams; workspace_folders);
-impl_localize!(InlayHintParams; text_document);
-impl_localize!(SemanticTokensParams; text_document);
-impl_localize!(TextDocumentIdentifier; uri);
-impl_localize!(TextDocumentItem; uri);
-impl_localize!(TextDocumentPositionParams; text_document);
-impl_localize!(WorkspaceFolder; uri);
-impl_localize!(TypeHierarchyPrepareParams; text_document_position_params);
 impl_localize!(ReferenceParams; text_document_position);
-impl_localize!(DocumentHighlightParams; text_document_position_params);
+impl_localize!(ApplyWorkspaceEditParams; edit);
+impl_localize!(WorkspaceEdit; changes, document_changes);
+impl_localize!(RenameFile; old_uri, new_uri);
+impl_localize!(ConfigurationParams; items);
+impl_localize!(ConfigurationItem; scope_uri);
+impl_localize!(WorkspaceSymbol; location);
+
+impl LocalizeToWorkspace for DocumentChangeOperation {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        match self {
+            Self::Edit(inner) => inner.localize(workspace_dir),
+            Self::Op(inner) => inner.localize(workspace_dir),
+        }
+    }
+}
+
+#[trait_gen(T ->
+    TextDocumentIdentifier,
+    TextDocumentItem,
+    OptionalVersionedTextDocumentIdentifier,
+    WorkspaceFolder,
+    CreateFile,
+    DeleteFile,
+    Location,
+    WorkspaceLocation,
+)]
+impl LocalizeToWorkspace for T {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        self.uri.localize(workspace_dir);
+    }
+}
+
+impl LocalizeToWorkspace for ResourceOp {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        match self {
+            Self::Create(inner) => inner.localize(workspace_dir),
+            Self::Delete(inner) => inner.localize(workspace_dir),
+            Self::Rename(inner) => inner.localize(workspace_dir),
+        }
+    }
+}
+
+impl LocalizeToWorkspace for DocumentChanges {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        match self {
+            Self::Edits(inner) => inner.localize(workspace_dir),
+            Self::Operations(inner) => inner.localize(workspace_dir),
+        }
+    }
+}
+
+#[trait_gen(T ->
+    InlayHintParams,
+    SemanticTokensParams,
+    SemanticTokensRangeParams,
+    SemanticTokensDeltaParams,
+    TextDocumentPositionParams,
+    DidOpenTextDocumentParams,
+    TextDocumentEdit,
+    InlineValueParams,
+    DocumentDiagnosticParams,
+    DocumentColorParams,
+    DocumentFormattingParams,
+)]
+impl LocalizeToWorkspace for T {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        self.text_document.localize(workspace_dir);
+    }
+}
+
+#[trait_gen(T ->
+    CallHierarchyPrepareParams,
+    GotoDefinitionParams,
+    HoverParams,
+    SignatureHelpParams,
+    TypeHierarchyPrepareParams,
+    DocumentHighlightParams,
+)]
+impl LocalizeToWorkspace for T {
+    #[inline]
+    fn localize(&mut self, workspace_dir: &str) {
+        self.text_document_position_params.localize(workspace_dir);
+    }
+}

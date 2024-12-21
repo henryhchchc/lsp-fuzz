@@ -14,12 +14,15 @@ use tuple_list::tuple_list;
 use crate::{
     lsp::{
         self,
-        generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
+        generation::{
+            ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
+            TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
+        },
         LspMessage, Message, MessageParam,
     },
-    macros::prop_mutator,
+    macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
-    text_document::TextDocument,
+    text_document::{mutations::text_document_selectors::RandomDoc, TextDocument},
 };
 
 use super::LspInput;
@@ -113,84 +116,59 @@ pub trait HasPredefinedGenerators<S> {
 use lsp_types::*;
 
 #[trait_gen(P ->
-    ApplyWorkspaceEditParams,
-    CallHierarchyIncomingCallsParams,
-    CallHierarchyOutgoingCallsParams,
-    CallHierarchyPrepareParams,
-    CancelParams,
-    CodeAction,
-    CodeActionParams,
-    CodeLens,
-    CodeLensParams,
-    ColorPresentationParams,
-    CompletionItem,
-    ConfigurationParams,
-    CreateFilesParams,
-    DeleteFilesParams,
-    DidChangeConfigurationParams,
-    DidChangeNotebookDocumentParams,
-    DidChangeTextDocumentParams,
-    DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams,
-    DidCloseNotebookDocumentParams,
-    DidCloseTextDocumentParams,
-    DidOpenNotebookDocumentParams,
-    DidSaveNotebookDocumentParams,
-    DidSaveTextDocumentParams,
-    DocumentColorParams,
-    DocumentDiagnosticParams,
-    DocumentFormattingParams,
-    DocumentLink,
-    DocumentLinkParams,
-    DocumentOnTypeFormattingParams,
-    DocumentRangeFormattingParams,
-    DocumentSymbolParams,
-    ExecuteCommandParams,
-    FoldingRangeParams,
-    InitializeResult,
-    InitializedParams,
-    InlayHint,
-    InlineValueParams,
-    LinkedEditingRangeParams,
-    LogMessageParams,
-    LogTraceParams,
-    MonikerParams,
-    ProgressParams,
-    PublishDiagnosticsParams,
-    RegistrationParams,
-    RenameFilesParams,
-    RenameParams,
-    SelectionRangeParams,
-    SemanticTokensDeltaParams,
-    SemanticTokensRangeParams,
-    SetTraceParams,
-    ShowDocumentParams,
-    ShowMessageParams,
-    ShowMessageRequestParams,
-    SignatureHelpParams,
-    TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams,
-    UnregistrationParams,
-    WillSaveTextDocumentParams,
-    WorkDoneProgressCancelParams,
-    WorkDoneProgressCreateParams,
-    WorkspaceDiagnosticParams,
-    WorkspaceSymbol,
-    WorkspaceSymbolParams,
-    CompletionParams,
-    DidOpenTextDocumentParams,
-    // GotoDefinitionParams,
-    HoverParams,
-    InitializeParams,
-    InlayHintParams,
-    SemanticTokensParams,
-    TextDocumentIdentifier,
-    TextDocumentItem,
-    TextDocumentPositionParams,
-    WorkspaceFolder,
-    TypeHierarchyPrepareParams,
-    ReferenceParams,
-    DocumentHighlightParams,
+        ApplyWorkspaceEditParams,
+        CallHierarchyIncomingCallsParams,
+        CallHierarchyOutgoingCallsParams,
+        CancelParams,
+        CodeAction,
+        CodeActionParams,
+        CodeLens,
+        ColorPresentationParams,
+        CompletionItem,
+        CompletionParams,
+        ConfigurationParams,
+        CreateFilesParams,
+        DeleteFilesParams,
+        DidChangeConfigurationParams,
+        DidChangeNotebookDocumentParams,
+        DidChangeTextDocumentParams,
+        DidChangeWatchedFilesParams,
+        DidChangeWorkspaceFoldersParams,
+        DidCloseNotebookDocumentParams,
+        DidCloseTextDocumentParams,
+        DidOpenNotebookDocumentParams,
+        DidSaveNotebookDocumentParams,
+        DidSaveTextDocumentParams,
+        DocumentFormattingParams,
+        DocumentLink,
+        DocumentOnTypeFormattingParams,
+        DocumentRangeFormattingParams,
+        ExecuteCommandParams,
+        FoldingRangeParams,
+        InlayHint,
+        InlayHintParams,
+        InlineValueParams,
+        LinkedEditingRangeParams,
+        LogMessageParams,
+        LogTraceParams,
+        MonikerParams,
+        PublishDiagnosticsParams,
+        RegistrationParams,
+        RenameFilesParams,
+        RenameParams,
+        SelectionRangeParams,
+        SemanticTokensDeltaParams,
+        SemanticTokensRangeParams,
+        SetTraceParams,
+        SignatureHelpParams,
+        TypeHierarchySubtypesParams,
+        TypeHierarchySupertypesParams,
+        UnregistrationParams,
+        WillSaveTextDocumentParams,
+        WorkDoneProgressCancelParams,
+        WorkDoneProgressCreateParams,
+        WorkspaceDiagnosticParams,
+        WorkspaceSymbol,
 )]
 impl<S> HasPredefinedGenerators<S> for P {
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
@@ -208,6 +186,49 @@ impl<S> HasPredefinedGenerators<S> for P {
 impl<S: 'static> HasPredefinedGenerators<S> for P {
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
         vec![Rc::new(DefaultGenerator::new())]
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for bool
+where
+    S: HasRand + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![
+            Rc::new(ConstGenerator::new(false)),
+            Rc::new(ConstGenerator::new(true)),
+        ]
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for TextDocumentIdentifier
+where
+    S: HasRand + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![Rc::new(
+            TextDocumentIdentifierGenerator::<S, RandomDoc<S>>::new(),
+        )]
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for TextDocumentPositionParams
+where
+    S: HasRand + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![
+            Rc::new(TextDocumentPositionParamsGenerator::<
+                S,
+                RandomDoc<S>,
+                RandomPosition,
+            >::new()),
+            Rc::new(TextDocumentPositionParamsGenerator::<
+                S,
+                RandomDoc<S>,
+                TerminalStartPosition,
+            >::new()),
+        ]
     }
 }
 
@@ -232,6 +253,15 @@ where
             .map(|g| Rc::new(g.map(Some)) as _)
             .chain(once(Rc::new(DefaultGenerator::new()) as _))
             .collect()
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for String
+where
+    S: HasRand + 'static,
+{
+    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+        vec![Rc::new(DefaultGenerator::new())]
     }
 }
 
@@ -310,7 +340,76 @@ pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
 where
     S: HasRand + 'static,
 {
-    lsp::message::append_random_message_mutations()
+    append_randoms![
+        request::WorkspaceSymbolRequest,
+        request::WorkspaceSymbolResolve,
+        request::ExecuteCommand,
+        request::WillSaveWaitUntil,
+        request::Completion,
+        request::ResolveCompletionItem,
+        request::HoverRequest,
+        request::SignatureHelpRequest,
+        request::GotoDeclaration,
+        request::GotoDefinition,
+        request::References,
+        request::DocumentHighlightRequest,
+        request::DocumentSymbolRequest,
+        request::CodeActionRequest,
+        request::CodeLensRequest,
+        request::CodeLensResolve,
+        request::DocumentLinkRequest,
+        request::DocumentLinkResolve,
+        request::RangeFormatting,
+        request::OnTypeFormatting,
+        request::Rename,
+        request::DocumentColor,
+        request::ColorPresentationRequest,
+        request::FoldingRangeRequest,
+        request::PrepareRenameRequest,
+        request::GotoImplementation,
+        request::GotoTypeDefinition,
+        request::SelectionRangeRequest,
+        request::CallHierarchyIncomingCalls,
+        request::CallHierarchyOutgoingCalls,
+        request::MonikerRequest,
+        request::LinkedEditingRange,
+        request::CallHierarchyPrepare,
+        request::TypeHierarchyPrepare,
+        request::SemanticTokensFullRequest,
+        request::SemanticTokensFullDeltaRequest,
+        request::SemanticTokensRangeRequest,
+        request::InlayHintRequest,
+        request::InlineValueRequest,
+        request::DocumentDiagnosticRequest,
+        request::WorkspaceDiagnosticRequest,
+        request::WorkspaceDiagnosticRefresh,
+        request::TypeHierarchySupertypes,
+        request::TypeHierarchySubtypes,
+        request::WillCreateFiles,
+        request::WillRenameFiles,
+        request::WillDeleteFiles,
+        request::InlineValueRefreshRequest,
+        request::CodeActionResolveRequest,
+        request::InlayHintResolveRequest,
+        notification::Cancel,
+        notification::SetTrace,
+        notification::LogTrace,
+        notification::WorkDoneProgressCancel,
+        notification::DidChangeTextDocument,
+        notification::WillSaveTextDocument,
+        notification::DidSaveTextDocument,
+        notification::DidCloseTextDocument,
+        notification::DidOpenNotebookDocument,
+        notification::DidChangeNotebookDocument,
+        notification::DidSaveNotebookDocument,
+        notification::DidCloseNotebookDocument,
+        notification::DidChangeConfiguration,
+        notification::DidChangeWatchedFiles,
+        notification::DidChangeWorkspaceFolders,
+        notification::DidCreateFiles,
+        notification::DidRenameFiles,
+        notification::DidDeleteFiles
+    ]
 }
 
 pub fn message_reductions<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple

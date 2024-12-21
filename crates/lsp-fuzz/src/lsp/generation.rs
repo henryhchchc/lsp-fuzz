@@ -2,7 +2,15 @@ use std::{marker::PhantomData, rc::Rc};
 
 use derive_new::new as New;
 use itertools::Itertools;
-use lsp_types::{TextDocumentPositionParams, WorkDoneProgressParams};
+use lsp_types::{
+    CallHierarchyPrepareParams, CodeLensParams, DocumentColorParams, DocumentDiagnosticParams,
+    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, GotoDefinitionParams,
+    HoverParams, PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyPrepareParams,
+    WorkDoneProgressParams, WorkspaceSymbolParams,
+};
+use trait_gen::trait_gen;
+use tuple_list::{tuple_list_type, TupleList};
 
 use crate::{
     lsp_input::{
@@ -136,26 +144,11 @@ where
     }
 }
 
-impl<S, T> HasPredefinedGenerators<S> for (T,)
-where
-    T: HasPredefinedGenerators<S> + 'static,
-{
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
-    where
-        S: 'static,
-    {
-        T::generators()
-            .into_iter()
-            .map(|g| Rc::new(g.map(|it| (it,))) as _)
-            .collect()
-    }
-}
-
 impl<S, T, T1, T2> HasPredefinedGenerators<S> for T
 where
     T1: HasPredefinedGenerators<S> + 'static,
     T2: HasPredefinedGenerators<S> + 'static,
-    T: CompositeOf<Components = ((T1,), T2)> + 'static,
+    T: CompositeOf<Components = (T1, T2)> + 'static,
 {
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
     where
@@ -182,14 +175,14 @@ impl<S, T, G1, G2> LspParamsGenerator<S> for CompositeGenerator<S, G1, G2, T>
 where
     G1: LspParamsGenerator<S>,
     G2: LspParamsGenerator<S>,
-    T: CompositeOf<Components = ((G1::Output,), G2::Output)> + 'static,
+    T: CompositeOf<Components = (G1::Output, G2::Output)> + 'static,
 {
     type Output = T;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
         let c1 = self.generator1.generate(state, input)?;
         let c2 = self.generator2.generate(state, input)?;
-        let output = T::compose(((c1,), c2));
+        let output = T::compose((c1, c2));
         Ok(output)
     }
 }
@@ -200,15 +193,145 @@ pub trait CompositeOf {
     fn compose(components: Self::Components) -> Self;
 }
 
-impl CompositeOf for lsp_types::GotoDefinitionParams {
-    type Components = ((TextDocumentPositionParams,), WorkDoneProgressParams);
+impl<Head, Tail> CompositeOf for (Head, Tail) {
+    type Components = (Head, Tail);
 
     fn compose(components: Self::Components) -> Self {
-        let ((text_document_position_params,), work_done_progress_params) = components;
+        components
+    }
+}
+
+#[trait_gen(T ->
+    GotoDefinitionParams,
+    DocumentHighlightParams,
+)]
+impl CompositeOf for T {
+    type Components = tuple_list_type![
+        TextDocumentPositionParams,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position_params, work_done_progress_params, partial_result_params) =
+            components.into_tuple();
         Self {
             text_document_position_params,
             work_done_progress_params,
-            partial_result_params: Default::default(),
+            partial_result_params,
+        }
+    }
+}
+
+impl CompositeOf for ReferenceParams {
+    type Components = tuple_list_type![
+        TextDocumentPositionParams,
+        WorkDoneProgressParams,
+        PartialResultParams,
+        ReferenceContext
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position, work_done_progress_params, partial_result_params, context) =
+            components.into_tuple();
+        Self {
+            text_document_position,
+            work_done_progress_params,
+            partial_result_params,
+            context,
+        }
+    }
+}
+
+impl CompositeOf for ReferenceContext {
+    type Components = tuple_list_type![bool];
+
+    fn compose(components: Self::Components) -> Self {
+        let (include_declaration,) = components.into_tuple();
+        Self {
+            include_declaration,
+        }
+    }
+}
+
+#[trait_gen(T ->
+    CallHierarchyPrepareParams,
+    TypeHierarchyPrepareParams,
+    HoverParams
+)]
+impl CompositeOf for T {
+    type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
+
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position_params, work_done_progress_params) = components.into_tuple();
+        Self {
+            text_document_position_params,
+            work_done_progress_params,
+        }
+    }
+}
+
+impl CompositeOf for DocumentDiagnosticParams {
+    type Components = tuple_list_type![
+        TextDocumentIdentifier,
+        Option<String>,
+        Option<String>,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            text_document,
+            identifier,
+            previous_result_id,
+            work_done_progress_params,
+            partial_result_params,
+        ) = components.into_tuple();
+        Self {
+            text_document,
+            identifier,
+            previous_result_id,
+            work_done_progress_params,
+            partial_result_params,
+        }
+    }
+}
+
+impl CompositeOf for WorkspaceSymbolParams {
+    type Components = tuple_list_type![String, WorkDoneProgressParams, PartialResultParams];
+
+    fn compose(components: Self::Components) -> Self {
+        let (query, work_done_progress_params, partial_result_params) = components.into_tuple();
+        Self {
+            query,
+            work_done_progress_params,
+            partial_result_params,
+        }
+    }
+}
+
+#[trait_gen(T ->
+    SemanticTokensParams,
+    DocumentSymbolParams,
+    DocumentLinkParams,
+    DocumentColorParams,
+    CodeLensParams,
+)]
+impl CompositeOf for T {
+    type Components = tuple_list_type![
+        TextDocumentIdentifier,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (text_document, work_done_progress_params, partial_result_params) =
+            components.into_tuple();
+        Self {
+            work_done_progress_params,
+            partial_result_params,
+            text_document,
         }
     }
 }

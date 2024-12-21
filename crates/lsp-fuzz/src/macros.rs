@@ -117,12 +117,18 @@ macro_rules! lsp_messages {
                 }
             )?
         )*
+    };
+}
 
-        pub(crate) fn append_random_message_mutations<S>() -> impl libafl::mutators::MutatorsTuple<crate::lsp_input::LspInput, S>
-                                                          + libafl_bolts::tuples::NamedTuple
-            where
-                S: libafl::state::HasRand + 'static
+macro_rules! append_randoms {
+    (
+        $(
+            $( request::$req_variant: ident )?
+            $( notification::$not_variant: ident )?
+        ),*
+    ) => {
         {
+            use lsp_types::{request, notification};
             tuple_list::tuple_list![
                 $(
                     $(crate::lsp_input::messages::AppendRandomlyGeneratedMessage::<request::$req_variant, S>::with_predefined(),)?
@@ -130,7 +136,6 @@ macro_rules! lsp_messages {
                 )*
             ]
         }
-
     };
 }
 
@@ -173,4 +178,4 @@ macro_rules! prop_mutator {
     };
 }
 
-pub(crate) use {impl_localize, lsp_messages, prop_mutator};
+pub(crate) use {append_randoms, impl_localize, lsp_messages, prop_mutator};

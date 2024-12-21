@@ -10,7 +10,7 @@ use libafl::{
     HasMetadata,
 };
 use libafl_bolts::{rands::Rand, AsSlice, HasLen, Named};
-use lsp_types::Uri;
+use lsp_types::{InitializedParams, Uri};
 use messages::LspMessages;
 use serde::{Deserialize, Serialize};
 
@@ -79,6 +79,7 @@ impl LspInput {
             capabilities: fuzzer_client_capabilities(),
             ..Default::default()
         });
+        let initialized_req = lsp::Message::Initialized(InitializedParams {});
         let Some((path, the_only_doc)) = self.source_directory.iter_files().next() else {
             unreachable!("We created only files");
         };
@@ -100,6 +101,7 @@ impl LspInput {
             .trim_end_matches('/')
             .to_string();
         for (id, request) in once(init_request)
+            .chain(once(initialized_req))
             .chain(once(did_open_request))
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
