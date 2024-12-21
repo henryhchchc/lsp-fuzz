@@ -1,4 +1,8 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::{
+    marker::{PhantomData, Sized},
+    ops::Deref,
+    rc::Rc,
+};
 
 use derive_new::new as New;
 use itertools::Itertools;
@@ -24,21 +28,17 @@ pub trait LspParamsGenerator<S> {
     type Output;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError>;
-
-    fn map<F, U>(self, f: F) -> MappingGenerator<S, Self, F>
-    where
-        Self: Sized,
-        F: Fn(Self::Output) -> U,
-    {
-        MappingGenerator::new(self, f)
-    }
 }
 
-impl<S, T> LspParamsGenerator<S> for Rc<dyn LspParamsGenerator<S, Output = T> + 'static> {
-    type Output = T;
+impl<S, G, Ptr> LspParamsGenerator<S> for Ptr
+where
+    Ptr: Deref<Target = G>,
+    G: LspParamsGenerator<S> + ?Sized,
+{
+    type Output = G::Output;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
-        self.as_ref().generate(state, input)
+        self.deref().generate(state, input)
     }
 }
 
@@ -125,22 +125,22 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct MappingGenerator<S, G, F> {
+pub struct MappingGenerator<S, G, T, U> {
     generator: G,
-    f: F,
+    mapper: fn(T) -> U,
     _phantom: PhantomData<S>,
 }
 
-impl<S, G, F, T, U> LspParamsGenerator<S> for MappingGenerator<S, G, F>
+impl<S, G, T, U> LspParamsGenerator<S> for MappingGenerator<S, G, T, U>
 where
     G: LspParamsGenerator<S, Output = T>,
-    F: Fn(T) -> U,
 {
     type Output = U;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
-        let value = self.generator.generate(state, input)?;
-        Ok((self.f)(value))
+        self.generator
+            .generate(state, input)
+            .map(|it| (self.mapper)(it))
     }
 }
 
@@ -159,7 +159,7 @@ where
         t1_generators
             .into_iter()
             .cartesian_product(t2_generators)
-            .map(|(g1, g2)| Rc::new(CompositeGenerator::<S, _, _, T>::new(g1, g2)) as _)
+            .map(|(g1, g2)| Rc::new(CompositeGenerator::new(g1, g2)) as _)
             .collect()
     }
 }
@@ -175,7 +175,7 @@ impl<S, T, G1, G2> LspParamsGenerator<S> for CompositeGenerator<S, G1, G2, T>
 where
     G1: LspParamsGenerator<S>,
     G2: LspParamsGenerator<S>,
-    T: CompositeOf<Components = (G1::Output, G2::Output)> + 'static,
+    T: CompositeOf<Components = (G1::Output, G2::Output)>,
 {
     type Output = T;
 

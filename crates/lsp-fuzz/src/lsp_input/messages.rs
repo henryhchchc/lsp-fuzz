@@ -16,7 +16,7 @@ use crate::{
         self,
         generation::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
-            TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
+            MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
         },
         LspMessage, Message, MessageParam,
     },
@@ -250,7 +250,7 @@ where
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
         T::generators()
             .into_iter()
-            .map(|g| Rc::new(g.map(Some)) as _)
+            .map(|g| Rc::new(MappingGenerator::new(g, Some)) as _)
             .chain(once(Rc::new(DefaultGenerator::new()) as _))
             .collect()
     }
