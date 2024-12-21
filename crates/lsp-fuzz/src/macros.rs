@@ -122,6 +122,7 @@ macro_rules! lsp_messages {
 
 macro_rules! append_randoms {
     (
+        $(#[$outer:meta])*
         $vis: vis fn $fn_name:ident() -> $return_ty: ident {
             $(
                 $( request::$req_variant: ident )?
@@ -136,6 +137,8 @@ macro_rules! append_randoms {
                 $(AppendRandomlyGeneratedMessage::<notification::$not_variant, S>, )?
             )*
         ];
+
+        $(#[$outer])*
         $vis fn $fn_name<S>() -> $return_ty<S>
         where
             S: libafl::state::HasRand + 'static

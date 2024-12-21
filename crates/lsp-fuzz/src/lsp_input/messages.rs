@@ -348,6 +348,8 @@ where
 }
 
 append_randoms! {
+
+    /// Mutation operators for each message type with `AppendRandomlyGeneratedMessage` mutator.
     pub fn append_randomly_generated_messages() -> AppendRandomlyGenerateMessageMutations {
         request::WorkspaceSymbolRequest,
         request::WorkspaceSymbolResolve,

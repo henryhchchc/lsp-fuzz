@@ -196,6 +196,7 @@ pub trait CompositeOf {
 impl<Head, Tail> CompositeOf for (Head, Tail) {
     type Components = (Head, Tail);
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         components
     }
@@ -212,6 +213,7 @@ impl CompositeOf for T {
         PartialResultParams
     ];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (text_document_position_params, work_done_progress_params, partial_result_params) =
             components.into_tuple();
@@ -231,6 +233,7 @@ impl CompositeOf for ReferenceParams {
         ReferenceContext
     ];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (text_document_position, work_done_progress_params, partial_result_params, context) =
             components.into_tuple();
@@ -246,6 +249,7 @@ impl CompositeOf for ReferenceParams {
 impl CompositeOf for ReferenceContext {
     type Components = tuple_list_type![bool];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (include_declaration,) = components.into_tuple();
         Self {
@@ -262,6 +266,7 @@ impl CompositeOf for ReferenceContext {
 impl CompositeOf for T {
     type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (text_document_position_params, work_done_progress_params) = components.into_tuple();
         Self {
@@ -280,6 +285,7 @@ impl CompositeOf for DocumentDiagnosticParams {
         PartialResultParams
     ];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (
             text_document,
@@ -301,6 +307,7 @@ impl CompositeOf for DocumentDiagnosticParams {
 impl CompositeOf for WorkspaceSymbolParams {
     type Components = tuple_list_type![String, WorkDoneProgressParams, PartialResultParams];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (query, work_done_progress_params, partial_result_params) = components.into_tuple();
         Self {
@@ -325,6 +332,7 @@ impl CompositeOf for T {
         PartialResultParams
     ];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (text_document, work_done_progress_params, partial_result_params) =
             components.into_tuple();

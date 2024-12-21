@@ -18,7 +18,6 @@ use trait_gen::trait_gen;
     CodeAction,
     CodeActionParams,
     CodeLens,
-    CodeLensParams,
     ColorPresentationParams,
     CompletionItem,
     CreateFilesParams,
@@ -34,10 +33,8 @@ use trait_gen::trait_gen;
     DidSaveNotebookDocumentParams,
     DidSaveTextDocumentParams,
     DocumentLink,
-    DocumentLinkParams,
     DocumentOnTypeFormattingParams,
     DocumentRangeFormattingParams,
-    DocumentSymbolParams,
     ExecuteCommandParams,
     FoldingRangeParams,
     InitializeResult,
@@ -220,6 +217,9 @@ impl LocalizeToWorkspace for DocumentChanges {
     DocumentDiagnosticParams,
     DocumentColorParams,
     DocumentFormattingParams,
+    CodeLensParams,
+    DocumentSymbolParams,
+    DocumentLinkParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]
