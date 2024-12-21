@@ -148,7 +148,7 @@ impl<S, T, T1, T2> HasPredefinedGenerators<S> for T
 where
     T1: HasPredefinedGenerators<S> + 'static,
     T2: HasPredefinedGenerators<S> + 'static,
-    T: CompositeOf<Components = (T1, T2)> + 'static,
+    T: Compose<Components = (T1, T2)> + 'static,
 {
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
     where
@@ -159,23 +159,23 @@ where
         t1_generators
             .into_iter()
             .cartesian_product(t2_generators)
-            .map(|(g1, g2)| Rc::new(CompositeGenerator::new(g1, g2)) as _)
+            .map(|(g1, g2)| Rc::new(CompositionGenerator::new(g1, g2)) as _)
             .collect()
     }
 }
 
 #[derive(Debug, New)]
-pub struct CompositeGenerator<S, G1, G2, T> {
+pub struct CompositionGenerator<S, G1, G2, T> {
     generator1: G1,
     generator2: G2,
     _phantom: PhantomData<(S, T)>,
 }
 
-impl<S, T, G1, G2> LspParamsGenerator<S> for CompositeGenerator<S, G1, G2, T>
+impl<S, T, G1, G2> LspParamsGenerator<S> for CompositionGenerator<S, G1, G2, T>
 where
     G1: LspParamsGenerator<S>,
     G2: LspParamsGenerator<S>,
-    T: CompositeOf<Components = (G1::Output, G2::Output)>,
+    T: Compose<Components = (G1::Output, G2::Output)>,
 {
     type Output = T;
 
@@ -187,13 +187,13 @@ where
     }
 }
 
-pub trait CompositeOf {
+pub trait Compose {
     type Components;
 
     fn compose(components: Self::Components) -> Self;
 }
 
-impl<Head, Tail> CompositeOf for (Head, Tail) {
+impl<Head, Tail> Compose for (Head, Tail) {
     type Components = (Head, Tail);
 
     #[inline]
@@ -206,7 +206,7 @@ impl<Head, Tail> CompositeOf for (Head, Tail) {
     GotoDefinitionParams,
     DocumentHighlightParams,
 )]
-impl CompositeOf for T {
+impl Compose for T {
     type Components = tuple_list_type![
         TextDocumentPositionParams,
         WorkDoneProgressParams,
@@ -225,7 +225,7 @@ impl CompositeOf for T {
     }
 }
 
-impl CompositeOf for ReferenceParams {
+impl Compose for ReferenceParams {
     type Components = tuple_list_type![
         TextDocumentPositionParams,
         WorkDoneProgressParams,
@@ -246,7 +246,7 @@ impl CompositeOf for ReferenceParams {
     }
 }
 
-impl CompositeOf for ReferenceContext {
+impl Compose for ReferenceContext {
     type Components = tuple_list_type![bool];
 
     #[inline]
@@ -263,7 +263,7 @@ impl CompositeOf for ReferenceContext {
     TypeHierarchyPrepareParams,
     HoverParams
 )]
-impl CompositeOf for T {
+impl Compose for T {
     type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
 
     #[inline]
@@ -276,7 +276,7 @@ impl CompositeOf for T {
     }
 }
 
-impl CompositeOf for DocumentDiagnosticParams {
+impl Compose for DocumentDiagnosticParams {
     type Components = tuple_list_type![
         TextDocumentIdentifier,
         Option<String>,
@@ -304,7 +304,7 @@ impl CompositeOf for DocumentDiagnosticParams {
     }
 }
 
-impl CompositeOf for WorkspaceSymbolParams {
+impl Compose for WorkspaceSymbolParams {
     type Components = tuple_list_type![String, WorkDoneProgressParams, PartialResultParams];
 
     #[inline]
@@ -325,7 +325,7 @@ impl CompositeOf for WorkspaceSymbolParams {
     DocumentColorParams,
     CodeLensParams,
 )]
-impl CompositeOf for T {
+impl Compose for T {
     type Components = tuple_list_type![
         TextDocumentIdentifier,
         WorkDoneProgressParams,
