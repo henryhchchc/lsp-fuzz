@@ -1,7 +1,6 @@
 use std::{
     marker::{PhantomData, Sized},
     ops::Deref,
-    rc::Rc,
 };
 
 use derive_new::new as New;
@@ -71,6 +70,12 @@ pub struct DefaultGenerator<S, T> {
     _phantom: PhantomData<(S, T)>,
 }
 
+impl<S, T> Clone for DefaultGenerator<S, T> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
 impl<S, T> LspParamsGenerator<S> for DefaultGenerator<S, T>
 where
     T: Default,
@@ -85,6 +90,12 @@ where
 #[derive(Debug, New)]
 pub struct TextDocumentIdentifierGenerator<S, D> {
     _phantom: PhantomData<(S, D)>,
+}
+
+impl<S, T> Clone for TextDocumentIdentifierGenerator<S, T> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
 }
 
 type Type = lsp_types::TextDocumentIdentifier;
@@ -131,6 +142,15 @@ pub struct MappingGenerator<S, G, T, U> {
     _phantom: PhantomData<S>,
 }
 
+impl<S, G, T, U> Clone for MappingGenerator<S, G, T, U>
+where
+    G: Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.generator.clone(), self.mapper)
+    }
+}
+
 impl<S, G, T, U> LspParamsGenerator<S> for MappingGenerator<S, G, T, U>
 where
     G: LspParamsGenerator<S, Output = T>,
@@ -149,8 +169,12 @@ where
     T1: HasPredefinedGenerators<S> + 'static,
     T2: HasPredefinedGenerators<S> + 'static,
     T: Compose<Components = (T1, T2)> + 'static,
+    T1::Generator: Clone,
+    T2::Generator: Clone,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
+    type Generator = CompositionGenerator<S, T1::Generator, T2::Generator, Self>;
+
+    fn generators() -> Vec<Self::Generator>
     where
         S: 'static,
     {
@@ -159,7 +183,7 @@ where
         t1_generators
             .into_iter()
             .cartesian_product(t2_generators)
-            .map(|(g1, g2)| Rc::new(CompositionGenerator::new(g1, g2)) as _)
+            .map(|(g1, g2)| CompositionGenerator::new(g1, g2))
             .collect()
     }
 }
@@ -169,6 +193,16 @@ pub struct CompositionGenerator<S, G1, G2, T> {
     generator1: G1,
     generator2: G2,
     _phantom: PhantomData<(S, T)>,
+}
+
+impl<S, G1, G2, T> Clone for CompositionGenerator<S, G1, G2, T>
+where
+    G1: Clone,
+    G2: Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.generator1.clone(), self.generator2.clone())
+    }
 }
 
 impl<S, T, G1, G2> LspParamsGenerator<S> for CompositionGenerator<S, G1, G2, T>

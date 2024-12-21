@@ -112,7 +112,9 @@ prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::Mess
 pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::Message, S>>;
 
 pub trait HasPredefinedGenerators<S> {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>>
+    type Generator: LspParamsGenerator<S, Output = Self>;
+
+    fn generators() -> Vec<Self::Generator>
     where
         S: 'static;
 }
@@ -175,7 +177,9 @@ use lsp_types::*;
         WorkspaceSymbol,
 )]
 impl<S> HasPredefinedGenerators<S> for P {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+    type Generator = Box<dyn LspParamsGenerator<S, Output = Self>>;
+
+    fn generators() -> Vec<Self::Generator> {
         vec![]
     }
 }
@@ -188,8 +192,10 @@ impl<S> HasPredefinedGenerators<S> for P {
     serde_json::Value,
 )]
 impl<S: 'static> HasPredefinedGenerators<S> for P {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![Rc::new(DefaultGenerator::new())]
+    type Generator = DefaultGenerator<S, Self>;
+
+    fn generators() -> Vec<Self::Generator> {
+        vec![DefaultGenerator::new()]
     }
 }
 
@@ -197,11 +203,10 @@ impl<S> HasPredefinedGenerators<S> for bool
 where
     S: HasRand + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![
-            Rc::new(ConstGenerator::new(false)),
-            Rc::new(ConstGenerator::new(true)),
-        ]
+    type Generator = ConstGenerator<Self>;
+
+    fn generators() -> Vec<Self::Generator> {
+        vec![ConstGenerator::new(false), ConstGenerator::new(true)]
     }
 }
 
@@ -209,10 +214,10 @@ impl<S> HasPredefinedGenerators<S> for TextDocumentIdentifier
 where
     S: HasRand + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![Rc::new(
-            TextDocumentIdentifierGenerator::<S, RandomDoc<S>>::new(),
-        )]
+    type Generator = TextDocumentIdentifierGenerator<S, RandomDoc<S>>;
+
+    fn generators() -> Vec<Self::Generator> {
+        vec![TextDocumentIdentifierGenerator::<S, RandomDoc<S>>::new()]
     }
 }
 
@@ -220,7 +225,9 @@ impl<S> HasPredefinedGenerators<S> for TextDocumentPositionParams
 where
     S: HasRand + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+
+    fn generators() -> Vec<Self::Generator> {
         vec![
             Rc::new(TextDocumentPositionParamsGenerator::<
                 S,
@@ -242,7 +249,9 @@ where
     A: HasPredefinedGenerators<S> + 'static,
     B: HasPredefinedGenerators<S> + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+
+    fn generators() -> Vec<Self::Generator> {
         let left_gen = A::generators()
             .into_iter()
             .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Left)) as _);
@@ -258,7 +267,9 @@ where
     S: 'static,
     T: HasPredefinedGenerators<S> + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+
+    fn generators() -> Vec<Self::Generator> {
         T::generators()
             .into_iter()
             .map(|g| Rc::new(MappingGenerator::new(g, Some)) as _)
@@ -271,8 +282,10 @@ impl<S> HasPredefinedGenerators<S> for String
 where
     S: HasRand + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![Rc::new(DefaultGenerator::new())]
+    type Generator = DefaultGenerator<S, Self>;
+
+    fn generators() -> Vec<Self::Generator> {
+        vec![DefaultGenerator::new()]
     }
 }
 
@@ -281,16 +294,24 @@ where
     S: 'static,
     T: HasPredefinedGenerators<S> + 'static,
 {
-    fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![Rc::new(DefaultGenerator::new())]
+    type Generator = DefaultGenerator<S, Self>;
+
+    fn generators() -> Vec<Self::Generator> {
+        vec![DefaultGenerator::new()]
     }
 }
 
-pub struct AppendRandomlyGeneratedMessage<M: LspMessage, S> {
-    generators: Vec<Rc<dyn LspParamsGenerator<S, Output = M::Params>>>,
+pub struct AppendRandomlyGeneratedMessage<M: LspMessage, S>
+where
+    M::Params: HasPredefinedGenerators<S>,
+{
+    generators: Vec<<M::Params as HasPredefinedGenerators<S>>::Generator>,
 }
 
-impl<M: LspMessage, S> Debug for AppendRandomlyGeneratedMessage<M, S> {
+impl<M: LspMessage, S> Debug for AppendRandomlyGeneratedMessage<M, S>
+where
+    M::Params: HasPredefinedGenerators<S>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppendRandomlyGeneratedMessage")
             .field(
@@ -315,6 +336,7 @@ where
 impl<M, S> Named for AppendRandomlyGeneratedMessage<M, S>
 where
     M: LspMessage,
+    M::Params: HasPredefinedGenerators<S>,
 {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("AppendRandomlyGeneratedMessage");
@@ -326,6 +348,7 @@ impl<M, S, P> Mutator<LspInput, S> for AppendRandomlyGeneratedMessage<M, S>
 where
     S: HasRand,
     M: LspMessage<Params = P>,
+    M::Params: HasPredefinedGenerators<S>,
     P: MessageParam<M>,
 {
     fn mutate(
