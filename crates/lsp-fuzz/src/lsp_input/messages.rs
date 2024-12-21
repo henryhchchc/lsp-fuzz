@@ -6,10 +6,14 @@ use libafl::{
     mutators::{MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
 };
-use libafl_bolts::{rands::Rand, tuples::NamedTuple, HasLen, Named};
+use libafl_bolts::{
+    rands::Rand,
+    tuples::{Merge, NamedTuple},
+    HasLen, Named,
+};
 use serde::{Deserialize, Serialize};
 use trait_gen::trait_gen;
-use tuple_list::tuple_list;
+use tuple_list::{tuple_list, tuple_list_type};
 
 use crate::{
     lsp::{
@@ -234,11 +238,18 @@ where
 
 impl<S, A, B> HasPredefinedGenerators<S> for OneOf<A, B>
 where
-    A: HasPredefinedGenerators<S>,
-    B: HasPredefinedGenerators<S>,
+    S: 'static,
+    A: HasPredefinedGenerators<S> + 'static,
+    B: HasPredefinedGenerators<S> + 'static,
 {
     fn generators() -> Vec<Rc<dyn LspParamsGenerator<S, Output = Self>>> {
-        vec![]
+        let left_gen = A::generators()
+            .into_iter()
+            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Left)) as _);
+        let right_gen = B::generators()
+            .into_iter()
+            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Right)) as _);
+        left_gen.chain(right_gen).collect()
     }
 }
 
@@ -336,11 +347,8 @@ where
     }
 }
 
-pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
-where
-    S: HasRand + 'static,
-{
-    append_randoms![
+append_randoms! {
+    pub fn append_randomly_generated_messages() -> AppendRandomlyGenerateMessageMutations {
         request::WorkspaceSymbolRequest,
         request::WorkspaceSymbolResolve,
         request::ExecuteCommand,
@@ -408,11 +416,21 @@ where
         notification::DidChangeWorkspaceFolders,
         notification::DidCreateFiles,
         notification::DidRenameFiles,
-        notification::DidDeleteFiles
-    ]
+        notification::DidDeleteFiles,
+    }
 }
 
-pub fn message_reductions<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+where
+    S: HasRand + 'static,
+{
+    let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
+    append_randomly_generated_messages()
+        .merge(swap)
+        .merge(message_reductions())
+}
+
+pub fn message_reductions<S>() -> tuple_list_type![DropRandomMessage<S>]
 where
     S: HasRand,
 {

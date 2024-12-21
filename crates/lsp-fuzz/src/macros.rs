@@ -122,17 +122,28 @@ macro_rules! lsp_messages {
 
 macro_rules! append_randoms {
     (
-        $(
-            $( request::$req_variant: ident )?
-            $( notification::$not_variant: ident )?
-        ),*
+        $vis: vis fn $fn_name:ident() -> $return_ty: ident {
+            $(
+                $( request::$req_variant: ident )?
+                $( notification::$not_variant: ident )?
+            ),*
+        }
     ) => {
+        use lsp_types::{request, notification};
+        $vis type $return_ty<S> = tuple_list::tuple_list_type![
+            $(
+                $(AppendRandomlyGeneratedMessage::<request::$req_variant, S>, )?
+                $(AppendRandomlyGeneratedMessage::<notification::$not_variant, S>, )?
+            )*
+        ];
+        $vis fn $fn_name<S>() -> $return_ty<S>
+        where
+            S: libafl::state::HasRand + 'static
         {
-            use lsp_types::{request, notification};
             tuple_list::tuple_list![
                 $(
-                    $(crate::lsp_input::messages::AppendRandomlyGeneratedMessage::<request::$req_variant, S>::with_predefined(),)?
-                    $(crate::lsp_input::messages::AppendRandomlyGeneratedMessage::<notification::$not_variant, S>::with_predefined(),)?
+                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, S>::with_predefined(),)?
+                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, S>::with_predefined(),)?
                 )*
             ]
         }
