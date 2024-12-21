@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, iter::once, marker::PhantomData, rc::Rc};
+use std::{borrow::Cow, fmt::Debug, marker::PhantomData, rc::Rc};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -262,18 +262,54 @@ where
     }
 }
 
+#[derive(Debug, New)]
+pub struct OptionGenerator<S, T>
+where
+    S: 'static,
+    T: HasPredefinedGenerators<S> + 'static,
+{
+    inner: Option<T::Generator>,
+    _state: PhantomData<S>,
+}
+
+impl<S, T> Clone for OptionGenerator<S, T>
+where
+    S: 'static,
+    T: HasPredefinedGenerators<S> + 'static,
+    T::Generator: Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.inner.clone())
+    }
+}
+
+impl<S, T> LspParamsGenerator<S> for OptionGenerator<S, T>
+where
+    S: 'static,
+    T: HasPredefinedGenerators<S> + 'static,
+{
+    type Output = Option<T>;
+
+    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+        if let Some(ref inner) = self.inner {
+            Ok(Some(inner.generate(state, input)?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 impl<S, T> HasPredefinedGenerators<S> for Option<T>
 where
     S: 'static,
     T: HasPredefinedGenerators<S> + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = OptionGenerator<S, T>;
 
     fn generators() -> Vec<Self::Generator> {
         T::generators()
             .into_iter()
-            .map(|g| Rc::new(MappingGenerator::new(g, Some)) as _)
-            .chain(once(Rc::new(DefaultGenerator::new()) as _))
+            .flat_map(|g| [OptionGenerator::new(None), OptionGenerator::new(Some(g))])
             .collect()
     }
 }
