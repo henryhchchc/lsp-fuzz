@@ -1,6 +1,7 @@
 pub(crate) mod capabilities;
 pub mod message;
 
+use generation::LspParamsGenerator;
 pub use message::Message;
 
 pub mod generation;
@@ -22,4 +23,12 @@ where
 
 pub trait LocalizeToWorkspace {
     fn localize(&mut self, workspace_dir: &str);
+}
+
+pub trait HasPredefinedGenerators<S> {
+    type Generator: LspParamsGenerator<S, Output = Self>;
+
+    fn generators() -> Vec<Self::Generator>
+    where
+        S: 'static;
 }

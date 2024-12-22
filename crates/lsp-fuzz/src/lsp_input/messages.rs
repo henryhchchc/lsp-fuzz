@@ -22,7 +22,7 @@ use crate::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
         },
-        LspMessage, Message, MessageParam,
+        HasPredefinedGenerators, LspMessage, Message, MessageParam,
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
@@ -110,14 +110,6 @@ where
 prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::Message>);
 
 pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::Message, S>>;
-
-pub trait HasPredefinedGenerators<S> {
-    type Generator: LspParamsGenerator<S, Output = Self>;
-
-    fn generators() -> Vec<Self::Generator>
-    where
-        S: 'static;
-}
 
 use lsp_types::*;
 
@@ -337,10 +329,12 @@ where
     }
 }
 
-pub struct AppendRandomlyGeneratedMessage<M: LspMessage, S>
+pub struct AppendRandomlyGeneratedMessage<M, S>
 where
+    M: LspMessage,
     M::Params: HasPredefinedGenerators<S>,
 {
+    name: Cow<'static, str>,
     generators: Vec<<M::Params as HasPredefinedGenerators<S>>::Generator>,
 }
 
@@ -361,11 +355,12 @@ where
 impl<M, S: 'static> AppendRandomlyGeneratedMessage<M, S>
 where
     M: LspMessage,
-    <M as LspMessage>::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<S>,
 {
     pub fn with_predefined() -> Self {
+        let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
         let generators = M::Params::generators();
-        Self { generators }
+        Self { name, generators }
     }
 }
 
@@ -375,8 +370,7 @@ where
     M::Params: HasPredefinedGenerators<S>,
 {
     fn name(&self) -> &Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("AppendRandomlyGeneratedMessage");
-        &NAME
+        &self.name
     }
 }
 

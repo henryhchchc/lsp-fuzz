@@ -16,12 +16,11 @@ use trait_gen::trait_gen;
 use tuple_list::{tuple_list_type, TupleList};
 
 use crate::{
-    lsp_input::{
-        messages::{HasPredefinedGenerators, PositionSelector},
-        LspInput,
-    },
+    lsp_input::{messages::PositionSelector, LspInput},
     text_document::mutations::TextDocumentSelector,
 };
+
+use super::HasPredefinedGenerators;
 
 pub trait LspParamsGenerator<S> {
     type Output;
