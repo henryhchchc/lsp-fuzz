@@ -1,10 +1,13 @@
 use std::{
     marker::{PhantomData, Sized},
+    num::NonZeroUsize,
     ops::Deref,
 };
 
 use derive_new::new as New;
 use itertools::Itertools;
+use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
+use libafl_bolts::rands::Rand;
 
 use crate::{
     lsp_input::{messages::PositionSelector, LspInput},
@@ -247,5 +250,34 @@ where
         let c2 = self.generator2.generate(state, input)?;
         let output = T::compose((c1, c2));
         Ok(output)
+    }
+}
+
+#[derive(Debug, New)]
+pub struct TokensGenerator<T> {
+    _phantom: PhantomData<T>,
+}
+
+impl<S> LspParamsGenerator<S> for TokensGenerator<String>
+where
+    S: HasMetadata + HasRand,
+{
+    type Output = String;
+
+    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<Self::Output, GenerationError> {
+        let token_cnt = {
+            let tokens: &Tokens = state
+                .metadata()
+                .map_err(|_| GenerationError::NothingGenerated)?;
+            NonZeroUsize::new(tokens.len()).ok_or(GenerationError::NothingGenerated)?
+        };
+
+        let idx = state.rand_mut().below(token_cnt);
+        // SAFETY: We checked just now that the metadata is present
+        let tokens: &Tokens = unsafe { state.metadata().unwrap_unchecked() };
+
+        let token = String::from_utf8_lossy(&tokens[idx]).into_owned();
+
+        Ok(token)
     }
 }

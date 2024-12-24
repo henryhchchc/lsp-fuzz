@@ -141,7 +141,7 @@ macro_rules! append_randoms {
         $(#[$outer])*
         $vis fn $fn_name<S>() -> $return_ty<S>
         where
-            S: libafl::state::HasRand + 'static
+            S: libafl::state::HasRand + libafl::common::HasMetadata + 'static
         {
             tuple_list::tuple_list![
                 $(

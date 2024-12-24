@@ -5,6 +5,7 @@ use derive_new::new as New;
 use libafl::{
     mutators::{MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
+    HasMetadata,
 };
 use libafl_bolts::{
     rands::Rand,
@@ -21,6 +22,7 @@ use crate::{
         generation::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
+            TokensGenerator,
         },
         HasPredefinedGenerators, LspMessage, Message, MessageParam,
     },
@@ -308,12 +310,15 @@ where
 
 impl<S> HasPredefinedGenerators<S> for String
 where
-    S: HasRand + 'static,
+    S: HasRand + HasMetadata + 'static,
 {
-    type Generator = DefaultGenerator<S, Self>;
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
 
     fn generators() -> Vec<Self::Generator> {
-        vec![DefaultGenerator::new()]
+        vec![
+            Rc::new(DefaultGenerator::new()) as _,
+            Rc::new(TokensGenerator::<Self>::new()) as _,
+        ]
     }
 }
 
@@ -477,7 +482,7 @@ append_randoms! {
 
 pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
 where
-    S: HasRand + 'static,
+    S: HasRand + HasMetadata + 'static,
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
     append_randomly_generated_messages()
