@@ -4,6 +4,7 @@ pub mod message;
 use generation::LspParamsGenerator;
 pub use message::Message;
 
+pub mod compositions;
 pub mod generation;
 pub mod json_rpc;
 
@@ -31,4 +32,11 @@ pub trait HasPredefinedGenerators<S> {
     fn generators() -> Vec<Self::Generator>
     where
         S: 'static;
+}
+
+
+pub trait Compose {
+    type Components;
+
+    fn compose(components: Self::Components) -> Self;
 }

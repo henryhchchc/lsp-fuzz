@@ -5,22 +5,13 @@ use std::{
 
 use derive_new::new as New;
 use itertools::Itertools;
-use lsp_types::{
-    CallHierarchyPrepareParams, CodeLensParams, DocumentColorParams, DocumentDiagnosticParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, GotoDefinitionParams,
-    HoverParams, PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyPrepareParams,
-    WorkDoneProgressParams, WorkspaceSymbolParams,
-};
-use trait_gen::trait_gen;
-use tuple_list::{tuple_list_type, TupleList};
 
 use crate::{
     lsp_input::{messages::PositionSelector, LspInput},
     text_document::mutations::TextDocumentSelector,
 };
 
-use super::HasPredefinedGenerators;
+use super::{Compose, HasPredefinedGenerators};
 
 pub trait LspParamsGenerator<S> {
     type Output;
@@ -48,9 +39,15 @@ pub enum GenerationError {
     Error(#[from] libafl::Error),
 }
 
-#[derive(Debug, Clone, New)]
+#[derive(Debug, Clone)]
 pub struct ConstGenerator<T> {
     value: T,
+}
+
+impl<T> ConstGenerator<T> {
+    pub const fn new(value: T) -> Self {
+        Self { value }
+    }
 }
 
 impl<S, T> LspParamsGenerator<S> for ConstGenerator<T>
@@ -64,9 +61,23 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct DefaultGenerator<S, T> {
     _phantom: PhantomData<(S, T)>,
+}
+
+impl<S, T> DefaultGenerator<S, T> {
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, T> Default for DefaultGenerator<S, T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<S, T> Clone for DefaultGenerator<S, T> {
@@ -97,13 +108,11 @@ impl<S, T> Clone for TextDocumentIdentifierGenerator<S, T> {
     }
 }
 
-type Type = lsp_types::TextDocumentIdentifier;
-
 impl<S, D> LspParamsGenerator<S> for TextDocumentIdentifierGenerator<S, D>
 where
     D: TextDocumentSelector<S>,
 {
-    type Output = Type;
+    type Output = lsp_types::TextDocumentIdentifier;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
         let (uri, _) = D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
@@ -121,7 +130,7 @@ where
     D: TextDocumentSelector<S>,
     P: PositionSelector<S>,
 {
-    type Output = TextDocumentPositionParams;
+    type Output = lsp_types::TextDocumentPositionParams;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
@@ -134,11 +143,21 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct MappingGenerator<S, G, T, U> {
     generator: G,
     mapper: fn(T) -> U,
     _phantom: PhantomData<S>,
+}
+
+impl<S, G, T, U> MappingGenerator<S, G, T, U> {
+    pub const fn new(generator: G, mapper: fn(T) -> U) -> Self {
+        Self {
+            generator,
+            mapper,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, G, T, U> Clone for MappingGenerator<S, G, T, U>
@@ -146,7 +165,8 @@ where
     G: Clone,
 {
     fn clone(&self) -> Self {
-        Self::new(self.generator.clone(), self.mapper)
+        let generator = self.generator.clone();
+        Self::new(generator, self.mapper)
     }
 }
 
@@ -187,11 +207,21 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct CompositionGenerator<S, G1, G2, T> {
     generator1: G1,
     generator2: G2,
     _phantom: PhantomData<(S, T)>,
+}
+
+impl<S, G1, G2, T> CompositionGenerator<S, G1, G2, T> {
+    pub const fn new(generator1: G1, generator2: G2) -> Self {
+        Self {
+            generator1,
+            generator2,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, G1, G2, T> Clone for CompositionGenerator<S, G1, G2, T>
@@ -217,162 +247,5 @@ where
         let c2 = self.generator2.generate(state, input)?;
         let output = T::compose((c1, c2));
         Ok(output)
-    }
-}
-
-pub trait Compose {
-    type Components;
-
-    fn compose(components: Self::Components) -> Self;
-}
-
-impl<Head, Tail> Compose for (Head, Tail) {
-    type Components = (Head, Tail);
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        components
-    }
-}
-
-#[trait_gen(T ->
-    GotoDefinitionParams,
-    DocumentHighlightParams,
-)]
-impl Compose for T {
-    type Components = tuple_list_type![
-        TextDocumentPositionParams,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position_params, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            text_document_position_params,
-            work_done_progress_params,
-            partial_result_params,
-        }
-    }
-}
-
-impl Compose for ReferenceParams {
-    type Components = tuple_list_type![
-        TextDocumentPositionParams,
-        WorkDoneProgressParams,
-        PartialResultParams,
-        ReferenceContext
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position, work_done_progress_params, partial_result_params, context) =
-            components.into_tuple();
-        Self {
-            text_document_position,
-            work_done_progress_params,
-            partial_result_params,
-            context,
-        }
-    }
-}
-
-impl Compose for ReferenceContext {
-    type Components = tuple_list_type![bool];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (include_declaration,) = components.into_tuple();
-        Self {
-            include_declaration,
-        }
-    }
-}
-
-#[trait_gen(T ->
-    CallHierarchyPrepareParams,
-    TypeHierarchyPrepareParams,
-    HoverParams
-)]
-impl Compose for T {
-    type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position_params, work_done_progress_params) = components.into_tuple();
-        Self {
-            text_document_position_params,
-            work_done_progress_params,
-        }
-    }
-}
-
-impl Compose for DocumentDiagnosticParams {
-    type Components = tuple_list_type![
-        TextDocumentIdentifier,
-        Option<String>,
-        Option<String>,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (
-            text_document,
-            identifier,
-            previous_result_id,
-            work_done_progress_params,
-            partial_result_params,
-        ) = components.into_tuple();
-        Self {
-            text_document,
-            identifier,
-            previous_result_id,
-            work_done_progress_params,
-            partial_result_params,
-        }
-    }
-}
-
-impl Compose for WorkspaceSymbolParams {
-    type Components = tuple_list_type![String, WorkDoneProgressParams, PartialResultParams];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (query, work_done_progress_params, partial_result_params) = components.into_tuple();
-        Self {
-            query,
-            work_done_progress_params,
-            partial_result_params,
-        }
-    }
-}
-
-#[trait_gen(T ->
-    SemanticTokensParams,
-    DocumentSymbolParams,
-    DocumentLinkParams,
-    DocumentColorParams,
-    CodeLensParams,
-)]
-impl Compose for T {
-    type Components = tuple_list_type![
-        TextDocumentIdentifier,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            work_done_progress_params,
-            partial_result_params,
-            text_document,
-        }
     }
 }
