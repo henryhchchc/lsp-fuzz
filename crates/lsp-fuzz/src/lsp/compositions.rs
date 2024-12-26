@@ -1,14 +1,17 @@
 use lsp_types::{
-    CallHierarchyPrepareParams, CodeLensParams, DocumentColorParams, DocumentDiagnosticParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, GotoDefinitionParams,
-    HoverParams, PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyPrepareParams,
-    WorkDoneProgressParams, WorkspaceSymbolParams,
+    CallHierarchyPrepareParams, CodeActionContext, CodeActionParams, CodeLensParams,
+    CompletionContext, CompletionParams, CompletionTriggerKind, DocumentColorParams,
+    DocumentDiagnosticParams, DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams,
+    GotoDefinitionParams, HoverParams, InlayHintParams, LinkedEditingRangeParams,
+    PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
+    SemanticTokensRangeParams, TextDocumentIdentifier, TextDocumentPositionParams,
+    TypeHierarchyPrepareParams, WorkDoneProgressParams, WorkspaceSymbolParams,
 };
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list_type, TupleList};
 
-use super::Compose;
+use super::{generation::DocAndRange, Compose};
+
 impl<Head, Tail> Compose for (Head, Tail) {
     type Components = (Head, Tail);
 
@@ -77,7 +80,8 @@ impl Compose for ReferenceContext {
 #[trait_gen(T ->
     CallHierarchyPrepareParams,
     TypeHierarchyPrepareParams,
-    HoverParams
+    HoverParams,
+    LinkedEditingRangeParams
 )]
 impl Compose for T {
     type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
@@ -156,6 +160,124 @@ impl Compose for T {
             work_done_progress_params,
             partial_result_params,
             text_document,
+        }
+    }
+}
+
+#[trait_gen(T ->
+    InlayHintParams,
+)]
+
+impl Compose for T {
+    type Components = tuple_list_type![DocAndRange, WorkDoneProgressParams,];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (
+            DocAndRange {
+                text_document,
+                range,
+            },
+            work_done_progress_params,
+        ) = components.into_tuple();
+        Self {
+            text_document,
+            work_done_progress_params,
+            range,
+        }
+    }
+}
+
+impl Compose for CompletionParams {
+    type Components = tuple_list_type![
+        TextDocumentPositionParams,
+        WorkDoneProgressParams,
+        PartialResultParams,
+        Option<CompletionContext>
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position, work_done_progress_params, partial_result_params, context) =
+            components.into_tuple();
+        Self {
+            text_document_position,
+            work_done_progress_params,
+            partial_result_params,
+            context,
+        }
+    }
+}
+
+impl Compose for CompletionContext {
+    type Components = tuple_list_type![CompletionTriggerKind, Option<String>];
+
+    fn compose(components: Self::Components) -> Self {
+        let (trigger_kind, trigger_character) = components.into_tuple();
+        Self {
+            trigger_kind,
+            trigger_character,
+        }
+    }
+}
+
+impl Compose for SemanticTokensRangeParams {
+    type Components = tuple_list_type![DocAndRange, WorkDoneProgressParams, PartialResultParams];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            DocAndRange {
+                text_document,
+                range,
+            },
+            work_done_progress_params,
+            partial_result_params,
+        ) = components.into_tuple();
+        Self {
+            work_done_progress_params,
+            partial_result_params,
+            text_document,
+            range,
+        }
+    }
+}
+
+impl Compose for CodeActionParams {
+    type Components = tuple_list_type![
+        DocAndRange,
+        WorkDoneProgressParams,
+        PartialResultParams,
+        CodeActionContext
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            DocAndRange {
+                text_document,
+                range,
+            },
+            work_done_progress_params,
+            partial_result_params,
+            context,
+        ) = components.into_tuple();
+        Self {
+            text_document,
+            range,
+            work_done_progress_params,
+            partial_result_params,
+            context,
+        }
+    }
+}
+
+impl Compose for CodeActionContext {
+    type Components = tuple_list_type![()];
+
+    fn compose(_components: Self::Components) -> Self {
+        // TODO: Implement this
+        Self {
+            diagnostics: vec![],
+            only: None,
+            trigger_kind: None,
         }
     }
 }

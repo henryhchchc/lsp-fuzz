@@ -37,9 +37,7 @@ use trait_gen::trait_gen;
     DocumentRangeFormattingParams,
     ExecuteCommandParams,
     FoldingRangeParams,
-    InitializeResult,
     InlayHint,
-    LinkedEditingRangeParams,
     LogTraceParams,
     MonikerParams,
     ProgressParams,
@@ -48,7 +46,6 @@ use trait_gen::trait_gen;
     RenameFilesParams,
     RenameParams,
     SelectionRangeParams,
-    SetTraceParams,
     ShowDocumentParams,
     TypeHierarchySubtypesParams,
     TypeHierarchySupertypesParams,
@@ -79,7 +76,9 @@ impl LocalizeToWorkspace for T {
     TextEdit,
     LogMessageParams,
     WorkspaceSymbolParams,
-    InitializedParams
+    InitializedParams,
+    InitializeResult,
+    SetTraceParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]
@@ -235,6 +234,7 @@ impl LocalizeToWorkspace for T {
     SignatureHelpParams,
     TypeHierarchyPrepareParams,
     DocumentHighlightParams,
+    LinkedEditingRangeParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]

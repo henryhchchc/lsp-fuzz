@@ -2,16 +2,21 @@ use std::{
     marker::{PhantomData, Sized},
     num::NonZeroUsize,
     ops::Deref,
+    rc::Rc,
 };
 
 use derive_new::new as New;
 use itertools::Itertools;
 use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
 use libafl_bolts::rands::Rand;
+use lsp_types::CompletionTriggerKind;
 
 use crate::{
     lsp_input::{messages::PositionSelector, LspInput},
-    text_document::mutations::TextDocumentSelector,
+    text_document::{
+        mutations::{text_document_selectors::RandomDoc, TextDocumentSelector},
+        TextDocument,
+    },
 };
 
 use super::{Compose, HasPredefinedGenerators};
@@ -279,5 +284,75 @@ where
         let token = String::from_utf8_lossy(&tokens[idx]).into_owned();
 
         Ok(token)
+    }
+}
+
+#[derive(Debug)]
+pub struct DocAndRange {
+    pub text_document: lsp_types::TextDocumentIdentifier,
+    pub range: lsp_types::Range,
+}
+
+#[derive(Debug, New)]
+pub struct DocAndRangeGenerator<D> {
+    range_selector: fn(&TextDocument) -> lsp_types::Range,
+    _phantom: PhantomData<D>,
+}
+
+impl<D> Clone for DocAndRangeGenerator<D> {
+    fn clone(&self) -> Self {
+        Self::new(self.range_selector)
+    }
+}
+
+impl<S, D> LspParamsGenerator<S> for DocAndRangeGenerator<D>
+where
+    D: TextDocumentSelector<S>,
+{
+    type Output = DocAndRange;
+
+    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+        let (uri, doc) =
+            D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
+        let range = (self.range_selector)(doc);
+        let doc = lsp_types::TextDocumentIdentifier { uri };
+        Ok(DocAndRange {
+            text_document: doc,
+            range,
+        })
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for DocAndRange
+where
+    S: HasRand,
+{
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+
+    fn generators() -> Vec<Self::Generator>
+    where
+        S: 'static,
+    {
+        vec![Rc::new(DocAndRangeGenerator::<RandomDoc<S>>::new(|doc| {
+            doc.lsp_range()
+        })) as _]
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for CompletionTriggerKind {
+    type Generator = ConstGenerator<Self>;
+
+    fn generators() -> Vec<Self::Generator>
+    where
+        S: 'static,
+    {
+        [
+            Self::INVOKED,
+            Self::TRIGGER_FOR_INCOMPLETE_COMPLETIONS,
+            Self::TRIGGER_CHARACTER,
+        ]
+        .into_iter()
+        .map(ConstGenerator::new)
+        .collect()
     }
 }

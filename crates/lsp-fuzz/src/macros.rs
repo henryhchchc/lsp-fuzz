@@ -130,6 +130,7 @@ macro_rules! append_randoms {
             ),*
         }
     ) => {
+        #[allow(unused_imports, reason = "The imports are used in the generated code.")]
         use lsp_types::{request, notification};
         $vis type $return_ty<S> = tuple_list::tuple_list_type![
             $(
