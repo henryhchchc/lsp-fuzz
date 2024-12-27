@@ -193,4 +193,21 @@ macro_rules! prop_mutator {
     };
 }
 
-pub(crate) use {append_randoms, impl_localize, lsp_messages, prop_mutator};
+macro_rules! const_generators {
+    (for $type: ty => [
+        $($val: expr),*
+    ]) => {
+        impl<S> HasPredefinedGenerators<S> for $type {
+            type Generator = ConstGenerator<Self>;
+
+            fn generators() -> Vec<Self::Generator>
+            where
+                S: 'static,
+            {
+                [ $($val),* ].into_iter().map(ConstGenerator::new).collect()
+            }
+        }
+    };
+}
+
+pub(crate) use {append_randoms, const_generators, impl_localize, lsp_messages, prop_mutator};

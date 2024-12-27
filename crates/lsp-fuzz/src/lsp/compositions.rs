@@ -1,8 +1,9 @@
 use lsp_types::{
-    CallHierarchyPrepareParams, CodeActionContext, CodeActionParams, CodeLensParams,
-    CompletionContext, CompletionParams, CompletionTriggerKind, DocumentColorParams,
-    DocumentDiagnosticParams, DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams,
-    GotoDefinitionParams, HoverParams, InlayHintParams, LinkedEditingRangeParams,
+    CallHierarchyPrepareParams, CodeActionContext, CodeActionKind, CodeActionParams,
+    CodeActionTriggerKind, CodeLensParams, CompletionContext, CompletionParams,
+    CompletionTriggerKind, DocumentColorParams, DocumentDiagnosticParams, DocumentHighlightParams,
+    DocumentLinkParams, DocumentSymbolParams, FoldingRangeParams, GotoDefinitionParams,
+    HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams, MonikerParams,
     PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
     SemanticTokensRangeParams, TextDocumentIdentifier, TextDocumentPositionParams,
     TypeHierarchyPrepareParams, WorkDoneProgressParams, WorkspaceSymbolParams,
@@ -21,9 +22,29 @@ impl<Head, Tail> Compose for (Head, Tail) {
     }
 }
 
+impl Compose for FoldingRangeParams {
+    type Components = tuple_list_type![
+        TextDocumentIdentifier,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (text_document, work_done_progress_params, partial_result_params) =
+            components.into_tuple();
+        Self {
+            text_document,
+            work_done_progress_params,
+            partial_result_params,
+        }
+    }
+}
+
 #[trait_gen(T ->
     GotoDefinitionParams,
     DocumentHighlightParams,
+    MonikerParams,
 )]
 impl Compose for T {
     type Components = tuple_list_type![
@@ -211,6 +232,7 @@ impl Compose for CompletionParams {
 impl Compose for CompletionContext {
     type Components = tuple_list_type![CompletionTriggerKind, Option<String>];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (trigger_kind, trigger_character) = components.into_tuple();
         Self {
@@ -223,6 +245,7 @@ impl Compose for CompletionContext {
 impl Compose for SemanticTokensRangeParams {
     type Components = tuple_list_type![DocAndRange, WorkDoneProgressParams, PartialResultParams];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (
             DocAndRange {
@@ -249,6 +272,7 @@ impl Compose for CodeActionParams {
         CodeActionContext
     ];
 
+    #[inline]
     fn compose(components: Self::Components) -> Self {
         let (
             DocAndRange {
@@ -270,14 +294,26 @@ impl Compose for CodeActionParams {
 }
 
 impl Compose for CodeActionContext {
-    type Components = tuple_list_type![()];
+    type Components = tuple_list_type![Option<Vec<CodeActionKind>>, Option<CodeActionTriggerKind>];
 
-    fn compose(_components: Self::Components) -> Self {
-        // TODO: Implement this
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (only, trigger_kind) = components.into_tuple();
         Self {
+            // TODO: Implement this
             diagnostics: vec![],
-            only: None,
-            trigger_kind: None,
+            only,
+            trigger_kind,
         }
+    }
+}
+
+impl Compose for LogTraceParams {
+    type Components = tuple_list_type![String, Option<String>];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (message, verbose) = components.into_tuple();
+        Self { message, verbose }
     }
 }

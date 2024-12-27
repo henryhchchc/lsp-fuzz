@@ -16,7 +16,6 @@ use trait_gen::trait_gen;
     CallHierarchyIncomingCallsParams,
     CallHierarchyOutgoingCallsParams,
     CodeAction,
-    CodeActionParams,
     CodeLens,
     ColorPresentationParams,
     CompletionItem,
@@ -36,10 +35,7 @@ use trait_gen::trait_gen;
     DocumentOnTypeFormattingParams,
     DocumentRangeFormattingParams,
     ExecuteCommandParams,
-    FoldingRangeParams,
     InlayHint,
-    LogTraceParams,
-    MonikerParams,
     ProgressParams,
     PublishDiagnosticsParams,
     RegistrationParams,
@@ -79,6 +75,7 @@ impl LocalizeToWorkspace for T {
     InitializedParams,
     InitializeResult,
     SetTraceParams,
+    LogTraceParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]
@@ -94,17 +91,6 @@ where
         match self {
             Self::Left(lhs) => lhs.localize(workspace_dir),
             Self::Right(rhs) => rhs.localize(workspace_dir),
-        }
-    }
-}
-
-impl<T> LocalizeToWorkspace for Option<T>
-where
-    T: LocalizeToWorkspace,
-{
-    fn localize(&mut self, workspace_dir: &str) {
-        if let Some(inner) = self {
-            inner.localize(workspace_dir);
         }
     }
 }
@@ -125,7 +111,8 @@ where
     }
 }
 
-impl<T> LocalizeToWorkspace for Vec<T>
+#[trait_gen(I -> Option, Vec)]
+impl<T> LocalizeToWorkspace for I<T>
 where
     T: LocalizeToWorkspace,
 {
@@ -205,20 +192,22 @@ impl LocalizeToWorkspace for DocumentChanges {
 }
 
 #[trait_gen(T ->
+    CodeActionParams,
+    CodeLensParams,
+    DidOpenTextDocumentParams,
+    DocumentColorParams,
+    DocumentDiagnosticParams,
+    DocumentFormattingParams,
+    DocumentLinkParams,
+    DocumentSymbolParams,
+    FoldingRangeParams,
     InlayHintParams,
+    InlineValueParams,
+    SemanticTokensDeltaParams,
     SemanticTokensParams,
     SemanticTokensRangeParams,
-    SemanticTokensDeltaParams,
-    TextDocumentPositionParams,
-    DidOpenTextDocumentParams,
     TextDocumentEdit,
-    InlineValueParams,
-    DocumentDiagnosticParams,
-    DocumentColorParams,
-    DocumentFormattingParams,
-    CodeLensParams,
-    DocumentSymbolParams,
-    DocumentLinkParams,
+    TextDocumentPositionParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]
@@ -229,12 +218,13 @@ impl LocalizeToWorkspace for T {
 
 #[trait_gen(T ->
     CallHierarchyPrepareParams,
+    DocumentHighlightParams,
     GotoDefinitionParams,
     HoverParams,
+    LinkedEditingRangeParams,
+    MonikerParams,
     SignatureHelpParams,
     TypeHierarchyPrepareParams,
-    DocumentHighlightParams,
-    LinkedEditingRangeParams,
 )]
 impl LocalizeToWorkspace for T {
     #[inline]

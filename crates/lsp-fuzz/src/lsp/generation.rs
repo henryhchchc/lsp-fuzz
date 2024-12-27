@@ -9,10 +9,11 @@ use derive_new::new as New;
 use itertools::Itertools;
 use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
 use libafl_bolts::rands::Rand;
-use lsp_types::CompletionTriggerKind;
+use lsp_types::{CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind};
 
 use crate::{
     lsp_input::{messages::PositionSelector, LspInput},
+    macros::const_generators,
     text_document::{
         mutations::{text_document_selectors::RandomDoc, TextDocumentSelector},
         TextDocument,
@@ -339,20 +340,25 @@ where
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for CompletionTriggerKind {
-    type Generator = ConstGenerator<Self>;
+const_generators!(for CompletionTriggerKind => [
+    CompletionTriggerKind::INVOKED,
+    CompletionTriggerKind::TRIGGER_FOR_INCOMPLETE_COMPLETIONS,
+    CompletionTriggerKind::TRIGGER_CHARACTER
+]);
 
-    fn generators() -> Vec<Self::Generator>
-    where
-        S: 'static,
-    {
-        [
-            Self::INVOKED,
-            Self::TRIGGER_FOR_INCOMPLETE_COMPLETIONS,
-            Self::TRIGGER_CHARACTER,
-        ]
-        .into_iter()
-        .map(ConstGenerator::new)
-        .collect()
-    }
-}
+const_generators!(for CodeActionTriggerKind => [
+    CodeActionTriggerKind::INVOKED,
+    CodeActionTriggerKind::AUTOMATIC
+]);
+
+const_generators!(for CodeActionKind => [
+    CodeActionKind::EMPTY,
+    CodeActionKind::QUICKFIX,
+    CodeActionKind::REFACTOR,
+    CodeActionKind::REFACTOR_EXTRACT,
+    CodeActionKind::REFACTOR_INLINE,
+    CodeActionKind::REFACTOR_REWRITE,
+    CodeActionKind::SOURCE,
+    CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
+    CodeActionKind::SOURCE_FIX_ALL
+]);

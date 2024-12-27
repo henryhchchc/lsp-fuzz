@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{any::type_name, borrow::Cow, fmt::Debug, marker::PhantomData, rc::Rc};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -142,11 +142,8 @@ use lsp_types::*;
         DocumentOnTypeFormattingParams,
         DocumentRangeFormattingParams,
         ExecuteCommandParams,
-        FoldingRangeParams,
         InlayHint,
         InlineValueParams,
-        LogTraceParams,
-        MonikerParams,
         PublishDiagnosticsParams,
         RegistrationParams,
         RenameFilesParams,
@@ -268,7 +265,7 @@ where
 pub struct OptionGenerator<S, T>
 where
     S: 'static,
-    T: HasPredefinedGenerators<S> + 'static,
+    T: HasPredefinedGenerators<S>,
 {
     inner: Option<T::Generator>,
     _state: PhantomData<S>,
@@ -277,7 +274,7 @@ where
 impl<S, T> Clone for OptionGenerator<S, T>
 where
     S: 'static,
-    T: HasPredefinedGenerators<S> + 'static,
+    T: HasPredefinedGenerators<S>,
     T::Generator: Clone,
 {
     fn clone(&self) -> Self {
@@ -330,15 +327,41 @@ where
     }
 }
 
+#[derive(Debug, Clone, New)]
+pub struct VecGenerator<G, const MAX_ITEMS: usize = 5> {
+    element_generators: Vec<G>,
+}
+
+impl<S, G, const MAX_ITEMS: usize> LspParamsGenerator<S> for VecGenerator<G, MAX_ITEMS>
+where
+    G: LspParamsGenerator<S>,
+    S: HasRand,
+{
+    type Output = Vec<G::Output>;
+
+    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+        let len = state.rand_mut().between(0, MAX_ITEMS);
+        let mut items = Vec::with_capacity(len);
+        for _ in 0..len {
+            let generator = state
+                .rand_mut()
+                .choose(&self.element_generators)
+                .ok_or(GenerationError::NothingGenerated)?;
+            items.push(generator.generate(state, input)?);
+        }
+        Ok(items)
+    }
+}
+
 impl<S, T> HasPredefinedGenerators<S> for Vec<T>
 where
-    S: 'static,
+    S: HasRand + 'static,
     T: HasPredefinedGenerators<S> + 'static,
 {
-    type Generator = DefaultGenerator<S, Self>;
+    type Generator = VecGenerator<T::Generator>;
 
     fn generators() -> Vec<Self::Generator> {
-        vec![DefaultGenerator::new()]
+        vec![VecGenerator::new(T::generators())]
     }
 }
 
@@ -356,11 +379,13 @@ where
     M::Params: HasPredefinedGenerators<S>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let generators_desc = format!(
+            "{} {}",
+            self.generators.len(),
+            type_name::<<M::Params as HasPredefinedGenerators<S>>::Generator>()
+        );
         f.debug_struct("AppendRandomlyGeneratedMessage")
-            .field(
-                "generators",
-                &format!("({} dyn generators)", self.generators.len()),
-            )
+            .field("generators", &generators_desc)
             .finish()
     }
 }
@@ -373,7 +398,7 @@ where
     pub fn with_predefined() -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
         let generators = M::Params::generators();
-        assert_ne!(generators.len(), 0, "No generators for {}", M::METHOD);
+        assert!(!generators.is_empty(), "No generators for {}", M::METHOD);
         Self { name, generators }
     }
 }
@@ -417,22 +442,18 @@ where
 append_randoms! {
 
     /// Mutation operators for each message type with `AppendRandomlyGeneratedMessage` mutator.
-    pub fn append_randomly_generated_messages() -> AppendRandomlyGenerateMessageMutations {
+   fn append_randomly_generated_messages() -> AppendRandomlyGenerateMessageMutations {
         // request::CallHierarchyIncomingCalls,
         // request::CallHierarchyOutgoingCalls,
-        request::CodeActionRequest,
         // request::CodeActionResolveRequest,
         // request::CodeLensResolve,
         // request::ColorPresentationRequest,
         // request::DocumentLinkResolve,
         // request::ExecuteCommand,
-        // request::FoldingRangeRequest,
         // request::InlayHintResolveRequest,
         // request::InlineValueRefreshRequest,
         // request::InlineValueRequest,
-        // request::MonikerRequest,
         // request::OnTypeFormatting,
-        request::PrepareRenameRequest,
         // request::RangeFormatting,
         // request::Rename,
         // request::ResolveCompletionItem,
@@ -449,6 +470,7 @@ append_randoms! {
         // request::WorkspaceDiagnosticRequest,
         // request::WorkspaceSymbolResolve,
         request::CallHierarchyPrepare,
+        request::CodeActionRequest,
         request::CodeLensRequest,
         request::Completion,
         request::DocumentColor,
@@ -456,6 +478,7 @@ append_randoms! {
         request::DocumentHighlightRequest,
         request::DocumentLinkRequest,
         request::DocumentSymbolRequest,
+        request::FoldingRangeRequest,
         request::GotoDeclaration,
         request::GotoDefinition,
         request::GotoImplementation,
@@ -463,6 +486,8 @@ append_randoms! {
         request::HoverRequest,
         request::InlayHintRequest,
         request::LinkedEditingRange,
+        request::MonikerRequest,
+        request::PrepareRenameRequest,
         request::References,
         request::SemanticTokensFullRequest,
         request::SemanticTokensRangeRequest,
