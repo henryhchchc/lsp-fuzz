@@ -24,7 +24,7 @@ use crate::{
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
             TokensGenerator,
         },
-        HasPredefinedGenerators, LspMessage, Message, MessageParam,
+        HasPredefinedGenerators, LspMessage, ClientToServerMessage, MessageParam,
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
@@ -35,7 +35,7 @@ use super::LspInput;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
 pub struct LspMessages {
-    inner: Vec<lsp::Message>,
+    inner: Vec<lsp::ClientToServerMessage>,
 }
 
 impl HasLen for LspMessages {
@@ -109,9 +109,9 @@ where
     }
 }
 
-prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::Message>);
+prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::ClientToServerMessage>);
 
-pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::Message, S>>;
+pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::ClientToServerMessage, S>>;
 
 use lsp_types::*;
 
@@ -433,7 +433,7 @@ where
             Err(GenerationError::NothingGenerated) => return Ok(MutationResult::Skipped),
             Err(GenerationError::Error(e)) => return Err(e),
         };
-        let message = Message::from_params::<M>(params);
+        let message = ClientToServerMessage::from_params::<M>(params);
         input.messages.push(message);
         Ok(MutationResult::Mutated)
     }

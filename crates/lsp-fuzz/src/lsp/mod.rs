@@ -2,7 +2,7 @@ pub(crate) mod capabilities;
 pub mod message;
 
 use generation::LspParamsGenerator;
-pub use message::Message;
+pub use message::ClientToServerMessage;
 
 pub mod compositions;
 pub mod generation;
@@ -19,7 +19,7 @@ pub trait MessageParam<M>
 where
     M: LspMessage,
 {
-    fn into_message(self) -> Message;
+    fn into_message(self) -> ClientToServerMessage;
 }
 
 pub trait LocalizeToWorkspace {
@@ -34,9 +34,9 @@ pub trait HasPredefinedGenerators<S> {
         S: 'static;
 }
 
-
 pub trait Compose {
     type Components;
 
     fn compose(components: Self::Components) -> Self;
 }
+

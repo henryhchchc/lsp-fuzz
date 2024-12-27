@@ -67,7 +67,7 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        let init_request = lsp::Message::Initialize(lsp_types::InitializeParams {
+        let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: "lsp-fuzz://".parse().unwrap(),
                 name: workspace_dir
@@ -79,13 +79,13 @@ impl LspInput {
             capabilities: fuzzer_client_capabilities(),
             ..Default::default()
         });
-        let initialized_req = lsp::Message::Initialized(InitializedParams {});
+        let initialized_req = lsp::ClientToServerMessage::Initialized(InitializedParams {});
         let Some((path, the_only_doc)) = self.source_directory.iter_files().next() else {
             unreachable!("We created only files");
         };
         let uri = Uri::from_str(&format!("lsp-fuzz://{}", path.display())).unwrap();
         let did_open_request = {
-            lsp::Message::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+            lsp::ClientToServerMessage::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: uri.clone(),
                     language_id: the_only_doc.language().lsp_language_id().to_owned(),
@@ -94,7 +94,7 @@ impl LspInput {
                 },
             })
         };
-        let shutdown = lsp::Message::Shutdown(());
+        let shutdown = lsp::ClientToServerMessage::Shutdown(());
         let mut bytes = Vec::new();
         let workspace_dir = workspace_dir
             .to_string_lossy()

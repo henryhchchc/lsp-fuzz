@@ -9,6 +9,7 @@ use lsp_types::{
     InitializeParams, InlayHintParams, OneOf, SemanticTokensParams, TextDocumentIdentifier,
     TextDocumentItem, TextDocumentPositionParams, WorkspaceFolder,
 };
+use ordermap::map::MutableKeys;
 use ordermap::OrderMap;
 use trait_gen::trait_gen;
 
@@ -101,13 +102,10 @@ where
     V: LocalizeToWorkspace,
 {
     fn localize(&mut self, workspace_dir: &str) {
-        let mut new = OrderMap::new();
-        for (mut k, mut v) in self.drain(..) {
+        self.iter_mut2().for_each(|(k, v)| {
             k.localize(workspace_dir);
             v.localize(workspace_dir);
-            new.insert(k, v);
-        }
-        *self = new;
+        })
     }
 }
 
