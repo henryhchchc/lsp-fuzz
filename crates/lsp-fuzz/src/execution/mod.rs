@@ -234,7 +234,6 @@ impl<EM, Z, S, OBS, SHM> Executor<EM, Z> for LspExecutor<S, OBS, SHM>
 where
     S: State + UsesInput<Input = LspInput> + HasExecutions,
     EM: UsesState<State = S>,
-    Z: UsesState<State = S>,
     OBS: ObserversTuple<S::Input, S>,
     SHM: ShMem,
 {

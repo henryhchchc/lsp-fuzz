@@ -1,9 +1,8 @@
-use std::{marker::PhantomData, path::PathBuf, thread};
+use std::{path::PathBuf, thread};
 
 use derive_new::new as New;
 use libafl::{
     events::{EventFirer, LogSeverity},
-    inputs::UsesInput,
     stages::Stage,
     state::{HasExecutions, State, UsesState},
     HasNamedMetadata,
@@ -18,33 +17,23 @@ pub mod minimize;
 pub struct LastCleanupDir(u64);
 
 #[derive(Debug, New)]
-pub struct CleanupWorkspaceDirs<S> {
+pub struct CleanupWorkspaceDirs {
     cleanup_dir: String,
     cleanup_threshold: u64,
-    _state: PhantomData<S>,
 }
 
-impl<S> UsesState for CleanupWorkspaceDirs<S>
-where
-    S: State + UsesInput,
-{
-    type State = S;
-}
-
-impl<E, M, Z, S> Stage<E, M, Z> for CleanupWorkspaceDirs<S>
+impl<E, M, Z, S> Stage<E, M, S, Z> for CleanupWorkspaceDirs
 where
     S: State + HasExecutions + HasNamedMetadata,
-    E: UsesState<State = S>,
     M: EventFirer + UsesState<State = S>,
-    Z: UsesState<State = S>,
 {
-    fn should_restart(&mut self, state: &mut Self::State) -> Result<bool, libafl::Error> {
+    fn should_restart(&mut self, state: &mut S) -> Result<bool, libafl::Error> {
         let LastCleanupDir(last_cleanup) =
             *state.named_metadata_or_insert_with(&self.cleanup_dir, Default::default);
         Ok(*state.executions() - last_cleanup >= self.cleanup_threshold)
     }
 
-    fn clear_progress(&mut self, _state: &mut Self::State) -> Result<(), libafl::Error> {
+    fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
         Ok(())
     }
 
@@ -52,7 +41,7 @@ where
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut Self::State,
+        state: &mut S,
         manager: &mut M,
     ) -> Result<(), libafl::Error> {
         let executions = *state.executions();

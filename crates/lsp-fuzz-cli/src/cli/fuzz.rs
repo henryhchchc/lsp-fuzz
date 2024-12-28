@@ -317,7 +317,7 @@ impl FuzzCommand {
     }
 }
 
-fn initialize_corpus<E, Z, EM, C, R, SC>(
+fn initialize_corpus<E, Z, EM, R, C, SC>(
     seeds_dir: Option<PathBuf>,
     state: &mut StdState<LspInput, C, R, SC>,
     fuzzer: &mut Z,
@@ -330,7 +330,7 @@ where
     C: Corpus<Input = LspInput>,
     R: Rand,
     SC: Corpus<Input = LspInput>,
-    Z: Evaluator<E, EM, State = StdState<LspInput, C, R, SC>>,
+    Z: Evaluator<E, EM, LspInput, StdState<LspInput, C, R, SC>>,
     E: UsesState<State = StdState<LspInput, C, R, SC>>,
     EM: EventFirer + UsesState<State = StdState<LspInput, C, R, SC>>,
 {
