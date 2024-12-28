@@ -2,14 +2,16 @@ use std::{
     marker::{PhantomData, Sized},
     num::NonZeroUsize,
     ops::Deref,
-    rc::Rc,
 };
 
 use derive_new::new as New;
 use itertools::Itertools;
 use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
 use libafl_bolts::rands::Rand;
-use lsp_types::{CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind};
+use lsp_types::{
+    CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range,
+    TextDocumentIdentifier,
+};
 
 use crate::{
     lsp_input::{messages::PositionSelector, LspInput},
@@ -107,21 +109,21 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct TextDocumentIdentifierGenerator<S, D> {
-    _phantom: PhantomData<(S, D)>,
+pub struct TextDocumentIdentifierGenerator<D> {
+    _phantom: PhantomData<D>,
 }
 
-impl<S, T> Clone for TextDocumentIdentifierGenerator<S, T> {
+impl<T> Clone for TextDocumentIdentifierGenerator<T> {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<S, D> LspParamsGenerator<S> for TextDocumentIdentifierGenerator<S, D>
+impl<S, D> LspParamsGenerator<S> for TextDocumentIdentifierGenerator<D>
 where
     D: TextDocumentSelector<S>,
 {
-    type Output = lsp_types::TextDocumentIdentifier;
+    type Output = TextDocumentIdentifier;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
         let (uri, _) = D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
@@ -130,11 +132,11 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct TextDocumentPositionParamsGenerator<S, D, P> {
-    _phantom: PhantomData<(S, D, P)>,
+pub struct TextDocumentPositionParamsGenerator<D, P> {
+    _phantom: PhantomData<(D, P)>,
 }
 
-impl<S, D, P> LspParamsGenerator<S> for TextDocumentPositionParamsGenerator<S, D, P>
+impl<S, D, P> LspParamsGenerator<S> for TextDocumentPositionParamsGenerator<D, P>
 where
     D: TextDocumentSelector<S>,
     P: PositionSelector<S>,
@@ -146,7 +148,7 @@ where
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let position = P::select_position(state, doc).ok_or(GenerationError::NothingGenerated)?;
         Ok(Self::Output {
-            text_document: lsp_types::TextDocumentIdentifier { uri },
+            text_document: TextDocumentIdentifier { uri },
             position,
         })
     }
@@ -200,7 +202,7 @@ where
     T1::Generator: Clone,
     T2::Generator: Clone,
 {
-    type Generator = CompositionGenerator<S, T1::Generator, T2::Generator, Self>;
+    type Generator = CompositionGenerator<T1::Generator, T2::Generator, Self>;
 
     fn generators() -> Vec<Self::Generator>
     where
@@ -217,13 +219,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct CompositionGenerator<S, G1, G2, T> {
+pub struct CompositionGenerator<G1, G2, T> {
     generator1: G1,
     generator2: G2,
-    _phantom: PhantomData<(S, T)>,
+    _phantom: PhantomData<fn() -> T>,
 }
 
-impl<S, G1, G2, T> CompositionGenerator<S, G1, G2, T> {
+impl<G1, G2, T> CompositionGenerator<G1, G2, T> {
     pub const fn new(generator1: G1, generator2: G2) -> Self {
         Self {
             generator1,
@@ -233,7 +235,7 @@ impl<S, G1, G2, T> CompositionGenerator<S, G1, G2, T> {
     }
 }
 
-impl<S, G1, G2, T> Clone for CompositionGenerator<S, G1, G2, T>
+impl<G1, G2, T> Clone for CompositionGenerator<G1, G2, T>
 where
     G1: Clone,
     G2: Clone,
@@ -243,7 +245,7 @@ where
     }
 }
 
-impl<S, T, G1, G2> LspParamsGenerator<S> for CompositionGenerator<S, G1, G2, T>
+impl<S, T, G1, G2> LspParamsGenerator<S> for CompositionGenerator<G1, G2, T>
 where
     G1: LspParamsGenerator<S>,
     G2: LspParamsGenerator<S>,
@@ -277,66 +279,68 @@ where
                 .map_err(|_| GenerationError::NothingGenerated)?;
             NonZeroUsize::new(tokens.len()).ok_or(GenerationError::NothingGenerated)?
         };
-
         let idx = state.rand_mut().below(token_cnt);
         // SAFETY: We checked just now that the metadata is present
         let tokens: &Tokens = unsafe { state.metadata().unwrap_unchecked() };
-
         let token = String::from_utf8_lossy(&tokens[idx]).into_owned();
-
         Ok(token)
     }
 }
 
 #[derive(Debug)]
-pub struct DocAndRange {
-    pub text_document: lsp_types::TextDocumentIdentifier,
-    pub range: lsp_types::Range,
-}
+pub struct RangeInDoc(pub TextDocumentIdentifier, pub Range);
 
 #[derive(Debug, New)]
-pub struct DocAndRangeGenerator<D> {
-    range_selector: fn(&TextDocument) -> lsp_types::Range,
-    _phantom: PhantomData<D>,
+pub struct RangeInDocGenerator<S, D> {
+    range_selector: fn(&mut S, &TextDocument) -> Range,
+    _phantom: PhantomData<(S, D)>,
 }
 
-impl<D> Clone for DocAndRangeGenerator<D> {
+impl<S, D> Clone for RangeInDocGenerator<S, D> {
     fn clone(&self) -> Self {
         Self::new(self.range_selector)
     }
 }
 
-impl<S, D> LspParamsGenerator<S> for DocAndRangeGenerator<D>
+impl<S, D> LspParamsGenerator<S> for RangeInDocGenerator<S, D>
 where
     D: TextDocumentSelector<S>,
 {
-    type Output = DocAndRange;
+    type Output = RangeInDoc;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
-        let range = (self.range_selector)(doc);
-        let doc = lsp_types::TextDocumentIdentifier { uri };
-        Ok(DocAndRange {
-            text_document: doc,
-            range,
-        })
+        let range = (self.range_selector)(state, doc);
+        let doc = TextDocumentIdentifier { uri };
+        Ok(RangeInDoc(doc, range))
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for DocAndRange
+impl<S> HasPredefinedGenerators<S> for RangeInDoc
 where
     S: HasRand,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = RangeInDocGenerator<S, RandomDoc<S>>;
 
     fn generators() -> Vec<Self::Generator>
     where
         S: 'static,
     {
-        vec![Rc::new(DocAndRangeGenerator::<RandomDoc<S>>::new(|doc| {
-            doc.lsp_range()
-        })) as _]
+        let whole_range = |_: &mut S, doc: &TextDocument| doc.lsp_range();
+        let after_range = |_: &mut S, doc: &TextDocument| {
+            let Range { end, .. } = doc.lsp_range();
+            let start = end;
+            let end = Position {
+                line: 65536,
+                character: end.character,
+            };
+            Range { start, end }
+        };
+        vec![
+            RangeInDocGenerator::<S, RandomDoc<S>>::new(whole_range),
+            RangeInDocGenerator::<S, RandomDoc<S>>::new(after_range),
+        ]
     }
 }
 

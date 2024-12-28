@@ -11,7 +11,7 @@ use lsp_types::{
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list_type, TupleList};
 
-use super::{generation::DocAndRange, Compose};
+use super::{generation::RangeInDoc, Compose};
 
 impl<Head, Tail> Compose for (Head, Tail) {
     type Components = (Head, Tail);
@@ -190,17 +190,11 @@ impl Compose for T {
 )]
 
 impl Compose for T {
-    type Components = tuple_list_type![DocAndRange, WorkDoneProgressParams,];
+    type Components = tuple_list_type![RangeInDoc, WorkDoneProgressParams,];
 
     #[inline]
     fn compose(components: Self::Components) -> Self {
-        let (
-            DocAndRange {
-                text_document,
-                range,
-            },
-            work_done_progress_params,
-        ) = components.into_tuple();
+        let (RangeInDoc(text_document, range), work_done_progress_params) = components.into_tuple();
         Self {
             text_document,
             work_done_progress_params,
@@ -243,18 +237,12 @@ impl Compose for CompletionContext {
 }
 
 impl Compose for SemanticTokensRangeParams {
-    type Components = tuple_list_type![DocAndRange, WorkDoneProgressParams, PartialResultParams];
+    type Components = tuple_list_type![RangeInDoc, WorkDoneProgressParams, PartialResultParams];
 
     #[inline]
     fn compose(components: Self::Components) -> Self {
-        let (
-            DocAndRange {
-                text_document,
-                range,
-            },
-            work_done_progress_params,
-            partial_result_params,
-        ) = components.into_tuple();
+        let (RangeInDoc(text_document, range), work_done_progress_params, partial_result_params) =
+            components.into_tuple();
         Self {
             work_done_progress_params,
             partial_result_params,
@@ -266,7 +254,7 @@ impl Compose for SemanticTokensRangeParams {
 
 impl Compose for CodeActionParams {
     type Components = tuple_list_type![
-        DocAndRange,
+        RangeInDoc,
         WorkDoneProgressParams,
         PartialResultParams,
         CodeActionContext
@@ -275,10 +263,7 @@ impl Compose for CodeActionParams {
     #[inline]
     fn compose(components: Self::Components) -> Self {
         let (
-            DocAndRange {
-                text_document,
-                range,
-            },
+            RangeInDoc(text_document, range),
             work_done_progress_params,
             partial_result_params,
             context,

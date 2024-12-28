@@ -104,16 +104,16 @@ where
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(new_fragement) = GEN::generate_node(selected_node, grammar_ctx, state.rand_mut())
+        let Some(new_fragment) = GEN::generate_node(selected_node, grammar_ctx, state.rand_mut())
         else {
             return Ok(MutationResult::Skipped);
         };
         let node_len = selected_node.end_byte() - selected_node.start_byte();
-        if doc_len - node_len + new_fragement.len() > MAX_DOCUMENT_SIZE {
+        if doc_len - node_len + new_fragment.len() > MAX_DOCUMENT_SIZE {
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        doc.splice(node_range, new_fragement.to_vec(), grammar_ctx);
+        doc.splice(node_range, new_fragment.to_vec(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }

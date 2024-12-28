@@ -24,7 +24,7 @@ use crate::{
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
             TokensGenerator,
         },
-        HasPredefinedGenerators, LspMessage, ClientToServerMessage, MessageParam,
+        ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
@@ -198,10 +198,10 @@ impl<S> HasPredefinedGenerators<S> for TextDocumentIdentifier
 where
     S: HasRand + 'static,
 {
-    type Generator = TextDocumentIdentifierGenerator<S, RandomDoc<S>>;
+    type Generator = TextDocumentIdentifierGenerator<RandomDoc<S>>;
 
     fn generators() -> Vec<Self::Generator> {
-        vec![TextDocumentIdentifierGenerator::<S, RandomDoc<S>>::new()]
+        vec![TextDocumentIdentifierGenerator::<RandomDoc<S>>::new()]
     }
 }
 
@@ -214,12 +214,10 @@ where
     fn generators() -> Vec<Self::Generator> {
         vec![
             Rc::new(TextDocumentPositionParamsGenerator::<
-                S,
                 RandomDoc<S>,
                 RandomPosition,
             >::new()),
             Rc::new(TextDocumentPositionParamsGenerator::<
-                S,
                 RandomDoc<S>,
                 TerminalStartPosition,
             >::new()),
