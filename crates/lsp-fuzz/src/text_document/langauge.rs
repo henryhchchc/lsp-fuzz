@@ -20,11 +20,12 @@ impl Language {
     }
 
     pub fn ts_language(&self) -> tree_sitter::Language {
-        match self {
-            Self::C => tree_sitter::Language::new(tree_sitter_c::LANGUAGE),
-            Self::CPlusPlus => tree_sitter::Language::new(tree_sitter_cpp::LANGUAGE),
-            Self::Rust => tree_sitter::Language::new(tree_sitter_rust::LANGUAGE),
-        }
+        let lang_fn = match self {
+            Self::C => tree_sitter_c::LANGUAGE,
+            Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
+            Self::Rust => tree_sitter_rust::LANGUAGE,
+        };
+        tree_sitter::Language::new(lang_fn)
     }
 
     pub const fn grammar_json<'a>(&self) -> &'a str {
