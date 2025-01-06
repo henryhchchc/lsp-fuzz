@@ -189,7 +189,9 @@ impl GrammarContext {
         }
     }
 
-    pub fn whole_programs(&self) -> Result<impl ExactSizeIterator<Item = &[u8]>, DerivationError> {
+    pub fn start_symbol_fragments(
+        &self,
+    ) -> Result<impl ExactSizeIterator<Item = &[u8]>, DerivationError> {
         self.derivation_fragments
             .get(&self.grammar.start_symbol)
             .ok_or(DerivationError::InvalidGrammar)

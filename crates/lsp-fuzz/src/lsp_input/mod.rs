@@ -19,6 +19,7 @@ use crate::{
     lsp::{self, capabilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
     text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
     utf8::Utf8Input,
+    utils::AflContext,
 };
 
 pub type FileContentInput = BytesInput;
@@ -175,25 +176,19 @@ where
 {
     fn generate(&mut self, state: &mut S) -> Result<LspInput, libafl::Error> {
         let rand = state.rand_mut();
-        let (&language, grammar) =
-            rand.choose(self.grammar_lookup.iter())
-                .ok_or(libafl::Error::illegal_state(
-                    "The grammar lookup context is empry",
-                ))?;
+        let (&language, grammar) = rand
+            .choose(self.grammar_lookup.iter())
+            .afl_context("The grammar lookup context is empry")?;
         let ext = rand
             .choose(language.file_extensions())
-            .ok_or(libafl::Error::illegal_state(
-                "The language has no extensions",
-            ))?;
+            .afl_context("The language has no extensions")?;
         let single_file_name = format!("main.{ext}");
         let whole_programs = grammar
-            .whole_programs()
-            .map_err(|_| libafl::Error::illegal_state("The grammar has no whole programs"))?;
+            .start_symbol_fragments()
+            .afl_context("The grammar has no whole programs")?;
         let program = rand
             .choose(whole_programs)
-            .ok_or(libafl::Error::illegal_state(
-                "The grammar has no whole programs",
-            ))?;
+            .afl_context("The grammar has no whole programs")?;
         Ok(LspInput {
             messages: LspMessages::default(),
             source_directory: FileSystemDirectory::from([(

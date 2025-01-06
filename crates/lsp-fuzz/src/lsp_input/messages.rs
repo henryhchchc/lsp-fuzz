@@ -338,16 +338,24 @@ where
     type Output = Vec<G::Output>;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
-        let len = state.rand_mut().between(0, MAX_ITEMS);
+        let len = state.rand_mut().between(1, MAX_ITEMS);
         let mut items = Vec::with_capacity(len);
+        let mut anything_generated = false;
         for _ in 0..len {
-            let generator = state
-                .rand_mut()
-                .choose(&self.element_generators)
-                .ok_or(GenerationError::NothingGenerated)?;
-            items.push(generator.generate(state, input)?);
+            if let Some(generator) = state.rand_mut().choose(&self.element_generators) {
+                match generator.generate(state, input) {
+                    Ok(item) => {
+                        items.push(item);
+                        anything_generated = true;
+                    }
+                    Err(GenerationError::NothingGenerated) => {}
+                    Err(e) => return Err(e),
+                }
+            }
         }
-        Ok(items)
+        anything_generated
+            .then_some(items)
+            .ok_or(GenerationError::NothingGenerated)
     }
 }
 
@@ -356,10 +364,12 @@ where
     S: HasRand + 'static,
     T: HasPredefinedGenerators<S> + 'static,
 {
-    type Generator = VecGenerator<T::Generator>;
+    type Generator = Rc<dyn LspParamsGenerator<S, Output = Vec<T>>>;
 
     fn generators() -> Vec<Self::Generator> {
-        vec![VecGenerator::new(T::generators())]
+        let vec_generator = Rc::new(VecGenerator::<T::Generator, 5>::new(T::generators()));
+        let default_generator = Rc::new(DefaultGenerator::new());
+        vec![vec_generator, default_generator]
     }
 }
 
