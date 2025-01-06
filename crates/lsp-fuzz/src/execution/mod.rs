@@ -26,39 +26,48 @@ pub mod fork_server;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
+/// Describes how the fuzz input is sent to the target.
 #[derive(Debug)]
 pub enum FuzzInput<SHM> {
+    /// Send the input to the target via stdin.
     Stdin(InputFile),
+    /// Send the input to the target via a file as an argument.
     File(InputFile),
+    /// Send the input to the target via shared memory.
     SharedMemory(SHM),
 }
 
 impl<SHM: ShMem> FuzzInput<SHM> {
+    pub fn send(&mut self, input_bytes: &[u8]) -> Result<(), libafl::Error> {
+        match self {
+            FuzzInput::Stdin(file) | FuzzInput::File(file) => file.write_buf(input_bytes),
+            FuzzInput::SharedMemory(shmem) => Self::write_afl_shmem_input(shmem, input_bytes),
+        }
+    }
+
     const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<u32>();
 
-    pub fn feed(&mut self, input_bytes: &[u8]) -> Result<(), libafl::Error> {
-        match self {
-            FuzzInput::Stdin(file) | FuzzInput::File(file) => {
-                file.write_buf(input_bytes)?;
-            }
-            FuzzInput::SharedMemory(shmem) => {
-                std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
-                if shmem.len() < input_bytes.len() + Self::SHM_FUZZ_HEADER_SIZE {
-                    Err(libafl::Error::unknown(
-                        "The shared memory is too small for the input.",
-                    ))?;
-                }
-                let input_size = u32::try_from(input_bytes.len())
-                    .afl_context("The length of input bytes cannot fit into u32")?;
-                let input_size_encoded = input_size.to_ne_bytes();
-                let shmem_slice = shmem.as_slice_mut();
-                shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
-                let input_body_range =
-                    Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
-                shmem_slice[input_body_range].copy_from_slice(input_bytes);
-                std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
-            }
+    fn write_afl_shmem_input(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libafl::Error> {
+        use core::sync::atomic::{compiler_fence, Ordering};
+
+        compiler_fence(Ordering::SeqCst);
+
+        if shmem.len() < input_bytes.len() + Self::SHM_FUZZ_HEADER_SIZE {
+            Err(libafl::Error::unknown(
+                "The shared memory is too small for the input.",
+            ))?;
         }
+        let input_size = u32::try_from(input_bytes.len())
+            .afl_context("The length of input bytes cannot fit into u32")?;
+        let input_size_encoded = input_size.to_ne_bytes();
+        let shmem_slice = shmem.as_slice_mut();
+        shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
+        let input_body_range =
+            Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
+        shmem_slice[input_body_range].copy_from_slice(input_bytes);
+
+        compiler_fence(Ordering::SeqCst);
+
         Ok(())
     }
 }
@@ -251,7 +260,7 @@ where
 
         // Transfer input to the fork server
         let input_bytes = input.request_bytes(&workspace_dir);
-        self.fuzz_input.feed(&input_bytes)?;
+        self.fuzz_input.send(&input_bytes)?;
 
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
@@ -272,7 +281,7 @@ where
         } else {
             ExitKind::Timeout
         };
-        // std::fs::remove_dir_all(&workspace_dir)?;
+
         *state.executions_mut() += 1;
         Ok(exit_kind)
     }
