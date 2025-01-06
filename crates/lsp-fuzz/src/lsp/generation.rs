@@ -337,9 +337,17 @@ where
             };
             Range { start, end }
         };
+        let inverted_range = |_: &mut S, doc: &TextDocument| {
+            let Range { start, end } = doc.lsp_range();
+            Range {
+                start: end,
+                end: start,
+            }
+        };
         vec![
             RangeInDocGenerator::<S, RandomDoc<S>>::new(whole_range),
             RangeInDocGenerator::<S, RandomDoc<S>>::new(after_range),
+            RangeInDocGenerator::<S, RandomDoc<S>>::new(inverted_range),
         ]
     }
 }
