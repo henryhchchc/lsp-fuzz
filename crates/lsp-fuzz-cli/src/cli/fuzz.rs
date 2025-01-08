@@ -31,7 +31,10 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     afl,
-    execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
+    execution::{
+        workspace_observer::WorkSpaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo,
+        LspExecutor,
+    },
     fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
     lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
     stages::CleanupWorkspaceDirs,
@@ -161,6 +164,7 @@ impl FuzzCommand {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
+            MaxMapFeedback::with_name("crash_cov", &edges_observer),
             feedback_or_fast!(
                 ConstFeedback::new(binary_info.uses_address_sanitizer.not()),
                 NewHashFeedback::new(&asan_observer)
@@ -251,8 +255,6 @@ impl FuzzCommand {
             }
         };
 
-        let coverage_map_info = Some((cov_map_shmem_id, edges_observer.as_ref().len()));
-
         let target_info = FuzzTargetInfo {
             path: self.execution.lsp_executable,
             args: self.execution.target_args,
@@ -263,15 +265,17 @@ impl FuzzCommand {
             kill_signal: self.execution.kill_signal,
         };
 
+        let workspace_observer = WorkSpaceObserver;
+
         let exec_config = FuzzExecutionConfig {
             debug_child: self.execution.debug_child,
             debug_afl: self.execution.debug_afl,
             fuzz_input,
             auto_tokens: tokens.as_mut(),
-            coverage_map_info,
+            coverage_map_info: Some((cov_map_shmem_id, edges_observer.as_ref().len())),
             map_observer: edges_observer,
             asan_observer_handle: asan_handle,
-            other_observers: tuple_list![time_observer, asan_observer],
+            other_observers: tuple_list![workspace_observer, asan_observer, time_observer],
         };
 
         let mut executor =
@@ -306,14 +310,24 @@ impl FuzzCommand {
             }
         }
 
-        fuzzer
-            .fuzz_loop(
-                &mut fuzz_stages,
-                &mut executor,
-                &mut state,
-                &mut event_manager,
-            )
-            .context("In fuzz loop")
+        let fuzz_result = fuzzer.fuzz_loop(
+            &mut fuzz_stages,
+            &mut executor,
+            &mut state,
+            &mut event_manager,
+        );
+
+        match fuzz_result {
+            Ok(()) => unreachable!("The fuzz loop will never exit with Ok"),
+            Err(libafl::Error::ShuttingDown) => {
+                info!(
+                    "Stop requested by user. {} will now exit.",
+                    crate::PROGRAM_NAME
+                );
+                Ok(())
+            }
+            err @ Err(_) => err.context("In fuzz loop"),
+        }
     }
 }
 
@@ -358,17 +372,13 @@ where
 }
 
 pub fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
-    let replaced = target_args
+    let mut replaced = false;
+    target_args
         .iter_mut()
-        .filter_map(|input_file| {
-            if input_file == afl::ARG_FILE_PLACE_HOLDER {
-                *input_file = input_file_path_str.clone();
-                Some(())
-            } else {
-                None
-            }
-        })
-        .count();
-
-    replaced > 0
+        .filter(|it| *it == afl::ARG_FILE_PLACE_HOLDER)
+        .for_each(|input_file| {
+            *input_file = input_file_path_str.clone();
+            replaced = true;
+        });
+    replaced
 }

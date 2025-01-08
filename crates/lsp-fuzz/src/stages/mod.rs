@@ -1,4 +1,4 @@
-use std::{path::PathBuf, thread};
+use std::{mem, path::PathBuf, thread};
 
 use derive_new::new as New;
 use libafl::{
@@ -46,8 +46,7 @@ where
     ) -> Result<(), libafl::Error> {
         let executions = *state.executions();
         let LastCleanupDir(last_cleanup) = state.named_metadata_mut(&self.cleanup_dir)?;
-        let cleanup_range = *last_cleanup..executions;
-        *last_cleanup = executions;
+        let cleanup_range = mem::replace(last_cleanup, executions)..executions;
         manager.log(
             state,
             LogSeverity::Info,

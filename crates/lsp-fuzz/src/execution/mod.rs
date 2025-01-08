@@ -23,6 +23,7 @@ use tracing::{info, warn};
 use crate::{lsp_input::LspInput, utils::AflContext};
 
 pub mod fork_server;
+pub mod workspace_observer;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
@@ -50,8 +51,6 @@ impl<SHM: ShMem> FuzzInput<SHM> {
     fn write_afl_shmem_input(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libafl::Error> {
         use core::sync::atomic::{compiler_fence, Ordering};
 
-        compiler_fence(Ordering::SeqCst);
-
         if shmem.len() < input_bytes.len() + Self::SHM_FUZZ_HEADER_SIZE {
             Err(libafl::Error::unknown(
                 "The shared memory is too small for the input.",
@@ -60,12 +59,13 @@ impl<SHM: ShMem> FuzzInput<SHM> {
         let input_size = u32::try_from(input_bytes.len())
             .afl_context("The length of input bytes cannot fit into u32")?;
         let input_size_encoded = input_size.to_ne_bytes();
+
+        compiler_fence(Ordering::SeqCst);
         let shmem_slice = shmem.as_slice_mut();
         shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
         let input_body_range =
             Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
         shmem_slice[input_body_range].copy_from_slice(input_bytes);
-
         compiler_fence(Ordering::SeqCst);
 
         Ok(())
@@ -262,6 +262,7 @@ where
         let input_bytes = input.request_bytes(&workspace_dir);
         self.fuzz_input.send(&input_bytes)?;
 
+        self.observers.pre_exec_child_all(state, input)?;
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
         let exit_kind = if let Some(status) = status {
@@ -271,9 +272,6 @@ where
                 .map(|it| libc::WEXITSTATUS(status) as i8 == it)
                 .unwrap_or_default();
             if libc::WIFSIGNALED(status) || exitcode_is_crash {
-                if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
-                    self.update_asan_observer(child_pid, handle)?;
-                }
                 ExitKind::Crash
             } else {
                 ExitKind::Ok
@@ -281,6 +279,13 @@ where
         } else {
             ExitKind::Timeout
         };
+        self.observers
+            .post_exec_child_all(state, input, &exit_kind)?;
+        if exit_kind == ExitKind::Crash {
+            if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
+                self.update_asan_observer(child_pid, handle)?;
+            }
+        }
 
         *state.executions_mut() += 1;
         Ok(exit_kind)

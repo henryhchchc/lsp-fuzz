@@ -46,6 +46,7 @@ num_cpus = "1.16"
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
 tree-sitter-rust = "0"
+rustversion = "1"
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }

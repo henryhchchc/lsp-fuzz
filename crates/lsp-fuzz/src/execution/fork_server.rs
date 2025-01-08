@@ -48,7 +48,7 @@ bitflags! {
 }
 
 #[derive(Debug)]
-pub struct ForkServerOptions {
+pub struct ForkServerTargetInfo {
     pub map_size: Option<usize>,
     pub shmem_fuzz: bool,
     pub autodict: Option<Vec<u8>>,
@@ -228,7 +228,7 @@ impl NeoForkServer {
     }
 
     /// Initialize the fork server and return the options
-    pub fn initialize(&mut self) -> Result<ForkServerOptions, libafl::Error> {
+    pub fn initialize(&mut self) -> Result<ForkServerTargetInfo, libafl::Error> {
         let handshake_msg = self.handshake()?;
         let flags = self
             .read_i32()
@@ -271,7 +271,7 @@ impl NeoForkServer {
                 "Final handshake message does not match",
             ))?;
         }
-        Ok(ForkServerOptions {
+        Ok(ForkServerTargetInfo {
             map_size,
             shmem_fuzz,
             autodict,
