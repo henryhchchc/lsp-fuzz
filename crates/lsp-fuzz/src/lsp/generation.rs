@@ -10,7 +10,7 @@ use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
 use libafl_bolts::rands::Rand;
 use lsp_types::{
     CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range,
-    TextDocumentIdentifier,
+    SignatureHelpTriggerKind, TextDocumentIdentifier,
 };
 
 use crate::{
@@ -373,4 +373,10 @@ const_generators!(for CodeActionKind => [
     CodeActionKind::SOURCE,
     CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
     CodeActionKind::SOURCE_FIX_ALL
+]);
+
+const_generators!(for SignatureHelpTriggerKind => [
+    SignatureHelpTriggerKind::INVOKED,
+    SignatureHelpTriggerKind::TRIGGER_CHARACTER,
+    SignatureHelpTriggerKind::CONTENT_CHANGE
 ]);

@@ -5,8 +5,9 @@ use lsp_types::{
     DocumentLinkParams, DocumentSymbolParams, FoldingRangeParams, GotoDefinitionParams,
     HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams, MonikerParams,
     PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
-    SemanticTokensRangeParams, TextDocumentIdentifier, TextDocumentPositionParams,
-    TypeHierarchyPrepareParams, WorkDoneProgressParams, WorkspaceSymbolParams,
+    SemanticTokensRangeParams, SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyPrepareParams,
+    WorkDoneProgressParams, WorkspaceSymbolParams,
 };
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list_type, TupleList};
@@ -61,6 +62,48 @@ impl Compose for T {
             text_document_position_params,
             work_done_progress_params,
             partial_result_params,
+        }
+    }
+}
+
+impl Compose for SignatureHelpContext {
+    type Components = tuple_list_type![
+        SignatureHelpTriggerKind,
+        Option<String>,
+        bool,
+        // TODO Option<SignatureHelp>
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            trigger_kind,
+            trigger_character,
+            is_retrigger,
+            // TODO active_signature_help
+        ) = components.into_tuple();
+        Self {
+            trigger_kind,
+            trigger_character,
+            is_retrigger,
+            active_signature_help: None,
+        }
+    }
+}
+
+impl Compose for SignatureHelpParams {
+    type Components = tuple_list_type![
+        Option<SignatureHelpContext>,
+        TextDocumentPositionParams,
+        WorkDoneProgressParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (context, text_document_position_params, work_done_progress_params) =
+            components.into_tuple();
+        Self {
+            context,
+            text_document_position_params,
+            work_done_progress_params,
         }
     }
 }
