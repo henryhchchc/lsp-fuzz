@@ -1,8 +1,7 @@
-use std::{borrow::Cow, collections::HashMap, hash::Hash, iter, ops::Range};
+use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
 
 use derive_more::derive::{Display, FromStr};
 use grammars::{tree::TreeIter, GrammarContext};
-use itertools::Either;
 use libafl::{
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
@@ -96,18 +95,12 @@ impl TextDocument {
     }
 
     pub fn terminal_ranges(&self) -> impl Iterator<Item = tree_sitter::Range> + '_ {
-        if let Some(ref parse_tree) = self.parse_tree {
-            let ranges = parse_tree.iter().filter_map(|node| {
-                if node.child_count() == 0 {
-                    Some(node.range())
-                } else {
-                    None
-                }
-            });
-            Either::Left(ranges)
-        } else {
-            Either::Right(iter::empty())
-        }
+        self.parse_tree.iter().flat_map(|parse_tree| {
+            parse_tree
+                .iter()
+                .filter(|it| it.child_count() == 0)
+                .map(|it| it.range())
+        })
     }
 
     fn update_parse_tree(
@@ -116,11 +109,9 @@ impl TextDocument {
         grammar_context: &GrammarContext,
     ) {
         let mut parser = grammar_context.create_parser();
-        let old_tree = self
-            .parse_tree
-            .get_or_insert_with(|| parser.parse(&self.content, None).unwrap());
-        old_tree.edit(&input_edit);
-        let mut parser = grammar_context.create_parser();
+        if let Some(ref mut parse_tree) = self.parse_tree {
+            parse_tree.edit(&input_edit);
+        }
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
 }
