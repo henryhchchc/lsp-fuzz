@@ -97,7 +97,7 @@ where
             return Ok(MutationResult::Skipped);
         };
         let doc_len = doc.len();
-        let parse_tree = doc.parse_tree(grammar_ctx);
+        let parse_tree = doc.get_or_create_parse_tree(grammar_ctx);
         let nodes = parse_tree
             .iter()
             .filter(|&it| NF::filter_node(it, grammar_ctx));
@@ -305,7 +305,7 @@ where
         let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
             return Ok(MutationResult::Skipped);
         };
-        let parse_tree = doc.parse_tree(grammar_ctx);
+        let parse_tree = doc.get_or_create_parse_tree(grammar_ctx);
         let covered_areas = parse_tree
             .iter()
             .filter(|it| it.child_count() > 0)

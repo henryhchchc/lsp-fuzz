@@ -114,11 +114,15 @@ impl TextDocument {
         }
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
+    
+    fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
+        self.parse_tree.as_ref()
+    }
 }
 
 pub trait GrammarBasedMutation {
     fn language(&self) -> Language;
-    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
+    fn get_or_create_parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
     fn fragment(&self, range: Range<usize>) -> &[u8];
     fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
     where
@@ -159,7 +163,7 @@ impl GrammarBasedMutation for TextDocument {
         &self.content[range]
     }
 
-    fn parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
+    fn get_or_create_parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
         self.parse_tree.get_or_insert_with(|| {
             let mut parser = grammar_context.create_parser();
             parser.parse(&self.content, None).unwrap()
