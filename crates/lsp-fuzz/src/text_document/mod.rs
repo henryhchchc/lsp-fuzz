@@ -17,6 +17,7 @@ use crate::lsp_input::LspInput;
 
 pub mod grammars;
 pub mod mutations;
+pub mod token_novelty;
 
 pub const LINE_SEP: u8 = b'\n';
 

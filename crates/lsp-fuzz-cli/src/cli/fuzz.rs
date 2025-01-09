@@ -38,7 +38,10 @@ use lsp_fuzz::{
     fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
     lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
     stages::CleanupWorkspaceDirs,
-    text_document::{text_document_mutations, GrammarContextLookup, Language},
+    text_document::{
+        text_document_mutations, token_novelty::TokenNoveltyFeedback, GrammarContextLookup,
+        Language,
+    },
 };
 
 use tracing::{error, info, warn};
@@ -139,6 +142,10 @@ impl FuzzCommand {
             .context("Creating shared memory")?;
         let cov_map_shmem_id = cov_shmem.id();
 
+        info!("Loading grammar context");
+        let grammar_ctx =
+            load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
+
         // Create an observation channel using the signals map
         let cov_map_observer = {
             let shmem_buf = cov_shmem.as_slice_mut();
@@ -160,7 +167,12 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
+        let novel_tokens = TokenNoveltyFeedback::new();
+        let mut feedback = feedback_or!(
+            map_feedback,
+            novel_tokens,
+            TimeFeedback::new(&time_observer)
+        );
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
@@ -216,10 +228,6 @@ impl FuzzCommand {
         let temp_dir_str = temp_dir
             .to_str()
             .context("temp_dir is not a valid UTF-8 string")?;
-
-        info!("Loading grammar context");
-        let grammar_ctx =
-            load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
         let mut fuzz_stages = {
             let mutation_stage = {

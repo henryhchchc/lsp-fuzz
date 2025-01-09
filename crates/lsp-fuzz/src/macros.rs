@@ -210,4 +210,18 @@ macro_rules! const_generators {
     };
 }
 
-pub(crate) use {append_randoms, const_generators, impl_localize, lsp_messages, prop_mutator};
+macro_rules! afl_oops {
+    ($msg:literal $(,)?) => {
+        return Err(libafl::Error::unknown(format!($msg)))
+    };
+    ($err:expr $(,)?) => {
+        return Err(libafl::Error::unknown(format!($err)))
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        return Err(libafl::Error::unknown(format!($fmt, $($arg)*)))
+    };
+}
+
+pub(crate) use {
+    afl_oops, append_randoms, const_generators, impl_localize, lsp_messages, prop_mutator,
+};
