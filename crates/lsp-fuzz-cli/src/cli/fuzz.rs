@@ -1,4 +1,6 @@
-use std::{collections::HashMap, env::temp_dir, ops::Not, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap, env::temp_dir, ops::Not, path::PathBuf, sync::mpsc, time::Duration,
+};
 
 use anyhow::{bail, Context};
 use clap::builder::BoolishValueParser;
@@ -37,7 +39,7 @@ use lsp_fuzz::{
     },
     fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
     lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
-    stages::CleanupWorkspaceDirs,
+    stages::{CleanupWorkspaceDirs, StopOnReceived},
     text_document::{
         text_document_mutations, token_novelty::TokenNoveltyFeedback, GrammarContextLookup,
         Language,
@@ -167,7 +169,7 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let novel_tokens = TokenNoveltyFeedback::new();
+        let novel_tokens = TokenNoveltyFeedback::new(20);
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,
@@ -241,7 +243,19 @@ impl FuzzCommand {
                 StdPowerMutationalStage::new(mutator)
             };
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            tuple_list![calibration_stage, mutation_stage, cleanup_workspace_stage]
+            let (tx, rx) = mpsc::channel();
+            ctrlc::try_set_handler(move || {
+                info!("Control-C pressed. The fuzzer will stop after this cycle.");
+                tx.send(()).expect("Failed to send stop signal");
+            })
+            .context("Setting Control-C handler")?;
+            let stop_on_signal = StopOnReceived::new(rx);
+            tuple_list![
+                calibration_stage,
+                mutation_stage,
+                cleanup_workspace_stage,
+                stop_on_signal
+            ]
         };
 
         let fuzz_input = if let Some(shm) = test_case_shm {

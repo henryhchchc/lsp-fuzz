@@ -116,7 +116,7 @@ impl TextDocument {
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
     
-    fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
+    const fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
         self.parse_tree.as_ref()
     }
 }

@@ -1,14 +1,17 @@
-use std::{mem, path::PathBuf, thread};
+use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread};
 
 use derive_new::new as New;
 use libafl::{
-    events::{EventFirer, LogSeverity},
+    events::{Event, EventFirer, LogSeverity},
+    inputs::UsesInput,
     stages::Stage,
     state::{HasExecutions, State, UsesState},
     HasNamedMetadata,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
+
+use crate::lsp_input::LspInput;
 
 pub mod minimize;
 
@@ -68,6 +71,39 @@ where
                 });
             }
         });
+        Ok(())
+    }
+}
+
+#[derive(Debug, New)]
+pub struct StopOnReceived<S> {
+    receiver: Receiver<()>,
+    _phantom: std::marker::PhantomData<S>,
+}
+
+impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
+where
+    S: UsesInput<Input = LspInput>,
+    M: EventFirer + UsesState<State = S>,
+{
+    fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
+        Ok(true)
+    }
+
+    fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
+        Ok(())
+    }
+
+    fn perform(
+        &mut self,
+        _fuzzer: &mut Z,
+        _executor: &mut E,
+        state: &mut S,
+        manager: &mut M,
+    ) -> Result<(), libafl::Error> {
+        if self.receiver.try_recv().is_ok() {
+            manager.fire(state, Event::Stop)?;
+        }
         Ok(())
     }
 }

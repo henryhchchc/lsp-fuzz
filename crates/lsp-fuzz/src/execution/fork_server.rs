@@ -371,7 +371,7 @@ impl NeoForkServer {
             None,
             None,
             Some(timeout),
-            Some(&SigSet::empty()),
+            Some(&SigSet::all()),
         )?;
         if sret > 0 {
             let mut buf: [u8; 4] = [0_u8; 4];

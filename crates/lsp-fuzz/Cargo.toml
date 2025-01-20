@@ -4,6 +4,7 @@ edition.workspace = true
 version.workspace = true
 
 [dependencies]
+ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
 clap.workspace = true
