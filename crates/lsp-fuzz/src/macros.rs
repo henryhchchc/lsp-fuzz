@@ -210,6 +210,7 @@ macro_rules! const_generators {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! afl_oops {
     ($msg:literal $(,)?) => {
         return Err(libafl::Error::unknown(format!($msg)))
@@ -222,6 +223,7 @@ macro_rules! afl_oops {
     };
 }
 
+#[allow(unused_imports)]
 pub(crate) use {
     afl_oops, append_randoms, const_generators, impl_localize, lsp_messages, prop_mutator,
 };

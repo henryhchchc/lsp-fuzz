@@ -4,7 +4,7 @@ use derive_new::new as New;
 use libafl::{
     corpus::CorpusId,
     generators::Generator,
-    inputs::{BytesInput, HasTargetBytes, Input, UsesInput},
+    inputs::{BytesInput, HasTargetBytes, Input},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand},
     HasMetadata,
@@ -149,7 +149,7 @@ impl<TM, RM, S> Mutator<LspInput, S> for LspInputMutator<TM, RM>
 where
     TM: Mutator<LspInput, S>,
     RM: Mutator<LspInput, S>,
-    S: UsesInput<Input = LspInput> + HasMetadata + HasCorpus + HasMaxSize + HasRand,
+    S: HasMetadata + HasCorpus<LspInput> + HasMaxSize + HasRand,
 {
     fn mutate(
         &mut self,

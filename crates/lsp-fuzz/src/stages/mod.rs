@@ -3,17 +3,14 @@ use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread};
 use derive_new::new as New;
 use libafl::{
     events::{Event, EventFirer, LogSeverity},
-    inputs::UsesInput,
     stages::Stage,
-    state::{HasExecutions, State, UsesState},
+    state::HasExecutions,
     HasNamedMetadata,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::lsp_input::LspInput;
-
-pub mod minimize;
 
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, libafl_bolts::SerdeAny)]
 #[repr(transparent)]
@@ -27,8 +24,8 @@ pub struct CleanupWorkspaceDirs {
 
 impl<E, M, Z, S> Stage<E, M, S, Z> for CleanupWorkspaceDirs
 where
-    S: State + HasExecutions + HasNamedMetadata,
-    M: EventFirer + UsesState<State = S>,
+    S: HasExecutions + HasNamedMetadata,
+    M: EventFirer<LspInput, S>,
 {
     fn should_restart(&mut self, state: &mut S) -> Result<bool, libafl::Error> {
         let LastCleanupDir(last_cleanup) =
@@ -83,8 +80,7 @@ pub struct StopOnReceived<S> {
 
 impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
 where
-    S: UsesInput<Input = LspInput>,
-    M: EventFirer + UsesState<State = S>,
+    M: EventFirer<LspInput, S>,
 {
     fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
         Ok(true)

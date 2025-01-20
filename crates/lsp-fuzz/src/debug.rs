@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use derive_new::new as New;
-use libafl::{stages::Stage, state::State};
+use libafl::stages::Stage;
 use libafl_bolts::Named;
 
 #[derive(Debug, New)]
@@ -19,7 +19,6 @@ impl<F> Named for ActionStage<F> {
 impl<F, S, E, EM, Z> Stage<E, EM, S, Z> for ActionStage<F>
 where
     F: for<'a> Fn(&'a mut S),
-    S: State,
 {
     fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
         Ok(true)

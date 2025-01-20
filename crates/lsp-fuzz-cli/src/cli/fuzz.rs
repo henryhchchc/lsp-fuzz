@@ -20,7 +20,7 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
-    state::{HasCorpus, StdState, UsesState},
+    state::{HasCorpus, StdState},
     Evaluator, Fuzzer, HasMetadata, StdFuzzer,
 };
 use libafl_bolts::{
@@ -355,7 +355,7 @@ impl FuzzCommand {
 
 fn initialize_corpus<E, Z, EM, R, C, SC>(
     seeds_dir: Option<PathBuf>,
-    state: &mut StdState<LspInput, C, R, SC>,
+    state: &mut StdState<C, LspInput, R, SC>,
     fuzzer: &mut Z,
     executor: &mut E,
     event_manager: &mut EM,
@@ -363,12 +363,11 @@ fn initialize_corpus<E, Z, EM, R, C, SC>(
     num_seeds: usize,
 ) -> Result<(), anyhow::Error>
 where
-    C: Corpus<Input = LspInput>,
+    C: Corpus<LspInput>,
     R: Rand,
-    SC: Corpus<Input = LspInput>,
-    Z: Evaluator<E, EM, LspInput, StdState<LspInput, C, R, SC>>,
-    E: UsesState<State = StdState<LspInput, C, R, SC>>,
-    EM: EventFirer + UsesState<State = StdState<LspInput, C, R, SC>>,
+    SC: Corpus<LspInput>,
+    Z: Evaluator<E, EM, LspInput, StdState<C, LspInput, R, SC>>,
+    EM: EventFirer<LspInput, StdState<C, LspInput, R, SC>>,
 {
     if state.must_load_initial_inputs() {
         if let Some(seeds_dir) = seeds_dir {

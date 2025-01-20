@@ -3,10 +3,9 @@ use std::{env::temp_dir, fs, marker::PhantomData, mem, path::PathBuf};
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
     executors::{Executor, ExitKind, HasObservers},
-    inputs::UsesInput,
     mutators::Tokens,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
-    state::{HasExecutions, State, UsesState},
+    state::HasExecutions,
 };
 use libafl_bolts::{
     fs::InputFile,
@@ -126,10 +125,9 @@ where
         mut config: FuzzExecutionConfig<'_, SHM, A, OBS>,
     ) -> Result<Self, libafl::Error>
     where
-        S: State + UsesInput<Input = LspInput>,
         MO: MapObserver + Truncate,
-        A: Observer<S::Input, S> + AsMut<MO> + AsRef<MO>,
-        OBS: ObserversTuple<S::Input, S> + Prepend<A>,
+        A: Observer<LspInput, S> + AsMut<MO> + AsRef<MO>,
+        OBS: ObserversTuple<LspInput, S> + Prepend<A>,
     {
         let args = target_info.args.into_iter().map(|it| it.into()).collect();
 
@@ -216,17 +214,9 @@ where
     }
 }
 
-impl<S, OBS, SHM> UsesState for LspExecutor<S, OBS, SHM>
-where
-    S: State + UsesInput<Input = LspInput>,
-{
-    type State = S;
-}
-
 impl<S, OBS, SHM> HasObservers for LspExecutor<S, OBS, SHM>
 where
-    S: State + UsesInput<Input = LspInput>,
-    OBS: ObserversTuple<S::Input, S>,
+    OBS: ObserversTuple<LspInput, S>,
 {
     type Observers = OBS;
 
@@ -239,19 +229,18 @@ where
     }
 }
 
-impl<EM, Z, S, OBS, SHM> Executor<EM, Z> for LspExecutor<S, OBS, SHM>
+impl<EM, Z, S, OBS, SHM> Executor<EM, LspInput, S, Z> for LspExecutor<S, OBS, SHM>
 where
-    S: State + UsesInput<Input = LspInput> + HasExecutions,
-    EM: UsesState<State = S>,
-    OBS: ObserversTuple<S::Input, S>,
+    S: HasExecutions,
+    OBS: ObserversTuple<LspInput, S>,
     SHM: ShMem,
 {
     fn run_target(
         &mut self,
         _fuzzer: &mut Z,
-        state: &mut Self::State,
+        state: &mut S,
         _mgr: &mut EM,
-        input: &Self::Input,
+        input: &LspInput,
     ) -> Result<ExitKind, libafl::Error> {
         // Setup workspace directory
         let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
@@ -294,8 +283,8 @@ where
 
 impl<S, OBS, SHM> LspExecutor<S, OBS, SHM>
 where
-    S: State + UsesInput<Input = LspInput> + HasExecutions,
-    OBS: ObserversTuple<S::Input, S>,
+    S: HasExecutions,
+    OBS: ObserversTuple<LspInput, S>,
     SHM: ShMem,
 {
     fn update_asan_observer(
