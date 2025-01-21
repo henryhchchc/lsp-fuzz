@@ -34,7 +34,7 @@ use libafl_bolts::{
 use lsp_fuzz::{
     afl,
     execution::{
-        workspace_observer::WorkSpaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo,
+        workspace_observer::WorkspaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo,
         LspExecutor,
     },
     fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
@@ -287,7 +287,7 @@ impl FuzzCommand {
             kill_signal: self.execution.kill_signal,
         };
 
-        let workspace_observer = WorkSpaceObserver;
+        let workspace_observer = WorkspaceObserver;
 
         let exec_config = FuzzExecutionConfig {
             debug_child: self.execution.debug_child,
@@ -379,14 +379,9 @@ where
             warn!("No seed inputs provided, starting from scratch");
             let mut generator = LspInputGenerator::new(grammar_context_lookup);
             state
-                .generate_initial_inputs_forced(
-                    fuzzer,
-                    executor,
-                    &mut generator,
-                    event_manager,
-                    num_seeds,
-                )
+                .generate_initial_inputs(fuzzer, executor, &mut generator, event_manager, num_seeds)
                 .context("Generating initial input")?;
+            info!(seeds = %state.corpus().count(), "Seed generation completed");
         }
     }
     Ok(())

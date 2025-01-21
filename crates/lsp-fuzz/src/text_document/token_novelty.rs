@@ -10,9 +10,9 @@ use std::{
 
 use libafl::{
     feedbacks::{Feedback, StateInitializer},
-    HasMetadata,
+    HasMetadata, SerdeAny,
 };
-use libafl_bolts::{impl_serdeany, Named};
+use libafl_bolts::Named;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
@@ -92,12 +92,10 @@ fn hash_node(hasher: &mut AHasher, node: tree_sitter::Node<'_>) {
     hasher.write_u16(node.grammar_id());
 }
 
-#[derive(Debug, Serialize, Deserialize, Deref, DerefMut, Default)]
+#[derive(Debug, Serialize, Deserialize, Deref, DerefMut, Default, SerdeAny)]
 pub struct SeenTokenHashes {
     inner: HashMap<Language, HashSet<u64>>,
 }
-
-impl_serdeany!(SeenTokenHashes);
 
 impl SeenTokenHashes {
     pub fn update(&mut self, language: Language, token_hashes: HashSet<u64>) -> bool {

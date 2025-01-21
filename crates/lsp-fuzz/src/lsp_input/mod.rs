@@ -156,12 +156,24 @@ where
         state: &mut S,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        const MUTATE_DOCUMENT: bool = true;
-        const MUTATE_REQUESTS: bool = false;
-        match state.rand_mut().coinflip(0.5) {
-            MUTATE_DOCUMENT => self.text_document_mutator.mutate(state, input),
-            MUTATE_REQUESTS => self.requests_mutator.mutate(state, input),
+        let mut result = MutationResult::Skipped;
+        if self.text_document_mutator.mutate(state, input)? == MutationResult::Mutated {
+            result = MutationResult::Mutated;
         }
+        if self.requests_mutator.mutate(state, input)? == MutationResult::Mutated {
+            result = MutationResult::Mutated;
+        }
+        Ok(result)
+    }
+
+    fn post_exec(
+        &mut self,
+        state: &mut S,
+        new_corpus_id: Option<CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        self.text_document_mutator.post_exec(state, new_corpus_id)?;
+        self.requests_mutator.post_exec(state, new_corpus_id)?;
+        Ok(())
     }
 }
 

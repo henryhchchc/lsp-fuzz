@@ -1,4 +1,4 @@
-use std::{env::temp_dir, fs, marker::PhantomData, mem, path::PathBuf};
+use std::{fs, marker::PhantomData, mem, path::PathBuf};
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
@@ -6,6 +6,7 @@ use libafl::{
     mutators::Tokens,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
+    HasMetadata,
 };
 use libafl_bolts::{
     fs::InputFile,
@@ -18,6 +19,7 @@ use nix::{
     unistd::Pid,
 };
 use tracing::{info, warn};
+use workspace_observer::CurrentWorkspaceMetadata;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
@@ -231,7 +233,7 @@ where
 
 impl<EM, Z, S, OBS, SHM> Executor<EM, LspInput, S, Z> for LspExecutor<S, OBS, SHM>
 where
-    S: HasExecutions,
+    S: HasExecutions + HasMetadata,
     OBS: ObserversTuple<LspInput, S>,
     SHM: ShMem,
 {
@@ -242,13 +244,12 @@ where
         _mgr: &mut EM,
         input: &LspInput,
     ) -> Result<ExitKind, libafl::Error> {
-        // Setup workspace directory
-        let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
-        std::fs::create_dir_all(&workspace_dir)?;
-        input.setup_source_dir(&workspace_dir)?;
-
+        let workspace_dir = state
+            .metadata::<CurrentWorkspaceMetadata>()
+            .afl_context("No current working dir available")?
+            .path();
         // Transfer input to the fork server
-        let input_bytes = input.request_bytes(&workspace_dir);
+        let input_bytes = input.request_bytes(workspace_dir);
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;

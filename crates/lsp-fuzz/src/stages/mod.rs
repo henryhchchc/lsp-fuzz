@@ -5,14 +5,14 @@ use libafl::{
     events::{Event, EventFirer, LogSeverity},
     stages::Stage,
     state::HasExecutions,
-    HasNamedMetadata,
+    HasNamedMetadata, SerdeAny,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::lsp_input::LspInput;
 
-#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, libafl_bolts::SerdeAny)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, SerdeAny)]
 #[repr(transparent)]
 pub struct LastCleanupDir(u64);
 

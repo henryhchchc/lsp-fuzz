@@ -64,6 +64,52 @@ where
 }
 
 #[derive(Debug)]
+pub struct ValidPosition;
+
+impl<S> PositionSelector<S> for ValidPosition
+where
+    S: HasRand,
+{
+    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position> {
+        let (index, line) = state.rand_mut().choose(doc.lines().enumerate())?;
+        let character = state.rand_mut().choose(0..line.len())?;
+        Some(lsp_types::Position {
+            line: index as _,
+            character: character as _,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HotspotPosition;
+
+impl<S> PositionSelector<S> for HotspotPosition
+where
+    S: HasRand,
+{
+    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position> {
+        let hotspot = doc.hotspot()?;
+        let line = state
+            .rand_mut()
+            .choose(hotspot.start_point.row..=hotspot.end_point.row)?;
+        let col = match line {
+            l if l == hotspot.start_point.row => state
+                .rand_mut()
+                .choose(hotspot.start_point.column..=hotspot.end_point.column)?,
+            l if l == hotspot.end_point.row => {
+                state.rand_mut().choose(0..=hotspot.end_point.column)?
+            }
+            _ => state.rand_mut().choose(0..=doc.lines().nth(line)?.len())?,
+        };
+
+        Some(lsp_types::Position {
+            line: line as _,
+            character: col as _,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct TerminalStartPosition;
 
 impl<S> PositionSelector<S> for TerminalStartPosition
@@ -219,6 +265,14 @@ where
             Rc::new(TextDocumentPositionParamsGenerator::<
                 RandomDoc<S>,
                 TerminalStartPosition,
+            >::new()),
+            Rc::new(TextDocumentPositionParamsGenerator::<
+                RandomDoc<S>,
+                ValidPosition,
+            >::new()),
+            Rc::new(TextDocumentPositionParamsGenerator::<
+                RandomDoc<S>,
+                HotspotPosition,
             >::new()),
         ]
     }
