@@ -68,7 +68,9 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
+        #[allow(deprecated, reason = "rust-analyzer uses root_uri")]
         let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
+            root_uri: Some("lsp-fuzz://".parse().unwrap()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: "lsp-fuzz://".parse().unwrap(),
                 name: workspace_dir

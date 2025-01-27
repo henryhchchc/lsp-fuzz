@@ -1,4 +1,4 @@
-use std::{fs, marker::PhantomData, mem, path::PathBuf};
+use std::{collections::HashMap, fs, marker::PhantomData, mem, path::PathBuf};
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
@@ -92,6 +92,7 @@ pub struct FuzzTargetInfo {
     pub crash_exit_code: Option<i8>,
     pub timeout: TimeSpec,
     pub kill_signal: Signal,
+    pub env: HashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -153,7 +154,14 @@ where
             asan_options.push(const_str::concat!("log_path=", ASAN_LOG_PATH));
         }
 
-        let envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
+        let mut envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
+
+        envs.extend(
+            target_info
+                .env
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into())),
+        );
 
         let opts = NeoForkServerOptions {
             target: target_info.path.as_os_str().to_owned(),
@@ -186,7 +194,7 @@ where
                     )))?;
                 }
                 map_size if map_size == fsrv_map_size => {}
-                _ => unreachable!("Garenteed by the match statement above."),
+                _ => unreachable!("Guaranteed by the match statement above."),
             }
         }
 

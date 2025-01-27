@@ -180,6 +180,8 @@ impl NeoForkServer {
             command.env("AFL_MAP_SIZE", format!("{}", map_size));
         }
 
+        debug_output.then(|| command.env("AFL_DEBUG_CHILD", "1"));
+        afl_debug.then(|| command.env("AFL_DEBUG", "1"));
         persistent_fuzzing.then(|| command.env("__AFL_PERSISTENT", "1"));
         deferred.then(|| command.env("__AFL_DEFER_FORKSRV", "1"));
 
@@ -190,12 +192,18 @@ impl NeoForkServer {
             .set_coredump(afl_debug)
             .setsid();
 
+        let child_reader_fd = child_reader.as_raw_fd();
+        let child_writer_fd = child_writer.as_raw_fd();
+        let host_reader_fd = rx.as_raw_fd();
+        let host_writer_fd = tx.as_raw_fd();
         let bind_pipes = move || {
-            use nix::unistd::dup2;
-            dup2(child_reader.as_raw_fd(), FORKSRV_CTL_FD)
-                .map_err(|_| io::Error::last_os_error())?;
-            dup2(child_writer.as_raw_fd(), FORKSRV_ST_FD)
-                .map_err(|_| io::Error::last_os_error())?;
+            use nix::unistd::{close, dup2};
+            dup2(child_reader_fd, FORKSRV_CTL_FD).map_err(|_| io::Error::last_os_error())?;
+            dup2(child_writer_fd, FORKSRV_ST_FD).map_err(|_| io::Error::last_os_error())?;
+            close(child_reader_fd).map_err(|_| io::Error::last_os_error())?;
+            close(child_writer_fd).map_err(|_| io::Error::last_os_error())?;
+            close(host_reader_fd).map_err(|_| io::Error::last_os_error())?;
+            close(host_writer_fd).map_err(|_| io::Error::last_os_error())?;
             Ok(())
         };
         unsafe { command.pre_exec(bind_pipes) };
@@ -365,13 +373,15 @@ impl NeoForkServer {
         readfds.insert(st_read);
         // We'll pass a copied timeout to keep the original timeout intact,
         // because select updates timeout to indicate how much time was left. See select(2)
+        let mut sigset = SigSet::empty();
+        sigset.add(Signal::SIGINT);
         let sret = nix::sys::select::pselect(
             None,
             &mut readfds,
             None,
             None,
             Some(timeout),
-            Some(&SigSet::all()),
+            Some(&sigset),
         )?;
         if sret > 0 {
             let mut buf: [u8; 4] = [0_u8; 4];

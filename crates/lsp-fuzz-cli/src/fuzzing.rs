@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use clap::builder::BoolishValueParser;
 use nix::sys::signal::Signal;
 
-use crate::cli::parse_size;
+use crate::cli::{parse_hash_map, parse_size};
 
 #[derive(Debug, Clone)]
 pub struct FuzzerStateDir(PathBuf);
@@ -33,6 +33,11 @@ pub struct ExecutorOptions {
     /// Arguments to pass to the child process.
     #[clap(long)]
     pub target_args: Vec<String>,
+
+    /// Environment variables to pass to the child process.
+    /// Format: KEY=VALUE
+    #[clap(long, value_parser = parse_hash_map::<String, String>, default_value = "")]
+    pub target_env: HashMap<String, String>,
 
     /// Size of the coverage map.
     #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size)]

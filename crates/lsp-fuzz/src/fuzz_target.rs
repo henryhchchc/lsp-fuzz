@@ -59,6 +59,8 @@ impl TargetBinaryInfo {
         binary: &Path,
         shmem_provider: &mut impl ShMemProvider,
         static_info: StaticTargetBinaryInfo,
+        afl_debug: bool,
+        debug_child_output: bool,
     ) -> Result<Self, anyhow::Error> {
         if !static_info.is_afl_instrumented {
             bail!("Target is not instruemented by AFL++");
@@ -76,8 +78,8 @@ impl TargetBinaryInfo {
             persistent_fuzzing: static_info.is_persistent_mode,
             deferred: static_info.is_defer_fork_server,
             coverage_map_info: Some((mock_shmem.id(), MOCK_SHMEM_SIZE)),
-            afl_debug: false,
-            debug_output: false,
+            afl_debug,
+            debug_output: debug_child_output,
             kill_signal: nix::sys::signal::Signal::SIGKILL,
         };
         let mut fork_server = NeoForkServer::new(opts).context("Creating fork server")?;

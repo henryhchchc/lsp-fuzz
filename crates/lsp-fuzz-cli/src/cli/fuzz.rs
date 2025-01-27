@@ -114,6 +114,8 @@ impl FuzzCommand {
             &self.execution.lsp_executable,
             &mut shmem_provider,
             binary_info,
+            self.execution.debug_afl,
+            self.execution.debug_child,
         )?;
 
         if binary_info.is_persistent_mode {
@@ -285,6 +287,7 @@ impl FuzzCommand {
             crash_exit_code: self.execution.crash_exit_code,
             timeout: Duration::from_millis(self.execution.timeout).into(),
             kill_signal: self.execution.kill_signal,
+            env: self.execution.target_env
         };
 
         let workspace_observer = WorkspaceObserver;
