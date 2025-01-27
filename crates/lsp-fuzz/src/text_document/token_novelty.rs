@@ -50,10 +50,11 @@ where
             .filter_map(|it| it.1.as_source_file())
             .next()
             .afl_context("No text document found")?;
-        let Some(parse_tree) = text_document.parse_tree() else {
-            // TODO: Maybe return an error here?
-            return Ok(false);
-        };
+        let parse_tree = text_document
+            .parse_tree()
+            .ok_or(libafl::Error::illegal_state(
+                "Assumption violated: parse tree should be available upon token novelty evaluation",
+            ))?;
         let seen_hashes = state.metadata_or_insert_with(SeenTokenHashes::default);
         if let Some(token_hashes) = hash_paths(parse_tree, self.max_depth) {
             let is_interesting = seen_hashes.update(text_document.language, token_hashes);
