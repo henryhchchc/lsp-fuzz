@@ -10,7 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
-        use crate::lsp::{LspMessage, MessageParam, LocalizeToWorkspace};
+        use crate::lsp::{LspMessage, MessageParam};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -79,16 +79,6 @@ macro_rules! lsp_messages {
             {
                 M::Params::into_message(params)
             }
-
-            pub fn with_workspace_dir(mut self, workspace_dir: &str) -> Self {
-                match self {
-                    $(
-                        $( Self::$req_variant(ref mut params) => params.localize(workspace_dir) )?
-                        $( Self::$not_variant(ref mut params) => params.localize(workspace_dir) )?
-                    ),*
-                };
-                self
-            }
         }
 
         $(
@@ -154,28 +144,6 @@ macro_rules! append_randoms {
     };
 }
 
-/// Implements the `LocalizeToWorkspace` trait for the given type
-/// by calling the `localize` method on the specified fields of the type.
-macro_rules! impl_localize {
-    (
-        $type: ty
-        $(;
-            $( $field:ident ),*
-        )?
-    ) => {
-        #[automatically_derived]
-        impl LocalizeToWorkspace for $type {
-
-            #[inline]
-            fn localize(&mut self, workspace_dir: &str) {
-                $(
-                    $( self.$field.localize(workspace_dir);)*
-                )?
-            }
-        }
-    };
-}
-
 macro_rules! prop_mutator {
     ($vis: vis impl $mutator_ty_name: ident for $input_ty_name: ident :: $field:ident type $field_ty: ty) => {
         const __OFFSET: usize = ::core::mem::offset_of!($input_ty_name, $field);
@@ -224,6 +192,4 @@ macro_rules! afl_oops {
 }
 
 #[allow(unused_imports)]
-pub(crate) use {
-    afl_oops, append_randoms, const_generators, impl_localize, lsp_messages, prop_mutator,
-};
+pub(crate) use {afl_oops, append_randoms, const_generators, lsp_messages, prop_mutator};

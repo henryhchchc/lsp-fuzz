@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, path::Path, str::FromStr};
+use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, ops::Range, path::Path, str::FromStr};
 
 use derive_new::new as New;
 use libafl::{
@@ -162,19 +162,19 @@ impl LspInput {
         let shutdown = lsp::ClientToServerMessage::Shutdown(());
         let mut bytes = Vec::new();
         let workspace_dir = workspace_dir
-            .to_string_lossy()
-            .trim_end_matches('/')
-            .to_string();
+            .to_str()
+            .expect("`workspace_dir` does not contain valid UTF-8")
+            .trim_end_matches('/');
         for (id, request) in once(init_request)
             .chain(once(initialized_req))
             .chain(did_open_notifications)
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
-            .map(|it| it.with_workspace_dir(&workspace_dir))
             .enumerate()
         {
             let id = Some(id).filter(|_| request.is_request());
-            let (method, params) = request.as_json();
+            let (method, mut params) = request.as_json();
+            localize_json_value(&mut params, workspace_dir);
             let message = JsonRPCMessage::new(id, method.into(), params);
             bytes.extend(message.to_lsp_payload());
         }
@@ -183,6 +183,24 @@ impl LspInput {
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
         self.workspace.write_to_fs(source_dir)
+    }
+}
+
+fn localize_json_value(value: &mut serde_json::Value, workspace_dir: &str) {
+    use serde_json::Value::{Array, Object, String};
+    const LSP_FUZZ_PREFIX: &str = "lsp-fuzz://";
+    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LSP_FUZZ_PREFIX.len();
+    match value {
+        Object(inner) => inner.iter_mut().for_each(|(_, v)| {
+            localize_json_value(v, workspace_dir);
+        }),
+        Array(items) => items.iter_mut().for_each(|item| {
+            localize_json_value(item, workspace_dir);
+        }),
+        String(str_val) if str_val.starts_with(LSP_FUZZ_PREFIX) => {
+            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_dir)
+        }
+        _ => {}
     }
 }
 

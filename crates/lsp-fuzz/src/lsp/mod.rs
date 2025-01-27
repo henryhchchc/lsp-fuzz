@@ -8,8 +8,6 @@ pub mod compositions;
 pub mod generation;
 pub mod json_rpc;
 
-pub mod workspace_localization;
-
 pub trait LspMessage {
     type Params;
     const METHOD: &'static str;
