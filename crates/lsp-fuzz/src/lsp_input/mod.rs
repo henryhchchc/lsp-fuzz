@@ -9,7 +9,7 @@ use libafl::{
     state::{HasCorpus, HasMaxSize, HasRand},
     HasMetadata,
 };
-use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, AsSlice, HasLen, Named};
+use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, HasLen, Named};
 use lsp_types::{InitializedParams, Uri};
 use messages::LspMessages;
 use serde::{Deserialize, Serialize};
@@ -182,17 +182,7 @@ impl LspInput {
     }
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
-        for (path, entry) in self.workspace.iter() {
-            let path = source_dir.join(path);
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let FileSystemEntry::File(document) = entry else {
-                todo!("We created only files currently")
-            };
-            std::fs::write(path, document.target_bytes().as_slice())?;
-        }
-        Ok(())
+        self.workspace.write_to_fs(source_dir)
     }
 }
 
@@ -258,7 +248,6 @@ where
         let ext = rand
             .choose(language.file_extensions())
             .afl_context("The language has no extensions")?;
-        let single_file_name = format!("main.{ext}");
         let whole_programs = grammar
             .start_symbol_fragments()
             .afl_context("The grammar has no whole programs")?;
@@ -267,13 +256,14 @@ where
             .afl_context("The grammar has no whole programs")?;
         let mut text_document = TextDocument::new(document_content.to_vec(), language);
         text_document.generate_parse_tree(grammar);
-        let entry = WorkspaceEntry::SourceFile(text_document);
+
+        let workspace = match language {
+            Language::C | Language::CPlusPlus => c_workspace(text_document, ext),
+            Language::Rust => rust_workspace(text_document, ext),
+        };
         Ok(LspInput {
             messages: LspMessages::default(),
-            workspace: FileSystemDirectory::from([(
-                Utf8Input::new(single_file_name),
-                FileSystemEntry::File(entry),
-            )]),
+            workspace,
         })
     }
 }

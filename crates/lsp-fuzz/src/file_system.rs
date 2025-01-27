@@ -1,6 +1,10 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{
+    collections::VecDeque,
+    path::{Path, PathBuf},
+};
 
-use libafl_bolts::HasLen;
+use libafl::inputs::HasTargetBytes;
+use libafl_bolts::{AsSlice, HasLen};
 use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +54,25 @@ impl<F> FileSystemDirectory<F> {
             .map(|(name, item)| (PathBuf::from(name.as_str()), item))
             .collect();
         FilesIterMut { queue }
+    }
+
+    pub fn write_to_fs(&self, root: &Path) -> std::io::Result<()>
+    where
+        F: HasTargetBytes,
+    {
+        std::fs::create_dir_all(root)?;
+        for (path, entry) in self.iter() {
+            let item_path = root.join(path);
+            match entry {
+                FileSystemEntry::File(file) => {
+                    std::fs::write(item_path, file.target_bytes().as_slice())?;
+                }
+                FileSystemEntry::Directory(dir) => {
+                    dir.write_to_fs(&item_path)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
