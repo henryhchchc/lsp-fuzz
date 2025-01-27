@@ -21,7 +21,7 @@ pub struct StaticTargetBinaryInfo {
     pub uses_address_sanitizer: bool,
 }
 
-const ASAN_INIT_SIGNATURE: &[u8] = b"__asan_init";
+const ASAN_SIGNATURE: &[u8] = b"__asan_";
 const PERSISTENT_MODE_SIGNATURE: &[u8] = b"##SIG_AFL_PERSISTENT##";
 const DEFER_FORK_SERVER_SIGNATURE: &[u8] = b"##SIG_AFL_DEFER_FORKSRV##";
 
@@ -35,7 +35,7 @@ impl StaticTargetBinaryInfo {
         let is_persistent_mode = kmp::kmp_find(PERSISTENT_MODE_SIGNATURE, &file_slice).is_some();
         let is_defer_fork_server =
             kmp::kmp_find(DEFER_FORK_SERVER_SIGNATURE, &file_slice).is_some();
-        let uses_address_sanitizer = kmp::kmp_find(ASAN_INIT_SIGNATURE, &file_slice).is_some();
+        let uses_address_sanitizer = kmp::kmp_find(ASAN_SIGNATURE, &file_slice).is_some();
         Ok(Self {
             is_afl_instrumented,
             is_persistent_mode,
