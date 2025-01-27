@@ -9,7 +9,7 @@ use libafl::{
     state::{HasCorpus, HasMaxSize, HasRand},
     HasMetadata,
 };
-use libafl_bolts::{rands::Rand, AsSlice, HasLen, Named};
+use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, AsSlice, HasLen, Named};
 use lsp_types::{InitializedParams, Uri};
 use messages::LspMessages;
 use serde::{Deserialize, Serialize};
@@ -26,10 +26,68 @@ pub type FileContentInput = BytesInput;
 
 pub mod messages;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WorkspaceEntry {
+    SourceFile(TextDocument),
+    Skeleton(Vec<u8>),
+}
+
+impl WorkspaceEntry {
+    pub const fn as_source_file(&self) -> Option<&TextDocument> {
+        if let WorkspaceEntry::SourceFile(doc) = self {
+            Some(doc)
+        } else {
+            None
+        }
+    }
+
+    pub const fn as_source_file_mut(&mut self) -> Option<&mut TextDocument> {
+        if let WorkspaceEntry::SourceFile(doc) = self {
+            Some(doc)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_skeleton(&self) -> Option<&[u8]> {
+        if let WorkspaceEntry::Skeleton(bytes) = self {
+            Some(bytes.as_slice())
+        } else {
+            None
+        }
+    }
+
+    pub const fn as_skeleton_mut(&mut self) -> Option<&mut Vec<u8>> {
+        if let WorkspaceEntry::Skeleton(bytes) = self {
+            Some(bytes)
+        } else {
+            None
+        }
+    }
+}
+
+impl HasLen for WorkspaceEntry {
+    fn len(&self) -> usize {
+        match self {
+            WorkspaceEntry::SourceFile(doc) => doc.len(),
+            WorkspaceEntry::Skeleton(bytes) => bytes.len(),
+        }
+    }
+}
+
+impl HasTargetBytes for WorkspaceEntry {
+    fn target_bytes(&self) -> OwnedSlice<'_, u8> {
+        match self {
+            WorkspaceEntry::SourceFile(doc) => doc.target_bytes(),
+            WorkspaceEntry::Skeleton(bytes) => bytes.as_slice().into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspInput {
     pub messages: LspMessages,
-    pub source_directory: FileSystemDirectory<TextDocument>,
+    pub workspace: FileSystemDirectory<WorkspaceEntry>,
 }
 
 impl Input for LspInput {
@@ -62,7 +120,7 @@ impl Input for LspInput {
 
 impl HasLen for LspInput {
     fn len(&self) -> usize {
-        self.messages.len() + self.source_directory.len()
+        self.messages.len() + self.workspace.len()
     }
 }
 
@@ -83,20 +141,24 @@ impl LspInput {
             ..Default::default()
         });
         let initialized_req = lsp::ClientToServerMessage::Initialized(InitializedParams {});
-        let Some((path, the_only_doc)) = self.source_directory.iter_files().next() else {
-            unreachable!("We created only files");
-        };
-        let uri = Uri::from_str(&format!("lsp-fuzz://{}", path.display())).unwrap();
-        let did_open_request = {
-            lsp::ClientToServerMessage::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
-                text_document: lsp_types::TextDocumentItem {
-                    uri: uri.clone(),
-                    language_id: the_only_doc.language().lsp_language_id().to_owned(),
-                    version: 1,
-                    text: the_only_doc.to_string_lossy().into_owned(),
-                },
-            })
-        };
+
+        let did_open_notifications = self
+            .workspace
+            .iter_files()
+            .filter_map(|(path, entry)| entry.as_source_file().map(|doc| (path, doc)))
+            .map(|(path, doc)| {
+                let uri = Uri::from_str(&format!("lsp-fuzz://{}", path.display())).unwrap();
+                lsp::ClientToServerMessage::DidOpenTextDocument(
+                    lsp_types::DidOpenTextDocumentParams {
+                        text_document: lsp_types::TextDocumentItem {
+                            uri: uri.clone(),
+                            language_id: doc.language().lsp_language_id().to_owned(),
+                            version: 1,
+                            text: doc.to_string_lossy().into_owned(),
+                        },
+                    },
+                )
+            });
         let shutdown = lsp::ClientToServerMessage::Shutdown(());
         let mut bytes = Vec::new();
         let workspace_dir = workspace_dir
@@ -105,7 +167,7 @@ impl LspInput {
             .to_string();
         for (id, request) in once(init_request)
             .chain(once(initialized_req))
-            .chain(once(did_open_request))
+            .chain(did_open_notifications)
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
             .map(|it| it.with_workspace_dir(&workspace_dir))
@@ -120,7 +182,7 @@ impl LspInput {
     }
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
-        for (path, entry) in self.source_directory.iter() {
+        for (path, entry) in self.workspace.iter() {
             let path = source_dir.join(path);
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -200,14 +262,16 @@ where
         let whole_programs = grammar
             .start_symbol_fragments()
             .afl_context("The grammar has no whole programs")?;
-        let program = rand
+        let document_content = rand
             .choose(whole_programs)
             .afl_context("The grammar has no whole programs")?;
+        let text_document = TextDocument::new(document_content.to_vec(), language);
+        let entry = WorkspaceEntry::SourceFile(text_document);
         Ok(LspInput {
             messages: LspMessages::default(),
-            source_directory: FileSystemDirectory::from([(
+            workspace: FileSystemDirectory::from([(
                 Utf8Input::new(single_file_name),
-                FileSystemEntry::File(TextDocument::new(program.to_vec(), language)),
+                FileSystemEntry::File(entry),
             )]),
         })
     }

@@ -139,12 +139,17 @@ pub mod text_document_selectors {
             state: &mut S,
             input: &'i LspInput,
         ) -> Option<(Uri, &'i TextDocument)> {
-            let iter = input.source_directory.iter_files().map(|(path, doc)| {
-                (
-                    format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
-                    doc,
-                )
-            });
+            let iter = input
+                .workspace
+                .iter_files()
+                .filter_map(|(path, doc)| {
+                    doc.as_source_file().map(|doc| {
+                        (
+                            format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
+                            doc,
+                        )
+                    })
+                });
             state.rand_mut().choose(iter)
         }
 
@@ -152,12 +157,17 @@ pub mod text_document_selectors {
             state: &mut S,
             input: &'i mut LspInput,
         ) -> Option<(Uri, &'i mut TextDocument)> {
-            let iter = input.source_directory.iter_files_mut().map(|(path, doc)| {
-                (
-                    format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
-                    doc,
-                )
-            });
+            let iter = input
+                .workspace
+                .iter_files_mut()
+                .filter_map(|(path, doc)| {
+                    doc.as_source_file_mut().map(|doc| {
+                        (
+                            format!("lsp-fuzz://{}", path.display()).parse().unwrap(),
+                            doc,
+                        )
+                    })
+                });
             state.rand_mut().choose(iter)
         }
     }

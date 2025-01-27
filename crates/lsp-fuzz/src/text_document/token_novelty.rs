@@ -45,9 +45,9 @@ where
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<bool, libafl::Error> {
         let text_document = input
-            .source_directory
+            .workspace
             .iter_files()
-            .map(|it| it.1)
+            .filter_map(|it| it.1.as_source_file())
             .next()
             .afl_context("No text document found")?;
         let Some(parse_tree) = text_document.parse_tree() else {
