@@ -12,26 +12,26 @@ anyhow = { version = "1", features = ["backtrace"] }
 const-str = "0.5"
 ctrlc = "3.4"
 derive_more = { version = "1.0.0", features = [
-    "display",
-    "into_iterator",
-    "constructor",
-    "from_str",
-    "deref",
-    "deref_mut",
-    "from",
-    "into",
+  "display",
+  "into_iterator",
+  "constructor",
+  "from_str",
+  "deref",
+  "deref_mut",
+  "from",
+  "into",
 ] }
 bitflags = "2.6.0"
-derive-new = "0.5"
+derive-new = "0.7"
 indexmap = { version = "2", features = ["serde"] }
 memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = [
-    "errors_backtrace",
-    "casr",
-    # "tui_monitor"
+  "errors_backtrace",
+  "casr",
+  # "tui_monitor"
 ] }
 libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
@@ -40,7 +40,7 @@ rayon = "1"
 serde_cbor = "0.11"
 serde_json = { version = "1", features = ["preserve_order"] }
 static_assertions = "1.1.0"
-thiserror = "1"
+thiserror = "2"
 tracing = "0.1"
 tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
