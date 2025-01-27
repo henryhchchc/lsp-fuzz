@@ -287,7 +287,7 @@ impl FuzzCommand {
             crash_exit_code: self.execution.crash_exit_code,
             timeout: Duration::from_millis(self.execution.timeout).into(),
             kill_signal: self.execution.kill_signal,
-            env: self.execution.target_env
+            env: self.execution.target_env,
         };
 
         let workspace_observer = WorkspaceObserver;

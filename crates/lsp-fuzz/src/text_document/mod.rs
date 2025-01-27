@@ -109,7 +109,11 @@ impl TextDocument {
 
     pub fn generate_parse_tree(&mut self, grammar_context: &GrammarContext) {
         let mut parser = grammar_context.create_parser();
-        self.parse_tree = Some(parser.parse(&self.content, None).expect("Parsing should not fail"));
+        self.parse_tree = Some(
+            parser
+                .parse(&self.content, None)
+                .expect("Parsing should not fail"),
+        );
     }
 
     fn update_parse_tree(

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capabilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
-    text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
+    text_document::{GrammarBasedMutation, GrammarContextLookup, Language, TextDocument},
     utf8::Utf8Input,
     utils::AflContext,
 };
@@ -266,4 +266,36 @@ where
             workspace,
         })
     }
+}
+
+fn c_workspace(doc: TextDocument, extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
+    FileSystemDirectory::from([(
+        Utf8Input::new(format!("main.{extension}")),
+        FileSystemEntry::File(WorkspaceEntry::SourceFile(doc)),
+    )])
+}
+
+const CARGO_TOML: &str = r#"
+[package]
+name = "test_pkg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+"#;
+
+fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
+    FileSystemDirectory::from([
+        (
+            Utf8Input::new("Cargo.toml".to_owned()),
+            FileSystemEntry::File(WorkspaceEntry::Skeleton(CARGO_TOML.as_bytes().to_vec())),
+        ),
+        (
+            Utf8Input::new("src".to_owned()),
+            FileSystemEntry::Directory(FileSystemDirectory::from([(
+                Utf8Input::new("lib.rs".to_owned()),
+                FileSystemEntry::File(WorkspaceEntry::SourceFile(doc)),
+            )])),
+        ),
+    ])
 }

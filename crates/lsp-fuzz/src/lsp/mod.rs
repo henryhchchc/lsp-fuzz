@@ -39,4 +39,3 @@ pub trait Compose {
 
     fn compose(components: Self::Components) -> Self;
 }
-
