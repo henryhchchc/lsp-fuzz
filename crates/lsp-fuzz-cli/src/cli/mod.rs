@@ -92,6 +92,9 @@ where
     <V as FromStr>::Err: std::error::Error + Send + Sync + 'static,
 {
     let mut result = HashMap::new();
+    if s.is_empty() {
+        return Ok(result);
+    }
     for pair in s.split(',') {
         let (key, value) = pair.split_once('=').context("Splitting key and value")?;
         let key = key.parse().context("Parsing key")?;
