@@ -163,8 +163,13 @@ impl LspInput {
         let mut bytes = Vec::new();
         let workspace_dir = workspace_dir
             .to_str()
-            .expect("`workspace_dir` does not contain valid UTF-8")
-            .trim_end_matches('/');
+            .expect("`workspace_dir` does not contain valid UTF-8");
+        let workspace_dir = if workspace_dir.ends_with('/') {
+            Cow::Borrowed(workspace_dir)
+        } else {
+            Cow::Owned(format!("{}/", workspace_dir))
+        };
+        let workspace_uri = format!("file://{workspace_dir}");
         for (id, request) in once(init_request)
             .chain(once(initialized_req))
             .chain(did_open_notifications)
@@ -174,7 +179,7 @@ impl LspInput {
         {
             let id = Some(id).filter(|_| request.is_request());
             let (method, mut params) = request.as_json();
-            localize_json_value(&mut params, workspace_dir);
+            localize_json_value(&mut params, &workspace_uri);
             let message = JsonRPCMessage::new(id, method.into(), params);
             bytes.extend(message.to_lsp_payload());
         }
@@ -186,19 +191,20 @@ impl LspInput {
     }
 }
 
-fn localize_json_value(value: &mut serde_json::Value, workspace_dir: &str) {
+fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
+    assert!(workspace_uri.ends_with('/'));
     use serde_json::Value::{Array, Object, String};
     const LSP_FUZZ_PREFIX: &str = "lsp-fuzz://";
     const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LSP_FUZZ_PREFIX.len();
     match value {
         Object(inner) => inner.iter_mut().for_each(|(_, v)| {
-            localize_json_value(v, workspace_dir);
+            localize_json_value(v, workspace_uri);
         }),
         Array(items) => items.iter_mut().for_each(|item| {
-            localize_json_value(item, workspace_dir);
+            localize_json_value(item, workspace_uri);
         }),
         String(str_val) if str_val.starts_with(LSP_FUZZ_PREFIX) => {
-            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_dir)
+            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri)
         }
         _ => {}
     }
@@ -316,4 +322,44 @@ fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<Wo
             )])),
         ),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_localization() {
+        let mut value = serde_json::json!({
+            "uri": "lsp-fuzz://path/to/file",
+            "other_attr": {
+                "uri": "lsp-fuzz://path/to/other_file"
+            },
+            "some_arr": [
+                "lsp-fuzz://path/to/element",
+            ],
+            "other_arr": [
+                {
+                    "uri": "lsp-fuzz://path/to/element",
+                }
+            ]
+        });
+        super::localize_json_value(&mut value, "/path/to/workspace_dir/");
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "uri": "file:///path/to/workspace_dir/path/to/file",
+                "other_attr": {
+                    "uri": "file:///path/to/workspace_dir/path/to/other_file"
+                },
+                "some_arr": [
+                    "file:///path/to/workspace_dir/path/to/element",
+                ],
+                "other_arr": [
+                    {
+                        "uri": "file:///path/to/workspace_dir/path/to/element",
+                    }
+                ]
+            })
+        );
+    }
 }
