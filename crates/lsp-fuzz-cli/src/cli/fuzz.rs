@@ -6,7 +6,7 @@ use anyhow::{bail, Context};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus},
+    corpus::{ondisk::OnDiskMetadataFormat, Corpus, InMemoryOnDiskCorpus},
     events::{EventFirer, SimpleEventManager},
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
@@ -188,10 +188,13 @@ impl FuzzCommand {
         );
 
         let corpus =
-            InMemoryOnDiskCorpus::new(self.state.corpus_dir()).context("Creating corpus")?;
+            InMemoryOnDiskCorpus::no_meta(self.state.corpus_dir()).context("Creating corpus")?;
 
-        let solutions = InMemoryOnDiskCorpus::new(self.state.solution_dir())
-            .context("Creating solution corpus")?;
+        let solutions = InMemoryOnDiskCorpus::with_meta_format(
+            self.state.solution_dir(),
+            Some(OnDiskMetadataFormat::JsonGzip),
+        )
+        .context("Creating solution corpus")?;
 
         let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
         let mut state = StdState::new(
