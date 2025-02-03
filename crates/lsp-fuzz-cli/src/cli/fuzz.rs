@@ -246,7 +246,15 @@ impl FuzzCommand {
             };
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
             let (tx, rx) = mpsc::channel();
+
+            let mut is_contgrol_c_pressed = false;
             ctrlc::try_set_handler(move || {
+                if is_contgrol_c_pressed {
+                    info!("Control-C pressed again. Exiting immediately.");
+                    const EXIT_CODE: i32 = 128 + (nix::sys::signal::SIGINT as i32);
+                    std::process::exit(EXIT_CODE);
+                }
+                is_contgrol_c_pressed = true;
                 info!("Control-C pressed. The fuzzer will stop after this cycle.");
                 tx.send(()).expect("Failed to send stop signal");
             })
