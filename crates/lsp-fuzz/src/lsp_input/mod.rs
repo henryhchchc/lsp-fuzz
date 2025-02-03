@@ -1,4 +1,6 @@
-use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, ops::Range, path::Path, str::FromStr};
+use std::{
+    borrow::Cow, fs::File, io::BufWriter, iter::once, mem, ops::Range, path::Path, str::FromStr,
+};
 
 use derive_new::new as New;
 use libafl::{
@@ -126,7 +128,43 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        #[allow(deprecated, reason = "rust-analyzer uses root_uri")]
+        let message_sequence = self.message_sequence(workspace_dir);
+
+        let workspace_dir = workspace_dir
+            .to_str()
+            .expect("`workspace_dir` does not contain valid UTF-8");
+        let workspace_dir = if workspace_dir.ends_with('/') {
+            Cow::Borrowed(workspace_dir)
+        } else {
+            Cow::Owned(format!("{}/", workspace_dir))
+        };
+        let workspace_uri = format!("file://{workspace_dir}");
+
+        let mut id = 0;
+        let bytes: Vec<_> = message_sequence
+            .flat_map(|msg| {
+                let id = msg.is_request().then(|| {
+                    let new_id = id + 1;
+                    mem::replace(&mut id, new_id)
+                });
+                let (method, mut params) = msg.as_json();
+                localize_json_value(&mut params, &workspace_uri);
+                let message = JsonRPCMessage::new(id, method.into(), params);
+                message.to_lsp_payload()
+            })
+            .collect();
+
+        bytes
+    }
+
+    fn message_sequence(
+        &self,
+        workspace_dir: &Path,
+    ) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
+        #[allow(
+            deprecated,
+            reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
+        )]
         let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
             root_uri: Some("lsp-fuzz://".parse().unwrap()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
@@ -160,30 +198,14 @@ impl LspInput {
                 )
             });
         let shutdown = lsp::ClientToServerMessage::Shutdown(());
-        let mut bytes = Vec::new();
-        let workspace_dir = workspace_dir
-            .to_str()
-            .expect("`workspace_dir` does not contain valid UTF-8");
-        let workspace_dir = if workspace_dir.ends_with('/') {
-            Cow::Borrowed(workspace_dir)
-        } else {
-            Cow::Owned(format!("{}/", workspace_dir))
-        };
-        let workspace_uri = format!("file://{workspace_dir}");
-        for (id, request) in once(init_request)
+        let exit = lsp::ClientToServerMessage::Exit(());
+
+        once(init_request)
             .chain(once(initialized_req))
             .chain(did_open_notifications)
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
-            .enumerate()
-        {
-            let id = Some(id).filter(|_| request.is_request());
-            let (method, mut params) = request.as_json();
-            localize_json_value(&mut params, &workspace_uri);
-            let message = JsonRPCMessage::new(id, method.into(), params);
-            bytes.extend(message.to_lsp_payload());
-        }
-        bytes
+            .chain(once(exit))
     }
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
@@ -299,20 +321,40 @@ fn c_workspace(doc: TextDocument, extension: &str) -> FileSystemDirectory<Worksp
     )])
 }
 
-const CARGO_TOML: &str = r#"
-[package]
-name = "test_pkg"
-version = "0.1.0"
-edition = "2021"
+// const CARGO_TOML: &str = r#"
+// [package]
+// name = "test_pkg"
+// version = "0.1.0"
+// edition = "2021"
 
-[dependencies]
+// [dependencies]
+// "#;
+
+// rust-analyzer runs faster when configured with a `rust-project.json` file.
+const RUST_PROJECT_JSON: &str = r#"
+{
+    "sysroot_src": "/root/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library",
+    "crates": [
+        {
+            "root_module": "src/lib.rs",
+            "edition": "2021",
+            "deps": [],
+        },
+    ]
+}
 "#;
 
 fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
     FileSystemDirectory::from([
+        // (
+        //     Utf8Input::new("Cargo.toml".to_owned()),
+        //     FileSystemEntry::File(WorkspaceEntry::Skeleton(CARGO_TOML.as_bytes().to_vec())),
+        // ),
         (
-            Utf8Input::new("Cargo.toml".to_owned()),
-            FileSystemEntry::File(WorkspaceEntry::Skeleton(CARGO_TOML.as_bytes().to_vec())),
+            Utf8Input::new("rust-project.json".to_owned()),
+            FileSystemEntry::File(WorkspaceEntry::Skeleton(
+                RUST_PROJECT_JSON.as_bytes().to_vec(),
+            )),
         ),
         (
             Utf8Input::new("src".to_owned()),
@@ -343,7 +385,7 @@ mod tests {
                 }
             ]
         });
-        super::localize_json_value(&mut value, "/path/to/workspace_dir/");
+        super::localize_json_value(&mut value, "file:///path/to/workspace_dir/");
         assert_eq!(
             value,
             serde_json::json!({

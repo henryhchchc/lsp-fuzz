@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{bail, Context};
 use libafl_bolts::shmem::{ShMem, ShMemId, ShMemProvider};
-use memmap2::MmapOptions;
+use memmap2::Mmap;
 
 use crate::{
     afl,
@@ -29,7 +29,7 @@ impl StaticTargetBinaryInfo {
     pub fn scan(binary: &Path) -> io::Result<Self> {
         let binary_file = File::open(binary)?;
         // SAFETY: We are assuming that the file is not touched externally
-        let file_slice = unsafe { MmapOptions::new().map(&binary_file) }?;
+        let file_slice = unsafe { Mmap::map(&binary_file) }?;
         let is_afl_instrumented =
             kmp::kmp_find(afl::SHMEM_ADDR_ENV.as_bytes(), &file_slice).is_some();
         let is_persistent_mode = kmp::kmp_find(PERSISTENT_MODE_SIGNATURE, &file_slice).is_some();
