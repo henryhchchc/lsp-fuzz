@@ -41,7 +41,9 @@ impl DerivationGrammar {
                 Terminal::Named(rule.name.clone())
             }
             VariableType::Hidden => {
-                todo!("Figure out what hidden terminals are")
+                // eprintln!("Rule: {:?}\nAlias:{:?}", rule, alias);
+                // todo!("Figure out what hidden terminals are")
+                Terminal::Named(rule.name.clone())
             }
         }
     }

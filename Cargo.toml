@@ -12,14 +12,14 @@ anyhow = { version = "1", features = ["backtrace"] }
 const-str = "0.5"
 ctrlc = "3.4"
 derive_more = { version = "1.0.0", features = [
-  "display",
-  "into_iterator",
-  "constructor",
-  "from_str",
-  "deref",
-  "deref_mut",
-  "from",
-  "into",
+    "display",
+    "into_iterator",
+    "constructor",
+    "from_str",
+    "deref",
+    "deref_mut",
+    "from",
+    "into",
 ] }
 bitflags = "2.6.0"
 derive-new = "0.7"
@@ -29,9 +29,9 @@ ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = [
-  "errors_backtrace",
-  "casr",
-  # "tui_monitor"
+    "errors_backtrace",
+    "casr",
+    # "tui_monitor"
 ] }
 libafl_bolts = { version = "0.*" }
 lsp-types = { version = "0", features = ["hash"] }
@@ -48,6 +48,7 @@ num_cpus = "1.16"
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
 tree-sitter-rust = "0"
+tree-sitter-toml-ng = "0"
 rustversion = "1"
 
 [patch.crates-io]

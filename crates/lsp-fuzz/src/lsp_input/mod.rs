@@ -304,8 +304,8 @@ where
         text_document.generate_parse_tree(grammar);
 
         let workspace = match language {
-            Language::C | Language::CPlusPlus => c_workspace(text_document, ext),
             Language::Rust => rust_workspace(text_document, ext),
+            _ => main_file_workspace(text_document, ext),
         };
         Ok(LspInput {
             messages: LspMessages::default(),
@@ -314,7 +314,7 @@ where
     }
 }
 
-fn c_workspace(doc: TextDocument, extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
+fn main_file_workspace(doc: TextDocument, extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
     FileSystemDirectory::from([(
         Utf8Input::new(format!("main.{extension}")),
         FileSystemEntry::File(WorkspaceEntry::SourceFile(doc)),

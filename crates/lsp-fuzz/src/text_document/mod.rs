@@ -27,6 +27,7 @@ pub enum Language {
     C,
     CPlusPlus,
     Rust,
+    Toml
 }
 
 pub mod language;

@@ -8,6 +8,7 @@ impl Language {
             Self::C => BTreeSet::from(["c", "cc", "h"]),
             Self::CPlusPlus => BTreeSet::from(["cpp", "cxx", "hpp"]),
             Self::Rust => BTreeSet::from(["rs"]),
+            Self::Toml => BTreeSet::from(["toml"]),
         }
     }
 
@@ -24,6 +25,7 @@ impl Language {
             Self::C => tree_sitter_c::LANGUAGE,
             Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
             Self::Rust => tree_sitter_rust::LANGUAGE,
+            Self::Toml => tree_sitter_toml_ng::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -33,6 +35,7 @@ impl Language {
             Self::C => super::grammars::C_GRAMMAR_JSON,
             Self::CPlusPlus => super::grammars::CPP_GRAMMAR_JSON,
             Self::Rust => super::grammars::RUST_GRAMMAR_JSON,
+            Self::Toml => super::grammars::TOML_GRAMMAR_JSON,
         }
     }
 
@@ -41,6 +44,7 @@ impl Language {
             Self::C => "c",
             Self::CPlusPlus => "cpp",
             Self::Rust => "rust",
+            Self::Toml => "toml",
         }
     }
 }

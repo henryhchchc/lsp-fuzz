@@ -33,11 +33,13 @@ static_assertions.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 trait-gen = "0.3.2"
-tree-sitter = { version = "0.24.3" }
+tree-sitter = { version = "0.25" }
 tree-sitter-c.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-rust.workspace = true
+tree-sitter-toml-ng.workspace = true
 tuple_list.workspace = true
+zstd.workspace = true
 
 [features]
 profiling = ["libafl/introspection"]
