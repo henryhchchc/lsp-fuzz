@@ -26,8 +26,9 @@ pub const LINE_SEP: u8 = b'\n';
 pub enum Language {
     C,
     CPlusPlus,
+    JavaScript,
     Rust,
-    Toml
+    Toml,
 }
 
 pub mod language;

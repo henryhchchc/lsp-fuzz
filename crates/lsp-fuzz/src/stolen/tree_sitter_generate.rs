@@ -37,8 +37,15 @@ impl DerivationGrammar {
                 }
             }
             VariableType::Named => {
-                assert!(alias.is_none());
-                Terminal::Named(rule.name.clone())
+                if let Some(alias) = alias {
+                    if alias.is_named {
+                        Terminal::Named(alias.value.clone())
+                    } else {
+                        Terminal::Immediate(alias.value.clone().into_bytes())
+                    }
+                } else {
+                    Terminal::Named(rule.name.clone())
+                }
             }
             VariableType::Hidden => {
                 // eprintln!("Rule: {:?}\nAlias:{:?}", rule, alias);

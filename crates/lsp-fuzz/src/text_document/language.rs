@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
-use super::Language;
+use super::{grammars::GrammarJson, Language};
 
 impl Language {
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
         match self {
             Self::C => BTreeSet::from(["c", "cc", "h"]),
             Self::CPlusPlus => BTreeSet::from(["cpp", "cxx", "hpp"]),
+            Self::JavaScript => BTreeSet::from(["js"]),
             Self::Rust => BTreeSet::from(["rs"]),
             Self::Toml => BTreeSet::from(["toml"]),
         }
@@ -24,6 +25,7 @@ impl Language {
         let lang_fn = match self {
             Self::C => tree_sitter_c::LANGUAGE,
             Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
+            Self::JavaScript => tree_sitter_javascript::LANGUAGE,
             Self::Rust => tree_sitter_rust::LANGUAGE,
             Self::Toml => tree_sitter_toml_ng::LANGUAGE,
         };
@@ -32,10 +34,11 @@ impl Language {
 
     pub const fn grammar_json<'a>(&self) -> &'a str {
         match self {
-            Self::C => super::grammars::C_GRAMMAR_JSON,
-            Self::CPlusPlus => super::grammars::CPP_GRAMMAR_JSON,
-            Self::Rust => super::grammars::RUST_GRAMMAR_JSON,
-            Self::Toml => super::grammars::TOML_GRAMMAR_JSON,
+            Self::C => GrammarJson::C,
+            Self::CPlusPlus => GrammarJson::CPP,
+            Self::JavaScript => GrammarJson::JAVASCRIPT,
+            Self::Rust => GrammarJson::RUST,
+            Self::Toml => GrammarJson::TOML,
         }
     }
 
@@ -43,6 +46,7 @@ impl Language {
         match self {
             Self::C => "c",
             Self::CPlusPlus => "cpp",
+            Self::JavaScript => "javascript",
             Self::Rust => "rust",
             Self::Toml => "toml",
         }

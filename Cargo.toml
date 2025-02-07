@@ -47,6 +47,7 @@ zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 num_cpus = "1.16"
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
+tree-sitter-javascript = "0"
 tree-sitter-rust = "0"
 tree-sitter-toml-ng = "0"
 rustversion = "1"
