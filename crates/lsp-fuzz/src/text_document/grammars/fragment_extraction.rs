@@ -208,7 +208,7 @@ mod test {
 
     const int x = 42;
 
-    int main(int argc, char *argv[] "\n") {
+    int main(int argc, char *argv[]) {
         printf("Hello, world!\n");
         return 0;
     }
@@ -220,6 +220,7 @@ mod test {
         let lang = tree_sitter_c::LANGUAGE.into();
         parser.set_language(&lang).unwrap();
         let fragments = extract_derivation_fragments(C_CODE.as_bytes(), &mut parser).unwrap();
+        eprintln!("{:?}", fragments);
         for key in [
             "translation_unit",
             "function_definition",

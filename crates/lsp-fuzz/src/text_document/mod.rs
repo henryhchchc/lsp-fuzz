@@ -27,6 +27,7 @@ pub enum Language {
     C,
     CPlusPlus,
     JavaScript,
+    Ruby,
     Rust,
     Toml,
 }

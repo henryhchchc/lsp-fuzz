@@ -8,6 +8,7 @@ impl Language {
             Self::C => BTreeSet::from(["c", "cc", "h"]),
             Self::CPlusPlus => BTreeSet::from(["cpp", "cxx", "hpp"]),
             Self::JavaScript => BTreeSet::from(["js"]),
+            Self::Ruby => BTreeSet::from(["rb"]),
             Self::Rust => BTreeSet::from(["rs"]),
             Self::Toml => BTreeSet::from(["toml"]),
         }
@@ -26,6 +27,7 @@ impl Language {
             Self::C => tree_sitter_c::LANGUAGE,
             Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
             Self::JavaScript => tree_sitter_javascript::LANGUAGE,
+            Self::Ruby => tree_sitter_ruby::LANGUAGE,
             Self::Rust => tree_sitter_rust::LANGUAGE,
             Self::Toml => tree_sitter_toml_ng::LANGUAGE,
         };
@@ -37,6 +39,7 @@ impl Language {
             Self::C => GrammarJson::C,
             Self::CPlusPlus => GrammarJson::CPP,
             Self::JavaScript => GrammarJson::JAVASCRIPT,
+            Self::Ruby => GrammarJson::RUBY,
             Self::Rust => GrammarJson::RUST,
             Self::Toml => GrammarJson::TOML,
         }
@@ -47,6 +50,7 @@ impl Language {
             Self::C => "c",
             Self::CPlusPlus => "cpp",
             Self::JavaScript => "javascript",
+            Self::Ruby => "ruby",
             Self::Rust => "rust",
             Self::Toml => "toml",
         }
