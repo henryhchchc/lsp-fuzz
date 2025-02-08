@@ -5,12 +5,11 @@ use std::{
 };
 
 use derive_new::new as New;
-use itertools::Itertools;
 use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
 use libafl_bolts::rands::Rand;
 use lsp_types::{
-    CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range,
-    SignatureHelpTriggerKind, TextDocumentIdentifier,
+    CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range, SetTraceParams,
+    SignatureHelpTriggerKind, TextDocumentIdentifier, TraceValue,
 };
 
 use crate::{
@@ -73,11 +72,11 @@ where
 }
 
 #[derive(Debug)]
-pub struct DefaultGenerator<S, T> {
-    _phantom: PhantomData<(S, T)>,
+pub struct DefaultGenerator<T> {
+    _phantom: PhantomData<T>,
 }
 
-impl<S, T> DefaultGenerator<S, T> {
+impl<T> DefaultGenerator<T> {
     pub const fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -85,19 +84,19 @@ impl<S, T> DefaultGenerator<S, T> {
     }
 }
 
-impl<S, T> Default for DefaultGenerator<S, T> {
+impl<T> Default for DefaultGenerator<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S, T> Clone for DefaultGenerator<S, T> {
+impl<T> Clone for DefaultGenerator<T> {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<S, T> LspParamsGenerator<S> for DefaultGenerator<S, T>
+impl<S, T> LspParamsGenerator<S> for DefaultGenerator<T>
 where
     T: Default,
 {
@@ -204,17 +203,16 @@ where
 {
     type Generator = CompositionGenerator<T1::Generator, T2::Generator, Self>;
 
-    fn generators() -> Vec<Self::Generator>
+    fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
         S: 'static,
     {
         let t1_generators = T1::generators();
-        let t2_generators = T2::generators();
-        t1_generators
-            .into_iter()
-            .cartesian_product(t2_generators)
-            .map(|(g1, g2)| CompositionGenerator::new(g1, g2))
-            .collect()
+        t1_generators.into_iter().flat_map(|g1| {
+            T2::generators()
+                .into_iter()
+                .map(move |g2| CompositionGenerator::new(g1.clone(), g2.clone()))
+        })
     }
 }
 
@@ -261,9 +259,17 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Default)]
 pub struct TokensGenerator<T> {
     _phantom: PhantomData<T>,
+}
+
+impl<T> TokensGenerator<T> {
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S> LspParamsGenerator<S> for TokensGenerator<String>
@@ -323,7 +329,7 @@ where
 {
     type Generator = RangeInDocGenerator<S, RandomDoc<S>>;
 
-    fn generators() -> Vec<Self::Generator>
+    fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
         S: 'static,
     {
@@ -344,11 +350,7 @@ where
                 end: start,
             }
         };
-        vec![
-            RangeInDocGenerator::<S, RandomDoc<S>>::new(whole_range),
-            RangeInDocGenerator::<S, RandomDoc<S>>::new(after_range),
-            RangeInDocGenerator::<S, RandomDoc<S>>::new(inverted_range),
-        ]
+        [whole_range, after_range, inverted_range].map(RangeInDocGenerator::new)
     }
 }
 
@@ -379,4 +381,10 @@ const_generators!(for SignatureHelpTriggerKind => [
     SignatureHelpTriggerKind::INVOKED,
     SignatureHelpTriggerKind::TRIGGER_CHARACTER,
     SignatureHelpTriggerKind::CONTENT_CHANGE
+]);
+
+const_generators!(for SetTraceParams => [
+    SetTraceParams { value: TraceValue::Messages },
+    SetTraceParams { value: TraceValue::Off },
+    SetTraceParams { value: TraceValue::Verbose }
 ]);

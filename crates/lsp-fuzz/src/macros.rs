@@ -162,17 +162,22 @@ macro_rules! prop_mutator {
 }
 
 macro_rules! const_generators {
+    (one $val: expr) => {1};
     (for $type: ty => [
         $($val: expr),*
     ]) => {
         impl<S> HasPredefinedGenerators<S> for $type {
-            type Generator = ConstGenerator<Self>;
+            type Generator = &'static ConstGenerator<Self>;
 
-            fn generators() -> Vec<Self::Generator>
+            fn generators() -> impl IntoIterator<Item = Self::Generator>
             where
                 S: 'static,
             {
-                [ $($val),* ].into_iter().map(ConstGenerator::new).collect()
+                const COUNT: usize = { 0 $( + const_generators!(one $val))* };
+                static GENERATORS: [ConstGenerator<$type>; COUNT] = [
+                    $(ConstGenerator::new($val)),*
+                ];
+                &GENERATORS
             }
         }
     };

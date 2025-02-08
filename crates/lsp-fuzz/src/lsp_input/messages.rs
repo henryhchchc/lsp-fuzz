@@ -1,4 +1,6 @@
-use std::{any::type_name, borrow::Cow, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{
+    any::type_name, borrow::Cow, fmt::Debug, iter::once, marker::PhantomData, rc::Rc, sync::Arc,
+};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -206,10 +208,10 @@ use lsp_types::*;
         WorkspaceSymbol,
 )]
 impl<S> HasPredefinedGenerators<S> for P {
-    type Generator = Box<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = Arc<dyn LspParamsGenerator<S, Output = Self>>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        []
     }
 }
 
@@ -221,10 +223,10 @@ impl<S> HasPredefinedGenerators<S> for P {
     serde_json::Value,
 )]
 impl<S: 'static> HasPredefinedGenerators<S> for P {
-    type Generator = DefaultGenerator<S, Self>;
+    type Generator = DefaultGenerator<Self>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![DefaultGenerator::new()]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        [DefaultGenerator::new()]
     }
 }
 
@@ -234,8 +236,8 @@ where
 {
     type Generator = ConstGenerator<Self>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![ConstGenerator::new(false), ConstGenerator::new(true)]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        [ConstGenerator::new(false), ConstGenerator::new(true)]
     }
 }
 
@@ -245,8 +247,8 @@ where
 {
     type Generator = TextDocumentIdentifierGenerator<RandomDoc<S>>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![TextDocumentIdentifierGenerator::<RandomDoc<S>>::new()]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        [TextDocumentIdentifierGenerator::<RandomDoc<S>>::new()]
     }
 }
 
@@ -256,8 +258,8 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        let result: [Self::Generator; 4] = [
             Rc::new(TextDocumentPositionParamsGenerator::<
                 RandomDoc<S>,
                 RandomPosition,
@@ -274,22 +276,8 @@ where
                 RandomDoc<S>,
                 HotspotPosition,
             >::new()),
-        ]
-    }
-}
-
-impl<S> HasPredefinedGenerators<S> for SetTraceParams {
-    type Generator = ConstGenerator<Self>;
-
-    fn generators() -> Vec<Self::Generator>
-    where
-        S: 'static,
-    {
-        [TraceValue::Messages, TraceValue::Off, TraceValue::Verbose]
-            .into_iter()
-            .map(|value| Self { value })
-            .map(ConstGenerator::new)
-            .collect()
+        ];
+        result
     }
 }
 
@@ -301,14 +289,14 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
 
-    fn generators() -> Vec<Self::Generator> {
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
         let left_gen = A::generators()
             .into_iter()
             .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Left)) as _);
         let right_gen = B::generators()
             .into_iter()
             .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Right)) as _);
-        left_gen.chain(right_gen).collect()
+        left_gen.chain(right_gen)
     }
 }
 
@@ -353,14 +341,15 @@ impl<S, T> HasPredefinedGenerators<S> for Option<T>
 where
     S: 'static,
     T: HasPredefinedGenerators<S> + 'static,
+    T::Generator: Clone,
 {
     type Generator = OptionGenerator<S, T>;
 
-    fn generators() -> Vec<Self::Generator> {
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
         T::generators()
             .into_iter()
-            .flat_map(|g| [OptionGenerator::new(None), OptionGenerator::new(Some(g))])
-            .collect()
+            .flat_map(|g| [OptionGenerator::new(Some(g))])
+            .chain(once(OptionGenerator::new(None)))
     }
 }
 
@@ -368,19 +357,25 @@ impl<S> HasPredefinedGenerators<S> for String
 where
     S: HasRand + HasMetadata + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = &'static dyn LspParamsGenerator<S, Output = Self>;
 
-    fn generators() -> Vec<Self::Generator> {
-        vec![
-            Rc::new(DefaultGenerator::new()) as _,
-            Rc::new(TokensGenerator::<Self>::new()) as _,
-        ]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
+        static TOKENS: TokensGenerator<String> = TokensGenerator::new();
+        [&DEFAULT as _, &TOKENS as _]
     }
 }
 
-#[derive(Debug, Clone, New)]
+#[derive(Debug, Clone)]
 pub struct VecGenerator<G, const MAX_ITEMS: usize = 5> {
     element_generators: Vec<G>,
+}
+
+impl<G, const MAX_ITEMS: usize> VecGenerator<G, MAX_ITEMS> {
+    pub fn new(element_generators: impl IntoIterator<Item = G>) -> Self {
+        let element_generators = element_generators.into_iter().collect();
+        Self { element_generators }
+    }
 }
 
 impl<S, G, const MAX_ITEMS: usize> LspParamsGenerator<S> for VecGenerator<G, MAX_ITEMS>
@@ -419,10 +414,11 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<S, Output = Vec<T>>>;
 
-    fn generators() -> Vec<Self::Generator> {
-        let vec_generator = Rc::new(VecGenerator::<T::Generator, 5>::new(T::generators()));
-        let default_generator = Rc::new(DefaultGenerator::new());
-        vec![vec_generator, default_generator]
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+        let vec_generator: Self::Generator =
+            Rc::new(VecGenerator::<T::Generator, 5>::new(T::generators()));
+        let default_generator: Self::Generator = Rc::new(DefaultGenerator::new());
+        [vec_generator, default_generator]
     }
 }
 
@@ -458,7 +454,7 @@ where
 {
     pub fn with_predefined() -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
-        let generators = M::Params::generators();
+        let generators: Vec<_> = M::Params::generators().into_iter().collect();
         assert!(!generators.is_empty(), "No generators for {}", M::METHOD);
         Self { name, generators }
     }

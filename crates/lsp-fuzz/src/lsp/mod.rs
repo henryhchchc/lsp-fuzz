@@ -27,7 +27,7 @@ pub trait LocalizeToWorkspace {
 pub trait HasPredefinedGenerators<S> {
     type Generator: LspParamsGenerator<S, Output = Self>;
 
-    fn generators() -> Vec<Self::Generator>
+    fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
         S: 'static;
 }
