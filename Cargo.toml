@@ -34,7 +34,6 @@ libafl = { version = "0.*", features = [
     # "tui_monitor"
 ] }
 libafl_bolts = { version = "0.*" }
-lldb = "0.0.12"
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
 rayon = "1"
