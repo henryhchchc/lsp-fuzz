@@ -11,6 +11,7 @@ ctrlc.workspace = true
 itertools.workspace = true
 libafl = { workspace = true, features = ["clap"] }
 libafl_bolts.workspace = true
+lldb.workspace = true
 lsp-fuzz = { path = "../lsp-fuzz" }
 nix.workspace = true
 serde_cbor = "0.11"

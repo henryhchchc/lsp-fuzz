@@ -197,14 +197,9 @@ impl FuzzCommand {
         .context("Creating solution corpus")?;
 
         let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
-        let mut state = StdState::new(
-            StdRand::with_seed(random_seed),
-            corpus,
-            solutions,
-            &mut feedback,
-            &mut objective,
-        )
-        .context("Creating state")?;
+        let rand = StdRand::with_seed(random_seed);
+        let mut state = StdState::new(rand, corpus, solutions, &mut feedback, &mut objective)
+            .context("Creating state")?;
 
         let mut tokens = self.no_auto_dict.not().then(Tokens::new);
 

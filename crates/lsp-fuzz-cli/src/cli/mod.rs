@@ -1,6 +1,7 @@
 mod export;
 mod fuzz;
 mod mine_grammar_fragments;
+mod reproduce;
 
 use std::{collections::HashMap, str::FromStr};
 
@@ -8,6 +9,7 @@ use anyhow::{bail, Context};
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
+use reproduce::ReproduceCommand;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -30,6 +32,7 @@ impl Cli {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
             Command::Triage(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
+            Command::Reproduce(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -63,6 +66,7 @@ enum Command {
     Fuzz(Box<FuzzCommand>),
     MineGrammarFragments(MineGrammarFragments),
     Triage(ExportCommand),
+    Reproduce(ReproduceCommand),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {
