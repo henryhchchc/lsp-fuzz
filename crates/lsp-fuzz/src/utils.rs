@@ -1,5 +1,7 @@
 #![allow(dead_code, reason = "This is an utility module.")]
 
+use std::fmt::Display;
+
 pub(crate) trait OptionExt<T> {
     fn get_or_try_insert_with<F, E>(&mut self, generator: F) -> Result<&mut T, E>
     where
@@ -25,33 +27,36 @@ impl<T> OptionExt<T> for Option<T> {
 
 impl<T> AflContext<T> for Option<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
-        self.ok_or(()).afl_context(message)
+        self.ok_or("Unwrapping a None").afl_context(message)
     }
 
-    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> String,
+        F: FnOnce() -> S,
+        S: Into<String>,
     {
-        self.ok_or(()).with_afl_context(message)
+        self.ok_or("Unwrapping a None").with_afl_context(message)
     }
 }
 
 pub(crate) trait AflContext<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error>;
-    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> String;
+        F: FnOnce() -> S,
+        S: Into<String>;
 }
 
-impl<T, E> AflContext<T> for Result<T, E> {
+impl<T, E: Display> AflContext<T> for Result<T, E> {
     /// Wraps the error in an [`libafl::Error::Unknown`] with the given message.
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
-        self.map_err(|_| libafl::Error::unknown(message))
+        self.map_err(|e| libafl::Error::unknown(format!("{}: {}", message.into(), e)))
     }
 
-    fn with_afl_context<F>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> String,
+        F: FnOnce() -> S,
+        S: Into<String>,
     {
         self.map_err(|_| libafl::Error::unknown(message()))
     }

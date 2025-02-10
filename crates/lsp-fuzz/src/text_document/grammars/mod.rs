@@ -206,6 +206,10 @@ impl GrammarContext {
         }
     }
 
+    pub fn start_symbol(&self) -> &str {
+        &self.grammar.start_symbol
+    }
+
     pub fn start_symbol_fragments(
         &self,
     ) -> Result<impl ExactSizeIterator<Item = &[u8]>, DerivationError> {

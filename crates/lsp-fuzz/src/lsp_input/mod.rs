@@ -294,12 +294,13 @@ where
         let ext = rand
             .choose(language.file_extensions())
             .afl_context("The language has no extensions")?;
-        let whole_programs = grammar
-            .start_symbol_fragments()
-            .afl_context("The grammar has no whole programs")?;
-        let document_content = rand
-            .choose(whole_programs)
-            .afl_context("The grammar has no whole programs")?;
+        let document_content = loop {
+            let generate_node =
+                grammar.generate_node(grammar.start_symbol(), state.rand_mut(), Some(5));
+            if let Ok(code) = generate_node {
+                break code;
+            }
+        };
         let mut text_document = TextDocument::new(document_content.to_vec(), language);
         text_document.generate_parse_tree(grammar);
 

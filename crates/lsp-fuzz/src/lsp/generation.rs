@@ -279,12 +279,12 @@ where
     type Output = String;
 
     fn generate(&self, state: &mut S, _input: &LspInput) -> Result<Self::Output, GenerationError> {
-        let token_cnt = {
-            let tokens: &Tokens = state
-                .metadata()
-                .map_err(|_| GenerationError::NothingGenerated)?;
-            NonZeroUsize::new(tokens.len()).ok_or(GenerationError::NothingGenerated)?
-        };
+        let token_cnt = state
+            .metadata()
+            .map(Tokens::len)
+            .ok()
+            .and_then(NonZeroUsize::new)
+            .ok_or(GenerationError::NothingGenerated)?;
         let idx = state.rand_mut().below(token_cnt);
         // SAFETY: We checked just now that the metadata is present
         let tokens: &Tokens = unsafe { state.metadata().unwrap_unchecked() };
