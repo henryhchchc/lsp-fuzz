@@ -21,7 +21,7 @@ impl CurrentWorkspaceMetadata {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkspaceObserver;
 
 impl Named for WorkspaceObserver {
