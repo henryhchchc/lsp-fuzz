@@ -125,13 +125,6 @@ fn extract_fragmemts<'a>(
     let mut parser = self_language.tree_sitter_parser();
     match extract_derivation_fragments(&file_content, &mut parser) {
         Ok(fragemnts) => Ok(Some((file_content, fragemnts))),
-        Err(fragment_extraction::Error::Utf8Parsing { .. }) => {
-            warn!(
-                file = % source_file_path.display(),
-                "Failed to parse file as UTF-8",
-            );
-            Ok(None)
-        }
         Err(fragment_extraction::Error::DotGraphParsing(msg)) => {
             warn!(
                 file = % source_file_path.display(),

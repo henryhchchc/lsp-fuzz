@@ -5,7 +5,6 @@ use std::{
     num::ParseIntError,
     ops::Range,
     str::FromStr,
-    string::FromUtf8Error,
 };
 
 use dot_structures::{Attribute, Edge, EdgeTy, Graph, Id, Node, NodeId, Stmt, Vertex};
@@ -64,10 +63,7 @@ fn tree_to_dot_graph(tree: tree_sitter::Tree) -> Result<Graph, Error> {
         buf
     };
     plotting_thread.join().map_err(|_| Error::PlotGraphPanic)?;
-    let dot_code = String::from_utf8(buffer).map_err(|err| Error::Utf8Parsing {
-        what: "Plotted dot graph",
-        err,
-    })?;
+    let dot_code = String::from_utf8_lossy(&buffer);
     graphviz_rust::parse(&dot_code).map_err(Error::DotGraphParsing)
 }
 
@@ -180,12 +176,6 @@ pub enum Error {
 
     #[error("Panics when plotting dot graph")]
     PlotGraphPanic,
-
-    #[error("Fail to parse UTF-8 of {what}: {err:?}")]
-    Utf8Parsing {
-        what: &'static str,
-        err: FromUtf8Error,
-    },
 
     #[error("Fail to parse the generated dot graph code: {_0}")]
     DotGraphParsing(String),

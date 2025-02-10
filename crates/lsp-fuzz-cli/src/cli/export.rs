@@ -11,9 +11,9 @@ use tracing::info;
 
 use super::GlobalOptions;
 
-/// Triages the input.
+/// Exports the input corpus to a directory
 #[derive(Debug, clap::Parser)]
-pub(super) struct TriageCommand {
+pub(super) struct ExportCommand {
     /// The path to the solution corpus
     #[clap(long, short)]
     input: PathBuf,
@@ -23,7 +23,7 @@ pub(super) struct TriageCommand {
     output: PathBuf,
 }
 
-impl TriageCommand {
+impl ExportCommand {
     const FILE_NAME_PREFIX: &str = "input_";
 
     pub(super) fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {

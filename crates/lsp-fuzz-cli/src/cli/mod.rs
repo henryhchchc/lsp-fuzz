@@ -1,17 +1,15 @@
+mod export;
 mod fuzz;
 mod mine_grammar_fragments;
-mod minimize;
-mod triage;
 
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{bail, Context};
+use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
-use minimize::MinimizeCommand;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use triage::TriageCommand;
 
 #[derive(Debug, clap::Parser)]
 #[command(version, about, styles = clap::builder::Styles::styled())]
@@ -30,7 +28,6 @@ impl Cli {
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
-            Command::Minimize(cmd) => cmd.run(self.global_options),
             Command::Triage(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
         }
@@ -62,12 +59,10 @@ impl GlobalOptions {
 }
 
 #[derive(Debug, clap::Subcommand)]
-#[allow(clippy::large_enum_variant, reason = "This is CMD args")]
 enum Command {
-    Fuzz(FuzzCommand),
-    Minimize(MinimizeCommand),
+    Fuzz(Box<FuzzCommand>),
     MineGrammarFragments(MineGrammarFragments),
-    Triage(TriageCommand),
+    Triage(ExportCommand),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {
