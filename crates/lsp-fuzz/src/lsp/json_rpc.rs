@@ -100,14 +100,16 @@ fn test_lsp_request() {
 
     let request = ClientToServerMessage::Initialize(InitializeParams {
         workspace_folders: Some(vec![WorkspaceFolder {
-            uri: "file:///path/to/folder".parse().unwrap(),
+            uri: "lsp-fuzz://".parse().unwrap(),
             name: "folder".to_string(),
         }]),
         ..Default::default()
     });
-    let (method, params) = request.as_json();
-    let jsonrpc = JsonRPCMessage::new(Some(1), method.into(), params).to_lsp_payload();
-    let header = b"Content-Length: 177\r\n\r\n";
+    let mut id = 1;
+    let jsonrpc = request
+        .into_json_rpc(&mut id, Some("file:///path/to/folder/"))
+        .to_lsp_payload();
+    let header = b"Content-Length: 178\r\n\r\n";
     assert_eq!(jsonrpc[..header.len()], header[..]);
     let json_value: serde_json::Value = serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();
     assert_eq!(json_value["jsonrpc"], JsonRPC20::VERSION);

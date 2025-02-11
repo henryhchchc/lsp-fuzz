@@ -53,7 +53,7 @@ macro_rules! lsp_messages {
             }
 
             /// Creates a JSON-RPC request object.
-            pub fn as_json(&self) -> (&'static str, serde_json::Value) {
+            fn into_json(self) -> (&'static str, serde_json::Value) {
                 match self {
                     $(
                         $(

@@ -6,8 +6,9 @@ use anyhow::{bail, Context};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    corpus::{ondisk::OnDiskMetadataFormat, Corpus, InMemoryOnDiskCorpus},
+    corpus::{ondisk::OnDiskMetadataFormat, Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus},
     events::{EventFirer, SimpleEventManager},
+    executors::{Executor, HasObservers},
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
@@ -19,10 +20,11 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{CalibrationStage, StdPowerMutationalStage},
-    state::{HasCorpus, StdState},
-    Evaluator, Fuzzer, HasMetadata, StdFuzzer,
+    stages::{CalibrationStage, Stage, StdPowerMutationalStage},
+    state::{HasCorpus, HasExecutions, HasMaxSize, HasRand, MaybeHasClientPerfMonitor, StdState},
+    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
 };
+
 use libafl_bolts::{
     current_nanos,
     fs::InputFile,
@@ -227,37 +229,14 @@ impl FuzzCommand {
             .context("Creating shared memory for test case passing")?;
 
         let temp_dir = self.temp_dir.unwrap_or_else(temp_dir);
-        let temp_dir_str = temp_dir
-            .to_str()
-            .context("temp_dir is not a valid UTF-8 string")?;
 
         let mut fuzz_stages = {
-            let mutation_stage = {
-                let text_document_mutator = StdScheduledMutator::with_max_stack_pow(
-                    text_document_mutations(&grammar_ctx),
-                    2,
-                );
-                let messages_mutator =
-                    StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
-                let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
-                StdPowerMutationalStage::new(mutator)
-            };
+            let mutation_stage = mutation_stage(&grammar_ctx);
+            let temp_dir_str = temp_dir
+                .to_str()
+                .context("temp_dir is not a valid UTF-8 string")?;
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            let (tx, rx) = mpsc::channel();
-
-            let mut is_contgrol_c_pressed = false;
-            ctrlc::try_set_handler(move || {
-                if is_contgrol_c_pressed {
-                    info!("Control-C pressed again. Exiting immediately.");
-                    const EXIT_CODE: i32 = 128 + (nix::sys::signal::SIGINT as i32);
-                    std::process::exit(EXIT_CODE);
-                }
-                is_contgrol_c_pressed = true;
-                info!("Control-C pressed. The fuzzer will stop after this cycle.");
-                tx.send(()).expect("Failed to send stop signal");
-            })
-            .context("Setting Control-C handler")?;
-            let stop_on_signal = StopOnReceived::new(rx);
+            let stop_on_signal = stop_on_sigint_stage()?;
             tuple_list![
                 calibration_stage,
                 mutation_stage,
@@ -362,6 +341,46 @@ impl FuzzCommand {
     }
 }
 
+fn stop_on_sigint_stage<S>() -> Result<StopOnReceived<S>, anyhow::Error> {
+    let (tx, rx) = mpsc::channel();
+    let mut is_contgrol_c_pressed = false;
+    ctrlc::try_set_handler(move || {
+        if is_contgrol_c_pressed {
+            info!("Control-C pressed again. Exiting immediately.");
+            const EXIT_CODE: i32 = 128 + (nix::sys::signal::SIGINT as i32);
+            std::process::exit(EXIT_CODE);
+        }
+        is_contgrol_c_pressed = true;
+        info!("Control-C pressed. The fuzzer will stop after this cycle.");
+        tx.send(()).expect("Failed to send stop signal");
+    })
+    .context("Setting Control-C handler")?;
+    Ok(StopOnReceived::new(rx))
+}
+
+fn mutation_stage<E, EM, S, Z>(
+    grammar_ctx: &GrammarContextLookup,
+) -> impl Stage<E, EM, S, Z> + use<'_, E, EM, S, Z>
+where
+    S: HasRand
+        + HasMaxSize
+        + HasMetadata
+        + HasCorpus<LspInput>
+        + HasCurrentCorpusId
+        + HasNamedMetadata
+        + HasExecutions
+        + MaybeHasClientPerfMonitor
+        + 'static,
+    Z: Evaluator<E, EM, LspInput, S>,
+    E: Executor<EM, LspInput, S, Z> + HasObservers,
+{
+    let text_document_mutator =
+        StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 2);
+    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
+    let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
+    StdPowerMutationalStage::new(mutator)
+}
+
 fn initialize_corpus<E, Z, EM, R, C, SC>(
     seeds_dir: Option<PathBuf>,
     state: &mut StdState<C, LspInput, R, SC>,
@@ -372,8 +391,8 @@ fn initialize_corpus<E, Z, EM, R, C, SC>(
     num_seeds: usize,
 ) -> Result<(), anyhow::Error>
 where
-    C: Corpus<LspInput>,
     R: Rand,
+    C: Corpus<LspInput>,
     SC: Corpus<LspInput>,
     Z: Evaluator<E, EM, LspInput, StdState<C, LspInput, R, SC>>,
     EM: EventFirer<LspInput, StdState<C, LspInput, R, SC>>,

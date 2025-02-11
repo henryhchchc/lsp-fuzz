@@ -1,6 +1,4 @@
-use std::{
-    borrow::Cow, fs::File, io::BufWriter, iter::once, mem, ops::Range, path::Path, str::FromStr,
-};
+use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, path::Path, str::FromStr};
 
 use derive_new::new as New;
 use libafl::{
@@ -18,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
-    lsp::{self, capabilities::fuzzer_client_capabilities, json_rpc::JsonRPCMessage},
+    lsp::{self, capabilities::fuzzer_client_capabilities},
     text_document::{GrammarBasedMutation, GrammarContextLookup, Language, TextDocument},
     utf8::Utf8Input,
     utils::AflContext,
@@ -143,13 +141,7 @@ impl LspInput {
         let mut id = 0;
         let bytes: Vec<_> = message_sequence
             .flat_map(|msg| {
-                let id = msg.is_request().then(|| {
-                    let new_id = id + 1;
-                    mem::replace(&mut id, new_id)
-                });
-                let (method, mut params) = msg.as_json();
-                localize_json_value(&mut params, &workspace_uri);
-                let message = JsonRPCMessage::new(id, method.into(), params);
+                let message = msg.into_json_rpc(&mut id, Some(&workspace_uri));
                 message.to_lsp_payload()
             })
             .collect();
@@ -210,25 +202,6 @@ impl LspInput {
 
     pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
         self.workspace.write_to_fs(source_dir)
-    }
-}
-
-fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
-    assert!(workspace_uri.ends_with('/'));
-    use serde_json::Value::{Array, Object, String};
-    const LSP_FUZZ_PREFIX: &str = "lsp-fuzz://";
-    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LSP_FUZZ_PREFIX.len();
-    match value {
-        Object(inner) => inner.iter_mut().for_each(|(_, v)| {
-            localize_json_value(v, workspace_uri);
-        }),
-        Array(items) => items.iter_mut().for_each(|item| {
-            localize_json_value(item, workspace_uri);
-        }),
-        String(str_val) if str_val.starts_with(LSP_FUZZ_PREFIX) => {
-            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri)
-        }
-        _ => {}
     }
 }
 
@@ -365,44 +338,4 @@ fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<Wo
             )])),
         ),
     ])
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_localization() {
-        let mut value = serde_json::json!({
-            "uri": "lsp-fuzz://path/to/file",
-            "other_attr": {
-                "uri": "lsp-fuzz://path/to/other_file"
-            },
-            "some_arr": [
-                "lsp-fuzz://path/to/element",
-            ],
-            "other_arr": [
-                {
-                    "uri": "lsp-fuzz://path/to/element",
-                }
-            ]
-        });
-        super::localize_json_value(&mut value, "file:///path/to/workspace_dir/");
-        assert_eq!(
-            value,
-            serde_json::json!({
-                "uri": "file:///path/to/workspace_dir/path/to/file",
-                "other_attr": {
-                    "uri": "file:///path/to/workspace_dir/path/to/other_file"
-                },
-                "some_arr": [
-                    "file:///path/to/workspace_dir/path/to/element",
-                ],
-                "other_arr": [
-                    {
-                        "uri": "file:///path/to/workspace_dir/path/to/element",
-                    }
-                ]
-            })
-        );
-    }
 }
