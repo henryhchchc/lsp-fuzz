@@ -23,6 +23,7 @@ use workspace_observer::CurrentWorkspaceMetadata;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
+pub mod sanitizers;
 pub mod fork_server;
 pub mod workspace_observer;
 

@@ -149,7 +149,7 @@ impl LspInput {
         bytes
     }
 
-    fn message_sequence(
+    pub fn message_sequence(
         &self,
         workspace_dir: &Path,
     ) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {

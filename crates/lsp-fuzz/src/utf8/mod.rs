@@ -12,7 +12,7 @@ use tuple_list::{tuple_list, TupleList};
 pub mod mutators;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, From, Into)]
-#[repr(transparent)]
+#[serde(transparent)]
 pub struct Utf8Input {
     inner: String,
 }
@@ -81,4 +81,15 @@ pub fn file_name_mutations() -> impl TupleList {
         mutators::CharShiftMutator::with_blacklisted_chars(['/'].into()),
         mutators::StringTruncationMutator,
     ]
+}
+
+#[cfg(test)]
+mod test {
+
+    #[test]
+    fn serialize_utf8_input() {
+        let input = super::Utf8Input::new("Hello, World!".to_string());
+        let serialized = serde_json::to_string(&input).unwrap();
+        assert_eq!(serialized, r#""Hello, World!""#);
+    }
 }

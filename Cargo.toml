@@ -11,16 +11,7 @@ ahash = { version = "0.8" }
 anyhow = { version = "1", features = ["backtrace"] }
 const-str = "0.5"
 ctrlc = "3.4"
-derive_more = { version = "1.0.0", features = [
-    "display",
-    "into_iterator",
-    "constructor",
-    "from_str",
-    "deref",
-    "deref_mut",
-    "from",
-    "into",
-] }
+derive_more = { version = "1.0.0", features = ["full"] }
 bitflags = "2.6.0"
 derive-new = "0.7"
 indexmap = { version = "2", features = ["serde"] }
@@ -28,30 +19,29 @@ memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
-libafl = { version = "0.*", features = [
-    "errors_backtrace",
-    "casr",
-    # "tui_monitor"
-] }
+libafl = { version = "0.*", features = ["errors_backtrace", "casr"] }
 libafl_bolts = { version = "0.*" }
+libcasr = { version = "2", features = ["serde"] }
 lsp-types = { version = "0", features = ["hash"] }
 nix = "0.29"
+num_cpus = "1.16"
+os_pipe = "1.2.1"
 rayon = "1"
+rustversion = "1"
+serde = "1"
 serde_cbor = "0.11"
 serde_json = { version = "1", features = ["preserve_order"] }
 static_assertions = "1.1.0"
 thiserror = "2"
 tracing = "0.1"
-tuple_list = "0.1"
-zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
-num_cpus = "1.16"
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
 tree-sitter-javascript = "0"
 tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
 tree-sitter-toml-ng = "0"
-rustversion = "1"
+tuple_list = "0.1"
+zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
