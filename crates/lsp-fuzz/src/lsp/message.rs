@@ -106,12 +106,17 @@ lsp_messages! {
 
 impl ClientToServerMessage {
     pub fn into_json_rpc(self, id: &mut usize, localize: Option<&str>) -> JsonRPCMessage {
-        let request_id = self.is_request().then(|| mem::replace(id, *id + 1));
+        let is_request = self.is_request();
         let (method, mut params) = self.into_json();
         if let Some(workspace_uri) = localize {
             localize_json_value(&mut params, workspace_uri);
         }
-        JsonRPCMessage::new(request_id, method.into(), params)
+        if is_request {
+            let id = mem::replace(id, *id + 1);
+            JsonRPCMessage::request(id, method.into(), params)
+        } else {
+            JsonRPCMessage::notification(method.into(), params)
+        }
     }
 }
 

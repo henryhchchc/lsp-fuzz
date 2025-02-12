@@ -1,4 +1,3 @@
-use core::slice;
 use std::{
     ffi::OsString,
     io::{self, Read, Write},
@@ -345,13 +344,11 @@ impl NeoForkServer {
     fn read_vec(&mut self, size: usize) -> Result<Vec<u8>, libafl::Error> {
         let mut buf = Vec::with_capacity(size);
         unsafe {
-            // SAFETY: `buf` is guaranteed to have a capacity of `size` bytes.
-            //         Therefore the `slice` will not reach non-accessible memory.
-            let slice = slice::from_raw_parts_mut(buf.as_mut_ptr(), size);
-            self.rx.read_exact(slice)?;
-            // SAFETY: `buf` must have been filled with `size` bytes upon this point.
+            // SAFETY: We just allocated enough space for the buffer
+            //         and we will not return `buf` unless it is fully filled.
             buf.set_len(size);
-        };
+            self.rx.read_exact(&mut buf)
+        }?;
         Ok(buf)
     }
 

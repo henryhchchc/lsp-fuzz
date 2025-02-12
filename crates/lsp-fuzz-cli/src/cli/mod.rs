@@ -3,13 +3,14 @@ mod fuzz;
 mod mine_grammar_fragments;
 mod reproduce;
 
-use std::{collections::HashMap, str::FromStr};
+use std::{cmp::max, collections::HashMap, str::FromStr};
 
 use anyhow::{bail, Context};
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
-use reproduce::ReproduceCommand;
+use reproduce::reproduce_all::ReproduceAll;
+use reproduce::reproduce_one::ReproduceOne;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -32,7 +33,8 @@ impl Cli {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
             Command::Triage(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
-            Command::Reproduce(cmd) => cmd.run(self.global_options),
+            Command::ReproduceOne(cmd) => cmd.run(self.global_options),
+            Command::ReproduceAll(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -57,7 +59,8 @@ impl GlobalOptions {
     }
 
     pub fn parallel_workers(&self) -> usize {
-        self.parallel_workers.unwrap_or_else(num_cpus::get)
+        self.parallel_workers
+            .unwrap_or_else(|| max(1, num_cpus::get() * 3 / 4))
     }
 }
 
@@ -66,7 +69,8 @@ enum Command {
     Fuzz(Box<FuzzCommand>),
     MineGrammarFragments(MineGrammarFragments),
     Triage(ExportCommand),
-    Reproduce(ReproduceCommand),
+    ReproduceAll(ReproduceAll),
+    ReproduceOne(ReproduceOne),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

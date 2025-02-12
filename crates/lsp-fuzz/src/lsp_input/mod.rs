@@ -126,7 +126,7 @@ impl HasLen for LspInput {
 
 impl LspInput {
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        let message_sequence = self.message_sequence(workspace_dir);
+        let message_sequence = self.message_sequence();
 
         let workspace_dir = workspace_dir
             .to_str()
@@ -149,10 +149,7 @@ impl LspInput {
         bytes
     }
 
-    pub fn message_sequence(
-        &self,
-        workspace_dir: &Path,
-    ) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
+    pub fn message_sequence(&self) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
         #[allow(
             deprecated,
             reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
@@ -161,11 +158,7 @@ impl LspInput {
             root_uri: Some("lsp-fuzz://".parse().unwrap()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: "lsp-fuzz://".parse().unwrap(),
-                name: workspace_dir
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
+                name: "default_workspace".to_owned(),
             }]),
             capabilities: fuzzer_client_capabilities(),
             ..Default::default()
