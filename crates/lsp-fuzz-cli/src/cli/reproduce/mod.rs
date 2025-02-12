@@ -51,7 +51,11 @@ fn find_crashing_request(
     let mut target_stdout = BufReader::new(target_stdout);
     let mut crashing_request = None;
     for jsonrpc in json_rpc_messages(input, workspace_url) {
-        info!(id = ?jsonrpc.id(), method = ?jsonrpc.method(), "Sending message to target");
+        info!(
+            id = ?jsonrpc.id(),
+            method = ?jsonrpc.method(),
+            "Sending message to target"
+        );
         target_stdin
             .write_all(&jsonrpc.to_lsp_payload())
             .context("Sending message to target")?;
@@ -72,14 +76,11 @@ fn find_crashing_request(
                 };
 
                 match JsonRPCMessage::read_lsp_payload(&mut target_stdout) {
-                    Ok(JsonRPCMessage::Response { id, .. })
-                        if id.is_some_and(|it| it == *request_id) =>
-                    {
-                        info!(id, "Received a reply from target");
-                        break;
-                    }
-                    Ok(JsonRPCMessage::Response { .. }) => {
-                        warn!("Received an unexpected response from target");
+                    Ok(JsonRPCMessage::Response { id, .. }) => {
+                        info!(?id, "Received an response from target");
+                        if id.is_some_and(|it| it == *request_id) {
+                            break;
+                        }
                     }
                     Ok(JsonRPCMessage::Notification { .. }) => {
                         info!("Received a notification from target");

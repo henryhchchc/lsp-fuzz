@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    fmt::{self, Display},
     io::{self, BufRead},
 };
 
@@ -42,12 +43,47 @@ impl<'de> Deserialize<'de> for JsonRPC20 {
     }
 }
 
+/// The ID of a JSON-RPC message.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(untagged)]
+pub enum MessageId {
+    Number(usize),
+    String(Cow<'static, str>),
+}
+
+impl From<usize> for MessageId {
+    fn from(id: usize) -> Self {
+        Self::Number(id)
+    }
+}
+
+impl From<String> for MessageId {
+    fn from(id: String) -> Self {
+        Self::String(id.into())
+    }
+}
+
+impl From<&'static str> for MessageId {
+    fn from(id: &'static str) -> Self {
+        Self::String(id.into())
+    }
+}
+
+impl Display for MessageId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Number(id) => write!(f, "{}", id),
+            Self::String(id) => write!(f, "{}", id),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum JsonRPCMessage {
     Request {
         jsonrpc: JsonRPC20,
-        id: usize,
+        id: MessageId,
         method: Cow<'static, str>,
         params: serde_json::Value,
     },
@@ -59,7 +95,7 @@ pub enum JsonRPCMessage {
     Response {
         jsonrpc: JsonRPC20,
         #[serde(skip_serializing_if = "Option::is_none")]
-        id: Option<usize>,
+        id: Option<MessageId>,
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<serde_json::Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,10 +108,14 @@ const HEADER_SEP: &[u8] = b": ";
 const HEADER_BODY_SEP: &[u8] = b"\r\n\r\n";
 
 impl JsonRPCMessage {
-    pub const fn request(id: usize, method: Cow<'static, str>, params: serde_json::Value) -> Self {
+    pub fn request(
+        id: impl Into<MessageId>,
+        method: Cow<'static, str>,
+        params: serde_json::Value,
+    ) -> Self {
         Self::Request {
             jsonrpc: JsonRPC20,
-            id,
+            id: id.into(),
             method,
             params,
         }
@@ -89,23 +129,23 @@ impl JsonRPCMessage {
         }
     }
 
-    pub const fn response(
-        id: Option<usize>,
+    pub fn response(
+        id: Option<impl Into<MessageId>>,
         result: Option<serde_json::Value>,
         error: Option<serde_json::Value>,
     ) -> Self {
         Self::Response {
             jsonrpc: JsonRPC20,
-            id,
+            id: id.map(Into::into),
             result,
             error,
         }
     }
 
-    pub const fn id(&self) -> Option<usize> {
+    pub const fn id(&self) -> Option<&MessageId> {
         match self {
-            Self::Request { id, .. } => Some(*id),
-            Self::Response { id, .. } => *id,
+            Self::Request { id, .. } => Some(id),
+            Self::Response { id, .. } => id.as_ref(),
             Self::Notification { .. } => None,
         }
     }
