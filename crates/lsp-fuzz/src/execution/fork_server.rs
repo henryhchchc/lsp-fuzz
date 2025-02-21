@@ -2,7 +2,7 @@ use std::{
     ffi::OsString,
     io::{self, Read, Write},
     os::{
-        fd::{AsRawFd, BorrowedFd, RawFd},
+        fd::{AsRawFd, BorrowedFd, FromRawFd},
         unix::process::CommandExt,
     },
     process::{self, Child, Command, Stdio},
@@ -10,7 +10,10 @@ use std::{
 
 use bitflags::bitflags;
 use libafl::executors::forkserver::ConfigTarget;
-use libafl_bolts::shmem::{ShMem, ShMemId};
+use libafl_bolts::{
+    fs::InputFile,
+    shmem::{ShMem, ShMemId},
+};
 use nix::{
     errno::Errno,
     sys::{
@@ -28,8 +31,8 @@ use crate::utils::AflContext;
 use super::FuzzInput;
 
 #[derive(Debug)]
-pub enum FuzzInputSetup {
-    Stdin(RawFd),
+pub enum FuzzInputSetup<'f> {
+    Stdin(&'f InputFile),
     FileArg,
     SharedMemory(ShMemId, usize),
 }
@@ -53,16 +56,16 @@ pub struct ForkServerTargetInfo {
     pub autodict: Option<Vec<u8>>,
 }
 
-impl FuzzInputSetup {
+impl FuzzInputSetup<'_> {
     pub fn setup_child_cmd(&self, child_cmd: &mut Command) {
         match self {
-            &FuzzInputSetup::Stdin(input_filefd) => {
-                let bind_stdin = move || {
-                    nix::unistd::dup2(input_filefd, libc::STDIN_FILENO)
-                        .map_err(|_| io::Error::last_os_error())?;
-                    Ok(())
+            &FuzzInputSetup::Stdin(input_file) => {
+                let stdin = unsafe {
+                    // SAFETY: The file descriptor is reliable and valid because it comes from InputFile.
+                    //         The file reference being alive means we have an accessible open file.
+                    Stdio::from_raw_fd(input_file.as_raw_fd())
                 };
-                unsafe { child_cmd.pre_exec(bind_stdin) };
+                child_cmd.stdin(stdin);
             }
             FuzzInputSetup::SharedMemory(shm_id, shm_size) => {
                 child_cmd.env("__AFL_SHM_FUZZ_ID", shm_id.to_string());
@@ -73,10 +76,10 @@ impl FuzzInputSetup {
     }
 }
 
-impl<SHM: ShMem> From<&FuzzInput<SHM>> for FuzzInputSetup {
-    fn from(value: &FuzzInput<SHM>) -> Self {
+impl<'a, SHM: ShMem> From<&'a FuzzInput<SHM>> for FuzzInputSetup<'a> {
+    fn from(value: &'a FuzzInput<SHM>) -> Self {
         match value {
-            FuzzInput::Stdin(file) => Self::Stdin(file.as_raw_fd()),
+            FuzzInput::Stdin(file) => Self::Stdin(file),
             FuzzInput::File(_) => Self::FileArg,
             FuzzInput::SharedMemory(ref shm) => Self::SharedMemory(shm.id(), shm.len()),
         }
@@ -108,12 +111,15 @@ impl Drop for NeoForkServer {
     fn drop(&mut self) {
         if let Some(pid) = self.child_pid {
             debug!("Sending {} to child {pid}", self.kill_signal);
-            if let Err(err) = nix::sys::signal::kill(pid, self.kill_signal) {
-                warn!(
-                    "Failed to deliver kill signal to child process {}: {err} ({})",
-                    pid,
-                    io::Error::last_os_error()
-                );
+            match nix::sys::signal::kill(pid, self.kill_signal) {
+                Ok(()) | Err(Errno::ESRCH) => (),
+                Err(err) => {
+                    warn!(
+                        "Failed to deliver kill signal to child process {}: {err} ({})",
+                        pid,
+                        io::Error::last_os_error()
+                    );
+                }
             }
         }
 
@@ -126,11 +132,11 @@ impl Drop for NeoForkServer {
 }
 
 #[derive(Debug)]
-pub struct NeoForkServerOptions {
+pub struct NeoForkServerOptions<'f> {
     pub target: OsString,
     pub args: Vec<OsString>,
     pub envs: Vec<(OsString, OsString)>,
-    pub input_setup: FuzzInputSetup,
+    pub input_setup: FuzzInputSetup<'f>,
     pub memlimit: u64,
     pub persistent_fuzzing: bool,
     pub deferred: bool,
@@ -141,7 +147,7 @@ pub struct NeoForkServerOptions {
 }
 
 impl NeoForkServer {
-    pub fn new(options: NeoForkServerOptions) -> Result<Self, libafl::Error> {
+    pub fn new(options: NeoForkServerOptions<'_>) -> Result<Self, libafl::Error> {
         let NeoForkServerOptions {
             target,
             args,
@@ -236,7 +242,7 @@ impl NeoForkServer {
 
     /// Initialize the fork server and return the options
     pub fn initialize(&mut self) -> Result<ForkServerTargetInfo, libafl::Error> {
-        let handshake_msg = self.handshake()?;
+        let handshake_msg = self.handshake().afl_context("Handshake")?;
         let flags = self
             .read_i32()
             .afl_context("Fail to read option flags from fork server.")?;

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap, env::temp_dir, ops::Not, path::PathBuf, sync::mpsc, time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
@@ -39,7 +39,7 @@ use lsp_fuzz::{
         workspace_observer::WorkspaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo,
         LspExecutor,
     },
-    fuzz_target::{StaticTargetBinaryInfo, TargetBinaryInfo},
+    fuzz_target::{self, StaticTargetBinaryInfo},
     lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
     stages::{CleanupWorkspaceDirs, StopOnReceived},
     text_document::{
@@ -48,7 +48,7 @@ use lsp_fuzz::{
     },
 };
 
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use tuple_list::tuple_list;
 
 use crate::{
@@ -112,13 +112,8 @@ impl FuzzCommand {
         } else {
             warn!("The fuzz target is not instrumented with AFL++");
         }
-        let binary_info = TargetBinaryInfo::detect(
-            &self.execution.lsp_executable,
-            &mut shmem_provider,
-            binary_info,
-            self.execution.debug_afl,
-            self.execution.debug_child,
-        )?;
+        let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
+            .context("Dumping map size")?;
 
         if binary_info.is_persistent_mode {
             info!("Persistent fuzzing detected.");
@@ -130,21 +125,9 @@ impl FuzzCommand {
             info!(shm_size, "Shared memory fuzzing is enabled.");
         }
 
-        if binary_info.is_shmem_fuzzing && self.execution.shared_memory_fuzzing.is_none() {
-            error!("Target requires shared memory fuzzing but the size of the shared memory is not specified.");
-            bail!("Invalid configuration");
-        }
-
-        let Some(shmem_size) = binary_info
-            .map_size
-            .inspect(|it| info!("Detected coverage map size: {}", it))
-            .or(self.execution.coverage_map_size)
-        else {
-            error!("Coverage map size could not be detected and is not specified.");
-            bail!("Invalid configuration");
-        };
+        info!("Detected coverage map size: {}", map_size);
         let mut cov_shmem = shmem_provider
-            .new_shmem(shmem_size)
+            .new_shmem(map_size)
             .context("Creating shared memory")?;
         let cov_map_shmem_id = cov_shmem.id();
 

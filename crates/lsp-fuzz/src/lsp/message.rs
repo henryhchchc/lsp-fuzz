@@ -1,8 +1,8 @@
-use std::{mem, ops::Range};
+use std::{borrow::Cow, mem, ops::Range};
 
 use serde::{Deserialize, Serialize};
 
-use crate::macros::lsp_messages;
+use crate::{lsp_input::LspInput, macros::lsp_messages};
 
 use super::json_rpc::JsonRPCMessage;
 
@@ -105,11 +105,16 @@ lsp_messages! {
 }
 
 impl ClientToServerMessage {
-    pub fn into_json_rpc(self, id: &mut usize, localize: Option<&str>) -> JsonRPCMessage {
+    pub fn into_json_rpc(self, id: &mut usize, workspace_uri: Option<&str>) -> JsonRPCMessage {
         let is_request = self.is_request();
         let (method, mut params) = self.into_json();
-        if let Some(workspace_uri) = localize {
-            localize_json_value(&mut params, workspace_uri);
+        if let Some(workspace_uri) = workspace_uri {
+            let workspace_uri = if workspace_uri.ends_with('/') {
+                Cow::Borrowed(workspace_uri)
+            } else {
+                Cow::Owned(format!("{}/", workspace_uri))
+            };
+            localize_json_value(&mut params, workspace_uri.as_ref());
         }
         if is_request {
             let id = mem::replace(id, *id + 1);
@@ -121,18 +126,16 @@ impl ClientToServerMessage {
 }
 
 fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
-    assert!(workspace_uri.ends_with('/'));
     use serde_json::Value::{Array, Object, String};
-    const LSP_FUZZ_PREFIX: &str = "lsp-fuzz://";
-    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LSP_FUZZ_PREFIX.len();
+    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LspInput::PROROCOL_PREFIX.len();
     match value {
-        Object(inner) => inner.iter_mut().for_each(|(_, v)| {
-            localize_json_value(v, workspace_uri);
+        Object(inner) => inner.values_mut().for_each(|value| {
+            localize_json_value(value, workspace_uri);
         }),
-        Array(items) => items.iter_mut().for_each(|item| {
-            localize_json_value(item, workspace_uri);
+        Array(items) => items.iter_mut().for_each(|value| {
+            localize_json_value(value, workspace_uri);
         }),
-        String(str_val) if str_val.starts_with(LSP_FUZZ_PREFIX) => {
+        String(str_val) if str_val.starts_with(LspInput::PROROCOL_PREFIX) => {
             str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri)
         }
         _ => {}

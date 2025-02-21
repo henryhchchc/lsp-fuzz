@@ -1,4 +1,13 @@
-use std::{borrow::Cow, fs::File, io::BufWriter, iter::once, path::Path, str::FromStr};
+use std::{
+    borrow::Cow,
+    fs::File,
+    hash::{DefaultHasher, Hash, Hasher},
+    io::BufWriter,
+    iter::once,
+    path::Path,
+    str::FromStr,
+    sync::LazyLock,
+};
 
 use derive_new::new as New;
 use libafl::{
@@ -90,12 +99,19 @@ pub struct LspInput {
     pub workspace: FileSystemDirectory<WorkspaceEntry>,
 }
 
+impl LspInput {
+    pub const NAME_PREFIX: &str = "input_";
+    pub const PROROCOL_PREFIX: &str = "lsp-fuzz://";
+}
+
 impl Input for LspInput {
     fn generate_name(&self, id: Option<CorpusId>) -> String {
-        format!(
-            "input_{}",
-            id.map(|it| it.to_string()).unwrap_or("unknown".to_owned())
-        )
+        let id_str = id.map(|it| it.to_string()).unwrap_or_else(|| {
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            format!("h_{}", hasher.finish())
+        });
+        format!("{}{}", Self::NAME_PREFIX, id_str)
     }
 
     fn to_file<P>(&self, path: P) -> Result<(), libafl::Error>
@@ -150,14 +166,17 @@ impl LspInput {
     }
 
     pub fn message_sequence(&self) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
+        static ROOT_URI: LazyLock<lsp_types::Uri> =
+            LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
+
         #[allow(
             deprecated,
             reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
         )]
         let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
-            root_uri: Some("lsp-fuzz://".parse().unwrap()),
+            root_uri: Some(ROOT_URI.clone()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: "lsp-fuzz://".parse().unwrap(),
+                uri: ROOT_URI.clone(),
                 name: "default_workspace".to_owned(),
             }]),
             capabilities: fuzzer_client_capabilities(),
@@ -170,7 +189,9 @@ impl LspInput {
             .iter_files()
             .filter_map(|(path, entry)| entry.as_source_file().map(|doc| (path, doc)))
             .map(|(path, doc)| {
-                let uri = Uri::from_str(&format!("lsp-fuzz://{}", path.display())).unwrap();
+                let path_str = path.to_str().expect("Path should contain valid UTF-8");
+                let uri =
+                    Uri::from_str(&format!("{}{}", LspInput::PROROCOL_PREFIX, path_str)).unwrap();
                 lsp::ClientToServerMessage::DidOpenTextDocument(
                     lsp_types::DidOpenTextDocumentParams {
                         text_document: lsp_types::TextDocumentItem {

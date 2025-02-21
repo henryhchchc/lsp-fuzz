@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     fmt::{self, Display},
-    io::{self, BufRead},
+    io::{self, BufRead, Read},
 };
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -28,7 +28,7 @@ impl Serialize for JsonRPC20 {
 impl<'de> Deserialize<'de> for JsonRPC20 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         use serde::de::{Error, Unexpected};
-        // NOTE: We must use a Cow here to handle both owned and borrowed strings.
+        // NOTE: We _must_ use a Cow here to handle both owned and borrowed strings.
         //       When reading from a reader, the value is owned.
         //       When reading from a slice, the value can be borrowed.
         let version: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
@@ -174,9 +174,10 @@ impl JsonRPCMessage {
 }
 
 impl JsonRPCMessage {
-    pub fn read_lsp_payload<R: BufRead>(mut reader: R) -> io::Result<Self> {
+    // It does not compile without `R: Read`.
+    pub fn read_lsp_payload<R: Read + BufRead + ?Sized>(reader: &mut R) -> io::Result<Self> {
         use io::{Error, ErrorKind::InvalidData};
-        let content_size = Self::read_headers(&mut reader)?.ok_or(Error::new(
+        let content_size = Self::read_headers(reader)?.ok_or(Error::new(
             InvalidData,
             "The message does not contain a length header",
         ))?;
@@ -185,7 +186,7 @@ impl JsonRPCMessage {
         Ok(json)
     }
 
-    fn read_headers<R: BufRead>(reader: &mut R) -> io::Result<Option<usize>> {
+    fn read_headers<R: BufRead + ?Sized>(reader: &mut R) -> io::Result<Option<usize>> {
         use io::{Error, ErrorKind::InvalidData};
         let mut content_length = None;
         loop {
@@ -264,6 +265,6 @@ fn test_lsp_request() {
 
 #[test]
 fn parse_payload() {
-    let payload = b"Content-Length: 107\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":null,\"rootUri\":null,\"capabilities\":{}}}";
-    JsonRPCMessage::read_lsp_payload(&payload[..]).unwrap();
+    let mut payload = b"Content-Length: 107\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":null,\"rootUri\":null,\"capabilities\":{}}}".as_slice();
+    JsonRPCMessage::read_lsp_payload(&mut payload).unwrap();
 }

@@ -22,7 +22,9 @@ itertools = "0.*"
 libafl = { version = "0.*", features = ["errors_backtrace", "casr"] }
 libafl_bolts = { version = "0.*" }
 libcasr = { version = "2", features = ["serde"] }
-lsp-types = { version = "0", features = ["hash"] }
+lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev", features = [
+    "hash",
+] }
 nix = "0.29"
 num_cpus = "1.16"
 os_pipe = "1.2.1"
@@ -34,6 +36,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 static_assertions = "1.1.0"
 thiserror = "2"
 tracing = "0.1"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0"
+tokio-util = { version = "0", features = ["full"] }
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
 tree-sitter-javascript = "0"
@@ -46,7 +51,6 @@ zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 [patch.crates-io]
 libafl = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
 libafl_bolts = { git = "https://github.com/henryhchchc/LibAFL.git", branch = "dev" }
-lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev" }
 
 [profile.release]
 debug = true

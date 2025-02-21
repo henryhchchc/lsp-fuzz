@@ -18,13 +18,13 @@ use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
-use tracing::{info, warn};
+use tracing::info;
 use workspace_observer::CurrentWorkspaceMetadata;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
-pub mod sanitizers;
 pub mod fork_server;
+pub mod sanitizers;
 pub mod workspace_observer;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
@@ -62,25 +62,15 @@ impl<SHM: ShMem> FuzzInput<SHM> {
             .afl_context("The length of input bytes cannot fit into u32")?;
         let input_size_encoded = input_size.to_ne_bytes();
 
-        compiler_fence(Ordering::SeqCst);
+        compiler_fence(Ordering::Acquire);
         let shmem_slice = shmem.as_slice_mut();
         shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
         let input_body_range =
             Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
         shmem_slice[input_body_range].copy_from_slice(input_bytes);
-        compiler_fence(Ordering::SeqCst);
+        compiler_fence(Ordering::Release);
 
         Ok(())
-    }
-}
-
-impl<SHM> Drop for FuzzInput<SHM> {
-    fn drop(&mut self) {
-        if let FuzzInput::File(file) | FuzzInput::Stdin(file) = self {
-            if let Err(e) = fs::remove_file(&file.path) {
-                warn!("Failed to delete file: {}", e);
-            }
-        }
     }
 }
 
@@ -140,11 +130,11 @@ where
             "abort_on_error=1",
             "symbolize=0",
             "allocator_may_return_null=1",
-            "handle_segv=1",
-            "handle_sigbus=1",
-            "handle_sigfpe=1",
-            "handle_sigill=1",
-            "handle_abort=2", // Some targets may have their own abort handler
+            "handle_segv=0",
+            "handle_sigbus=0",
+            "handle_sigfpe=0",
+            "handle_sigill=0",
+            "handle_abort=0", // Some targets may have their own abort handler
             "detect_stack_use_after_return=0",
             "check_initialization_order=0",
             "detect_leaks=0",

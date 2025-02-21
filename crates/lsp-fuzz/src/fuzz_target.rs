@@ -1,17 +1,14 @@
 use std::{
     fs::File,
-    io::{self},
+    io::{self, Read},
     path::Path,
+    process::Stdio,
 };
 
-use anyhow::{bail, Context};
-use libafl_bolts::shmem::{ShMem, ShMemId, ShMemProvider};
+use anyhow::Context;
 use memmap2::Mmap;
 
-use crate::{
-    afl,
-    execution::fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions},
-};
+use crate::afl;
 
 #[derive(Debug)]
 pub struct StaticTargetBinaryInfo {
@@ -45,53 +42,22 @@ impl StaticTargetBinaryInfo {
     }
 }
 
-#[derive(Debug)]
-pub struct TargetBinaryInfo {
-    pub map_size: Option<usize>,
-    pub is_shmem_fuzzing: bool,
-    pub is_persistent_mode: bool,
-    pub is_defer_fork_server: bool,
-    pub uses_address_sanitizer: bool,
-}
-
-impl TargetBinaryInfo {
-    pub fn detect(
-        binary: &Path,
-        shmem_provider: &mut impl ShMemProvider,
-        static_info: StaticTargetBinaryInfo,
-        afl_debug: bool,
-        debug_child_output: bool,
-    ) -> Result<Self, anyhow::Error> {
-        if !static_info.is_afl_instrumented {
-            bail!("Target is not instruemented by AFL++");
-        }
-        const MOCK_SHMEM_SIZE: usize = 65536;
-        let mock_shmem = shmem_provider
-            .new_shmem(MOCK_SHMEM_SIZE)
-            .context("Creating mock shmem")?;
-        let opts = NeoForkServerOptions {
-            target: binary.into(),
-            args: Vec::default(),
-            envs: Vec::default(),
-            input_setup: FuzzInputSetup::SharedMemory(ShMemId::default(), 0),
-            memlimit: 0,
-            persistent_fuzzing: static_info.is_persistent_mode,
-            deferred: static_info.is_defer_fork_server,
-            coverage_map_info: Some((mock_shmem.id(), MOCK_SHMEM_SIZE)),
-            afl_debug,
-            debug_output: debug_child_output,
-            kill_signal: nix::sys::signal::Signal::SIGKILL,
-        };
-        let mut fork_server = NeoForkServer::new(opts).context("Creating fork server")?;
-        let opts = fork_server
-            .initialize()
-            .context("Initializing fork server")?;
-        Ok(Self {
-            map_size: opts.map_size,
-            is_shmem_fuzzing: opts.shmem_fuzz,
-            is_persistent_mode: static_info.is_persistent_mode,
-            is_defer_fork_server: static_info.is_defer_fork_server,
-            uses_address_sanitizer: static_info.uses_address_sanitizer,
-        })
-    }
+pub fn dump_map_size(binary: &Path) -> Result<usize, anyhow::Error> {
+    let mut cmd = std::process::Command::new(binary);
+    let mut child = cmd
+        .env("AFL_DUMP_MAP_SIZE", "1")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let mut stdout = child.stdout.take().expect("We set it to pipe");
+    let mut buf = Vec::new();
+    stdout.read_to_end(&mut buf)?;
+    let output = String::from_utf8_lossy(&buf);
+    let map_size = output
+        .trim()
+        .parse()
+        .with_context(|| format!("Fail to parse size from: \"{}\"", output.trim()))?;
+    child.wait()?;
+    Ok(map_size)
 }
