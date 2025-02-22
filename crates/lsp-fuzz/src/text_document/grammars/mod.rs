@@ -137,7 +137,7 @@ impl DerivationGrammar {
     pub fn validate(&self) -> Result<(), anyhow::Error> {
         for symbol in self.derivation_rules.values().flatten().flatten() {
             match symbol {
-                Symbol::NonTerminal(ref name) if !self.derivation_rules.contains_key(name) => {
+                Symbol::NonTerminal(name) if !self.derivation_rules.contains_key(name) => {
                     bail!("Missing rule for non-terminal symbol: {}", name);
                 }
                 _ => {}
@@ -251,10 +251,10 @@ impl GrammarContext {
                 .ok_or(DerivationError::InvalidGrammar)?;
             rule.into_iter()
                 .map(|symbol| match symbol {
-                    Symbol::NonTerminal(ref name) => {
+                    Symbol::NonTerminal(name) => {
                         self.generate_node(name, rand, max_depth.map(|it| it - 1))
                     }
-                    Symbol::Terminal(ref term) => match term {
+                    Symbol::Terminal(term) => match term {
                         Terminal::Immediate(content) => Ok(content.to_vec()),
                         Terminal::Named(name) | Terminal::Auxiliary(name) => {
                             let fragments = self.derivation_fragment(name);

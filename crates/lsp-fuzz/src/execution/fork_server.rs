@@ -81,7 +81,7 @@ impl<'a, SHM: ShMem> From<&'a FuzzInput<SHM>> for FuzzInputSetup<'a> {
         match value {
             FuzzInput::Stdin(file) => Self::Stdin(file),
             FuzzInput::File(_) => Self::FileArg,
-            FuzzInput::SharedMemory(ref shm) => Self::SharedMemory(shm.id(), shm.len()),
+            FuzzInput::SharedMemory(shm) => Self::SharedMemory(shm.id(), shm.len()),
         }
     }
 }
@@ -442,30 +442,34 @@ pub(super) fn check_handshake_error_bits(handshake_msg: i32) -> Result<(), libaf
     if (handshake_msg & FS_NEW_ERROR) == FS_NEW_ERROR {
         let error_code = handshake_msg & 0x0000ffff;
         let err = match error_code {
-            FS_ERROR_MAP_SIZE =>  libafl::Error::unknown(
+            FS_ERROR_MAP_SIZE => libafl::Error::unknown(
                 "AFL_MAP_SIZE is not set and fuzzing target reports that the required size is very large. \
                       Solution: Run the fuzzing target stand-alone with the environment variable AFL_DEBUG=1 set \
-                      and set the value for __afl_final_loc in the AFL_MAP_SIZE environment variable for afl-fuzz."
-            ) ,
+                      and set the value for __afl_final_loc in the AFL_MAP_SIZE environment variable for afl-fuzz.",
+            ),
             FS_ERROR_MAP_ADDR => libafl::Error::unknown(
                 "The fuzzing target reports that hardcoded map address might be the reason the mmap of the \
                   shared memory failed. Solution: recompile the target with either afl-clang-lto and do not \
-                  set AFL_LLVM_MAP_ADDR or recompile with afl-clang-fast."
+                  set AFL_LLVM_MAP_ADDR or recompile with afl-clang-fast.",
             ),
             FS_ERROR_SHM_OPEN => libafl::Error::unknown(
-                "The fuzzing target reports that the shm_open() call failed."
+                "The fuzzing target reports that the shm_open() call failed.",
             ),
-            FS_ERROR_SHMAT => libafl::Error::unknown("The fuzzing target reports that the shmat() call failed."),
+            FS_ERROR_SHMAT => {
+                libafl::Error::unknown("The fuzzing target reports that the shmat() call failed.")
+            }
             FS_ERROR_MMAP => libafl::Error::unknown(
-                "The fuzzing target reports that the mmap() call to the shared memory failed."
+                "The fuzzing target reports that the mmap() call to the shared memory failed.",
             ),
             FS_ERROR_OLD_CMPLOG => libafl::Error::unknown(
-                "The -c cmplog target was instrumented with an too old AFL++ version, you need to recompile it."
+                "The -c cmplog target was instrumented with an too old AFL++ version, you need to recompile it.",
             ),
             FS_ERROR_OLD_CMPLOG_QEMU => libafl::Error::unknown(
-                "The AFL++ QEMU/FRIDA loaders are from an older version, for -c you need to recompile it."
+                "The AFL++ QEMU/FRIDA loaders are from an older version, for -c you need to recompile it.",
             ),
-            code => libafl::Error::unknown(format!("Unknown error code {code} from fuzzing target!")),
+            code => {
+                libafl::Error::unknown(format!("Unknown error code {code} from fuzzing target!"))
+            }
         };
         Err(err)
     } else {
