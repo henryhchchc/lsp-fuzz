@@ -6,7 +6,8 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    corpus::{ondisk::OnDiskMetadataFormat, Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus},
+    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
+    corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
     events::{EventFirer, SimpleEventManager},
     executors::{Executor, HasObservers},
     feedback_and_fast, feedback_or, feedback_or_fast,
@@ -17,34 +18,32 @@ use libafl::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
     schedulers::{
-        powersched::{BaseSchedule, PowerSchedule},
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
+        powersched::{BaseSchedule, PowerSchedule},
     },
     stages::{CalibrationStage, Stage, StdPowerMutationalStage},
     state::{HasCorpus, HasExecutions, HasMaxSize, HasRand, MaybeHasClientPerfMonitor, StdState},
-    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
 };
 
 use libafl_bolts::{
-    current_nanos,
+    AsSliceMut, HasLen, current_nanos,
     fs::InputFile,
     rands::{Rand, StdRand},
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     tuples::Handled,
-    AsSliceMut, HasLen,
 };
 use lsp_fuzz::{
     afl,
     execution::{
-        workspace_observer::WorkspaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo,
-        LspExecutor,
+        FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor,
+        workspace_observer::WorkspaceObserver,
     },
     fuzz_target::{self, StaticTargetBinaryInfo},
-    lsp_input::{messages::message_mutations, LspInput, LspInputGenerator, LspInputMutator},
+    lsp_input::{LspInput, LspInputGenerator, LspInputMutator, messages::message_mutations},
     stages::{CleanupWorkspaceDirs, StopOnReceived},
     text_document::{
-        text_document_mutations, token_novelty::TokenNoveltyFeedback, GrammarContextLookup,
-        Language,
+        GrammarContextLookup, Language, text_document_mutations,
+        token_novelty::TokenNoveltyFeedback,
     },
 };
 
@@ -56,7 +55,7 @@ use crate::{
     language_fragments::load_grammar_lookup,
 };
 
-use super::{parse_hash_map, GlobalOptions};
+use super::{GlobalOptions, parse_hash_map};
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
@@ -92,11 +91,16 @@ pub(super) struct FuzzCommand {
     #[clap(long, env = "AFL_CYCLE_SCHEDULES", value_parser = BoolishValueParser::new())]
     cycle_power_schedule: bool,
 
+    /// Bind the fuzzer to a specific CPU core.
     #[clap(long)]
     cpu_affinity: Option<usize>,
 
     #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
     language_fragments: HashMap<Language, PathBuf>,
+
+    /// Stop fuzzing after a certain number of hours.
+    #[clap(long)]
+    stop_after_hours: Option<u64>,
 }
 
 impl FuzzCommand {
@@ -219,12 +223,15 @@ impl FuzzCommand {
                 .to_str()
                 .context("temp_dir is not a valid UTF-8 string")?;
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            let stop_on_signal = stop_on_sigint_stage()?;
+            let trigget_stop = trigger_stop_stage(
+                self.stop_after_hours
+                    .map(|it| Duration::from_secs(it * 60 * 60)),
+            )?;
             tuple_list![
                 calibration_stage,
                 mutation_stage,
                 cleanup_workspace_stage,
-                stop_on_signal
+                trigget_stop
             ]
         };
 
@@ -324,9 +331,21 @@ impl FuzzCommand {
     }
 }
 
-fn stop_on_sigint_stage<S>() -> Result<StopOnReceived<S>, anyhow::Error> {
+fn trigger_stop_stage<S>(
+    after_duration: Option<Duration>,
+) -> Result<StopOnReceived<S>, anyhow::Error> {
     let (tx, rx) = mpsc::channel();
     let mut is_contgrol_c_pressed = false;
+    if let Some(duration) = after_duration {
+        let timeout_tx = tx.clone();
+        std::thread::Builder::new()
+            .name("Timeout signal".to_owned())
+            .spawn(move || {
+                std::thread::sleep(duration);
+                timeout_tx.send(()).expect("Failed to send stop signal");
+            })
+            .context("Spawning timeout thread")?;
+    }
     ctrlc::try_set_handler(move || {
         if is_contgrol_c_pressed {
             info!("Control-C pressed again. Exiting immediately.");
@@ -338,6 +357,7 @@ fn stop_on_sigint_stage<S>() -> Result<StopOnReceived<S>, anyhow::Error> {
         tx.send(()).expect("Failed to send stop signal");
     })
     .context("Setting Control-C handler")?;
+
     Ok(StopOnReceived::new(rx))
 }
 

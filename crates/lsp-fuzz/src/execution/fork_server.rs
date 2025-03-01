@@ -175,7 +175,7 @@ impl NeoForkServer {
         // Setup args, stdio
         command
             .args(args)
-            .stdin(Stdio::null())
+            .stdin(Stdio::null()) // Will be overridden by input_setup later if necessary
             .stdout(stdout)
             .stderr(stderr);
 

@@ -45,7 +45,7 @@ pub struct SanitizerOptions {
     /// If set, use the online symbolizer from common sanitizer runtime to turn virtual addresses to file/line locations
     pub symbolize: bool,
 
-    /// Path to external symbolizer. If empty, the tool will search $PATH for the symbolizer
+    /// Path to external symbolizer. If empty, the tool will search `$PATH` for the symbolizer
     pub external_symbolizer_path: Option<String>,
 
     /// If set, allows online symbolizer to run addr2line binary to symbolize stack traces

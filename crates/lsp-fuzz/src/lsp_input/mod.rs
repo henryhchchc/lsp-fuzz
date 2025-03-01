@@ -11,15 +11,15 @@ use std::{
 
 use derive_new::new as New;
 use libafl::{
+    HasMetadata,
     corpus::CorpusId,
     generators::Generator,
     inputs::{BytesInput, HasTargetBytes, Input},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand},
-    HasMetadata,
 };
-use libafl_bolts::{ownedref::OwnedSlice, rands::Rand, HasLen, Named};
-use lsp_types::{InitializedParams, Uri};
+use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice, rands::Rand};
+use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
 use messages::LspMessages;
 use serde::{Deserialize, Serialize};
 
@@ -174,12 +174,18 @@ impl LspInput {
             reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
         )]
         let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
+            process_id: None,
+            client_info: Some(ClientInfo {
+                name: env!("CARGO_PKG_NAME").to_owned(),
+                version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+            }),
             root_uri: Some(ROOT_URI.clone()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
                 uri: ROOT_URI.clone(),
                 name: "default_workspace".to_owned(),
             }]),
             capabilities: fuzzer_client_capabilities(),
+            trace: Some(TraceValue::Off),
             ..Default::default()
         });
         let initialized_req = lsp::ClientToServerMessage::Initialized(InitializedParams {});

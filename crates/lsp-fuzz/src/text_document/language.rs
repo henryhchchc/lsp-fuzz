@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::{grammars::GrammarJson, Language};
+use super::{Language, grammars::GrammarJson};
 
 impl Language {
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
@@ -20,6 +20,21 @@ impl Language {
             .set_language(&self.ts_language())
             .expect("Fail to initialize parser");
         parser
+    }
+
+    /// Query for tree-sitter syntax highlighting
+    /// See https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups for common highlight groups
+    pub fn ts_highlight_query(&self) -> tree_sitter::Query {
+        let query_src = match self {
+            Self::C => tree_sitter_c::HIGHLIGHT_QUERY,
+            Self::CPlusPlus => tree_sitter_cpp::HIGHLIGHT_QUERY,
+            Self::JavaScript => tree_sitter_javascript::HIGHLIGHT_QUERY,
+            Self::Ruby => tree_sitter_ruby::HIGHLIGHTS_QUERY,
+            Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
+            Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
+        };
+        tree_sitter::Query::new(&self.ts_language(), query_src)
+            .expect("The query provided by tree-sitter should be correct")
     }
 
     pub fn ts_language(&self) -> tree_sitter::Language {

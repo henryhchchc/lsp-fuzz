@@ -20,10 +20,6 @@ where
     fn into_message(self) -> ClientToServerMessage;
 }
 
-pub trait LocalizeToWorkspace {
-    fn localize(&mut self, workspace_dir: &str);
-}
-
 pub trait HasPredefinedGenerators<S> {
     type Generator: LspParamsGenerator<S, Output = Self>;
 

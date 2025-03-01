@@ -2,17 +2,17 @@ use std::{collections::HashMap, fs, marker::PhantomData, mem, path::PathBuf};
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
+    HasMetadata,
     executors::{Executor, ExitKind, HasObservers},
     mutators::Tokens,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
-    HasMetadata,
 };
 use libafl_bolts::{
+    AsSliceMut, Truncate,
     fs::InputFile,
     shmem::{ShMem, ShMemId},
     tuples::{Handle, MatchNameRef, Prepend, RefIndexable},
-    AsSliceMut, Truncate,
 };
 use nix::{
     sys::{signal::Signal, time::TimeSpec},
@@ -130,14 +130,14 @@ where
             "abort_on_error=1",
             "symbolize=0",
             "allocator_may_return_null=1",
-            "handle_segv=0",
-            "handle_sigbus=0",
-            "handle_sigfpe=0",
-            "handle_sigill=0",
-            "handle_abort=0", // Some targets may have their own abort handler
-            "detect_stack_use_after_return=0",
+            "handle_segv=1",
+            "handle_sigbus=1",
+            "handle_sigfpe=1",
+            "handle_sigill=1",
+            "handle_abort=2", // Some targets may have their own abort handler
+            "detect_stack_use_after_return=1",
             "check_initialization_order=0",
-            "detect_leaks=0",
+            "detect_leaks=1",
             "malloc_context_size=0",
         ];
 

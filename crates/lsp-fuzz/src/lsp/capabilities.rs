@@ -1,43 +1,24 @@
-use lsp_types::{
-    ClientCapabilities, CodeActionCapabilityResolveSupport, CodeActionClientCapabilities,
-    CompletionClientCapabilities, CompletionItemCapability, CompletionItemCapabilityResolveSupport,
-    CompletionItemKind, CompletionItemKindCapability, CompletionItemTag, CompletionListCapability,
-    DiagnosticClientCapabilities, DiagnosticTag, DocumentLinkClientCapabilities,
-    DocumentSymbolClientCapabilities, DynamicRegistrationClientCapabilities,
-    FoldingRangeCapability, FoldingRangeClientCapabilities, FoldingRangeKind,
-    GeneralClientCapabilities, GotoCapability, HoverClientCapabilities,
-    InlayHintClientCapabilities, InsertTextMode, InsertTextModeSupport, MarkupKind,
-    MessageActionItemCapabilities, ParameterInformationSettings, PositionEncodingKind,
-    PublishDiagnosticsClientCapabilities, SelectionRangeClientCapabilities, SemanticTokenModifier,
-    SemanticTokenType, SemanticTokensClientCapabilities, SemanticTokensClientCapabilitiesRequests,
-    SemanticTokensFullOptions, ShowDocumentClientCapabilities,
-    ShowMessageRequestClientCapabilities, SignatureHelpClientCapabilities,
-    SignatureInformationSettings, SymbolKind, SymbolKindCapability, SymbolTag, TagSupport,
-    TextDocumentClientCapabilities, TextDocumentSyncClientCapabilities, TokenFormat,
-    WindowClientCapabilities, WorkspaceClientCapabilities, WorkspaceSymbolClientCapabilities,
-    WorkspaceSymbolResolveSupportCapability,
-};
+use lsp_types::*;
 
 pub fn fuzzer_client_capabilities() -> ClientCapabilities {
     ClientCapabilities {
-        workspace: Some(WorkspaceClientCapabilities {
-            workspace_folders: Some(true),
-            symbol: Some(WorkspaceSymbolClientCapabilities {
-                dynamic_registration: None,
-                symbol_kind: Some(SymbolKindCapability {
-                    value_set: Some(all_symbol_kinds()),
-                }),
-                tag_support: Some(TagSupport {
-                    value_set: vec![SymbolTag::DEPRECATED],
-                }),
-                resolve_support: Some(WorkspaceSymbolResolveSupportCapability::default()),
-            }),
-            ..Default::default()
-        }),
+        workspace: Some(workspace_capabilities()),
         text_document: Some(text_document_capabilities()),
         general: Some(GeneralClientCapabilities {
             position_encodings: Some(vec![PositionEncodingKind::UTF8]),
-            ..Default::default()
+            stale_request_support: Some(StaleRequestSupportClientCapabilities {
+                cancel: true,
+                retry_on_content_modified: Vec::default(),
+            }),
+            markdown: Some(MarkdownClientCapabilities {
+                parser: env!("CARGO_PKG_NAME").to_owned(),
+                version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+                allowed_tags: None,
+            }),
+            regular_expressions: Some(RegularExpressionsClientCapabilities {
+                engine: env!("CARGO_PKG_NAME").to_owned(),
+                version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+            }),
         }),
         notebook_document: None,
         window: Some(WindowClientCapabilities {
@@ -50,6 +31,44 @@ pub fn fuzzer_client_capabilities() -> ClientCapabilities {
             work_done_progress: Some(true),
         }),
         experimental: None,
+    }
+}
+
+fn workspace_capabilities() -> WorkspaceClientCapabilities {
+    WorkspaceClientCapabilities {
+        workspace_folders: Some(true),
+        symbol: Some(WorkspaceSymbolClientCapabilities {
+            dynamic_registration: None,
+            symbol_kind: Some(SymbolKindCapability {
+                value_set: Some(all_symbol_kinds()),
+            }),
+            tag_support: Some(TagSupport {
+                value_set: vec![SymbolTag::DEPRECATED],
+            }),
+            resolve_support: Some(WorkspaceSymbolResolveSupportCapability::default()),
+        }),
+        inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
+            refresh_support: Some(true),
+        }),
+        semantic_tokens: Some(SemanticTokensWorkspaceClientCapabilities {
+            refresh_support: Some(true),
+        }),
+        code_lens: Some(CodeLensWorkspaceClientCapabilities {
+            refresh_support: Some(true),
+        }),
+        diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
+            refresh_support: Some(true),
+        }),
+        inline_value: Some(InlineValueWorkspaceClientCapabilities {
+            refresh_support: Some(true),
+        }),
+        apply_edit: None,
+        workspace_edit: None,
+        did_change_configuration: None,
+        did_change_watched_files: None,
+        execute_command: None,
+        configuration: None,
+        file_operations: None,
     }
 }
 
@@ -190,6 +209,36 @@ fn all_symbol_kinds() -> Vec<SymbolKind> {
     ]
 }
 
+fn all_completion_item_kinds() -> Vec<CompletionItemKind> {
+    vec![
+        CompletionItemKind::TEXT,
+        CompletionItemKind::METHOD,
+        CompletionItemKind::FUNCTION,
+        CompletionItemKind::CONSTRUCTOR,
+        CompletionItemKind::FIELD,
+        CompletionItemKind::VARIABLE,
+        CompletionItemKind::CLASS,
+        CompletionItemKind::INTERFACE,
+        CompletionItemKind::MODULE,
+        CompletionItemKind::PROPERTY,
+        CompletionItemKind::UNIT,
+        CompletionItemKind::VALUE,
+        CompletionItemKind::ENUM,
+        CompletionItemKind::KEYWORD,
+        CompletionItemKind::SNIPPET,
+        CompletionItemKind::COLOR,
+        CompletionItemKind::FILE,
+        CompletionItemKind::REFERENCE,
+        CompletionItemKind::FOLDER,
+        CompletionItemKind::ENUM_MEMBER,
+        CompletionItemKind::CONSTANT,
+        CompletionItemKind::STRUCT,
+        CompletionItemKind::EVENT,
+        CompletionItemKind::OPERATOR,
+        CompletionItemKind::TYPE_PARAMETER,
+    ]
+}
+
 fn completion_capabilities() -> CompletionClientCapabilities {
     CompletionClientCapabilities {
         dynamic_registration: None,
@@ -210,33 +259,7 @@ fn completion_capabilities() -> CompletionClientCapabilities {
             label_details_support: Some(true),
         }),
         completion_item_kind: Some(CompletionItemKindCapability {
-            value_set: Some(vec![
-                CompletionItemKind::TEXT,
-                CompletionItemKind::METHOD,
-                CompletionItemKind::FUNCTION,
-                CompletionItemKind::CONSTRUCTOR,
-                CompletionItemKind::FIELD,
-                CompletionItemKind::VARIABLE,
-                CompletionItemKind::CLASS,
-                CompletionItemKind::INTERFACE,
-                CompletionItemKind::MODULE,
-                CompletionItemKind::PROPERTY,
-                CompletionItemKind::UNIT,
-                CompletionItemKind::VALUE,
-                CompletionItemKind::ENUM,
-                CompletionItemKind::KEYWORD,
-                CompletionItemKind::SNIPPET,
-                CompletionItemKind::COLOR,
-                CompletionItemKind::FILE,
-                CompletionItemKind::REFERENCE,
-                CompletionItemKind::FOLDER,
-                CompletionItemKind::ENUM_MEMBER,
-                CompletionItemKind::CONSTANT,
-                CompletionItemKind::STRUCT,
-                CompletionItemKind::EVENT,
-                CompletionItemKind::OPERATOR,
-                CompletionItemKind::TYPE_PARAMETER,
-            ]),
+            value_set: Some(all_completion_item_kinds()),
         }),
         context_support: Some(true),
         insert_text_mode: Some(InsertTextMode::AS_IS),
@@ -246,6 +269,33 @@ fn completion_capabilities() -> CompletionClientCapabilities {
     }
 }
 
+fn all_semantic_token_types() -> Vec<SemanticTokenType> {
+    vec![
+        SemanticTokenType::NAMESPACE,
+        SemanticTokenType::TYPE,
+        SemanticTokenType::CLASS,
+        SemanticTokenType::ENUM,
+        SemanticTokenType::INTERFACE,
+        SemanticTokenType::STRUCT,
+        SemanticTokenType::TYPE_PARAMETER,
+        SemanticTokenType::PARAMETER,
+        SemanticTokenType::VARIABLE,
+        SemanticTokenType::PROPERTY,
+        SemanticTokenType::ENUM_MEMBER,
+        SemanticTokenType::EVENT,
+        SemanticTokenType::FUNCTION,
+        SemanticTokenType::METHOD,
+        SemanticTokenType::MACRO,
+        SemanticTokenType::KEYWORD,
+        SemanticTokenType::MODIFIER,
+        SemanticTokenType::COMMENT,
+        SemanticTokenType::STRING,
+        SemanticTokenType::NUMBER,
+        SemanticTokenType::REGEXP,
+        SemanticTokenType::OPERATOR,
+    ]
+}
+
 fn full_semantic_tokens_client_capabilities() -> SemanticTokensClientCapabilities {
     SemanticTokensClientCapabilities {
         dynamic_registration: None,
@@ -253,30 +303,7 @@ fn full_semantic_tokens_client_capabilities() -> SemanticTokensClientCapabilitie
             range: Some(true),
             full: Some(SemanticTokensFullOptions::Bool(true)),
         },
-        token_types: vec![
-            SemanticTokenType::NAMESPACE,
-            SemanticTokenType::TYPE,
-            SemanticTokenType::CLASS,
-            SemanticTokenType::ENUM,
-            SemanticTokenType::INTERFACE,
-            SemanticTokenType::STRUCT,
-            SemanticTokenType::TYPE_PARAMETER,
-            SemanticTokenType::PARAMETER,
-            SemanticTokenType::VARIABLE,
-            SemanticTokenType::PROPERTY,
-            SemanticTokenType::ENUM_MEMBER,
-            SemanticTokenType::EVENT,
-            SemanticTokenType::FUNCTION,
-            SemanticTokenType::METHOD,
-            SemanticTokenType::MACRO,
-            SemanticTokenType::KEYWORD,
-            SemanticTokenType::MODIFIER,
-            SemanticTokenType::COMMENT,
-            SemanticTokenType::STRING,
-            SemanticTokenType::NUMBER,
-            SemanticTokenType::REGEXP,
-            SemanticTokenType::OPERATOR,
-        ],
+        token_types: all_semantic_token_types(),
         token_modifiers: vec![
             SemanticTokenModifier::DECLARATION,
             SemanticTokenModifier::DEFINITION,
