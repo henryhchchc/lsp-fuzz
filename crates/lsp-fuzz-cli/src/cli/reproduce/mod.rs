@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     ffi::CStr,
     fs::File,
-    io::{self, BufReader, Read, Write},
+    io::{self, BufReader, ErrorKind, Read, Write},
     os::{fd::AsFd, unix::process::ExitStatusExt},
     path::Path,
     process::{Child, Command, Stdio},
@@ -56,9 +56,11 @@ fn find_crashing_request(
             method = ?jsonrpc.method(),
             "Sending message to target"
         );
-        target_stdin
-            .write_all(&jsonrpc.to_lsp_payload())
-            .context("Sending message to target")?;
+        match target_stdin.write_all(&jsonrpc.to_lsp_payload()) {
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::BrokenPipe => {}
+            Err(e) => Err(e).context("Sending message to target")?,
+        }
         if let JsonRPCMessage::Request { id: request_id, .. } = &jsonrpc {
             loop {
                 let mut fdset = nix::sys::select::FdSet::new();
@@ -113,11 +115,12 @@ fn find_crashing_request(
 
 const ASAN_LOG_FN: &str = "lsp-fuzz-asan";
 
-#[tracing::instrument(skip(input, target_executable))]
+#[tracing::instrument(skip(input, target_executable, target_args))]
 fn repdoruce(
     input_id: String,
     input: LspInput,
     target_executable: &Path,
+    target_args: &[String],
 ) -> Result<Option<ReproductionInfo>, anyhow::Error> {
     let temp_directory = tempfile::tempdir().context("Creating temporary working directory")?;
     let workspace_dir = temp_directory.path();
@@ -128,6 +131,7 @@ fn repdoruce(
         .context("Setting up workspace_dir")?;
     let mut target = Command::new(target_executable);
     target
+        .args(target_args)
         .env("ASAN_OPTIONS", asan_options_env)
         .current_dir(workspace_dir)
         .stdin(Stdio::piped())
@@ -184,11 +188,12 @@ fn repdoruce(
 fn parse_asan_log<R: Read>(
     asan_log: &mut R,
     pid: u32,
-) -> Result<(String, ExecutionClass, Vec<StacktraceEntry>), anyhow::Error> {
+) -> Result<(String, Option<ExecutionClass>, Vec<StacktraceEntry>), anyhow::Error> {
     let mut log_content = String::new();
     asan_log
         .read_to_string(&mut log_content)
         .context("Reading ASAN log")?;
+    info!(%log_content);
     let pid_prefix = format!("=={}==", pid);
     let asan_summary = log_content
         .lines()
@@ -197,9 +202,7 @@ fn parse_asan_log<R: Read>(
         .join("\n");
     info!(asan_summary);
     let lines = log_content.lines().map(ToOwned::to_owned).collect();
-    let classification = AsanContext(lines)
-        .severity()
-        .context("Getting ASAN severity")?;
+    let classification = AsanContext(lines).severity().ok();
     let stack_trace =
         AsanStacktrace::extract_stacktrace(&log_content).context("Extracting stack trace")?;
     let stack_trace: Vec<_> = AsanStacktrace::parse_stacktrace(&stack_trace)
@@ -226,9 +229,9 @@ fn asan_options(asan_log_file: &Path) -> Vec<Cow<'_, str>> {
         "handle_sigfpe=1",
         "handle_sigill=1",
         "handle_abort=2", // Some targets may have their own abort handler
-        "detect_stack_use_after_return=0",
+        "detect_stack_use_after_return=1",
         "check_initialization_order=0",
-        "detect_leaks=0",
+        "detect_leaks=1",
         "malloc_context_size=0",
     ]
     .into_iter()
@@ -243,7 +246,7 @@ pub struct ReproductionInfo {
     pub input: LspInput,
     pub crashing_request: JsonRPCMessage,
     pub asan_summary: String,
-    pub asan_classification: ExecutionClass,
+    pub asan_classification: Option<ExecutionClass>,
     pub stack_trace: Vec<StacktraceEntry>,
 }
 

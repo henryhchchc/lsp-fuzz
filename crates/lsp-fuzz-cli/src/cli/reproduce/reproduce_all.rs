@@ -7,8 +7,8 @@ use lsp_fuzz::lsp_input::LspInput;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tracing::info;
 
-use crate::cli::reproduce::repdoruce;
 use crate::cli::GlobalOptions;
+use crate::cli::reproduce::repdoruce;
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]
@@ -20,6 +20,10 @@ pub struct ReproduceAll {
     /// The path to the target executable.
     #[clap(long, short)]
     target_executable: PathBuf,
+
+    /// The path to the target executable.
+    #[clap(long, short)]
+    target_args: Vec<String>,
 
     /// The path to the output file.
     #[clap(long, short)]
@@ -50,8 +54,13 @@ impl ReproduceAll {
                     .to_owned();
                 let lsp_input = LspInput::from_file(&input_file).context("Loading input file")?;
                 info!("Reproducing crash for input {}", input_id);
-                repdoruce(input_id, lsp_input, &self.target_executable)
-                    .with_context(|| format!("Reproducing crash for {}", input_file.display()))
+                repdoruce(
+                    input_id,
+                    lsp_input,
+                    &self.target_executable,
+                    &self.target_args,
+                )
+                .with_context(|| format!("Reproducing crash for {}", input_file.display()))
             })
             .filter_map(|it| it.unwrap())
             .collect();

@@ -61,12 +61,18 @@ fn export_input(input: &Path, output_dir: &Path) -> Result<(), anyhow::Error> {
     input
         .setup_source_dir(&workspace_dir)
         .context("Setting up workspace directory")?;
-    let messages = input.request_bytes(&workspace_dir);
-    let message_file = output_dir.join("requests");
-    let message_file = File::create(message_file).context("Creating message file")?;
-    let mut writer = BufWriter::new(message_file);
-    writer
-        .write_all(&messages)
-        .context("Writing to message file")?;
+    let workspace_url = format!("file://{}/", workspace_dir.display());
+    let requests_dir = output_dir.join("requests");
+    fs::create_dir_all(&requests_dir).context("Creating requests dir")?;
+    let mut id = 0;
+    for (idx, message) in input.message_sequence().enumerate() {
+        let message_file = requests_dir.join(format!("message_{idx:0>5}"));
+        let json_msg = message.into_json_rpc(&mut id, Some(&workspace_url));
+        let message_file = File::create(message_file).context("Creating message file")?;
+        let mut writer = BufWriter::new(message_file);
+        writer
+            .write_all(json_msg.to_lsp_payload().as_ref())
+            .context("Writing to message file")?;
+    }
     Ok(())
 }
