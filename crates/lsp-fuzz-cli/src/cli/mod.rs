@@ -5,14 +5,14 @@ mod reproduce;
 
 use std::{cmp::max, collections::HashMap, str::FromStr};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
 use reproduce::reproduce_all::ReproduceAll;
 use reproduce::reproduce_one::ReproduceOne;
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Debug, clap::Parser)]
 #[command(version, about, styles = clap::builder::Styles::styled())]
@@ -31,7 +31,7 @@ impl Cli {
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
-            Command::Triage(cmd) => cmd.run(self.global_options),
+            Command::Export(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
@@ -68,7 +68,7 @@ impl GlobalOptions {
 enum Command {
     Fuzz(Box<FuzzCommand>),
     MineGrammarFragments(MineGrammarFragments),
-    Triage(ExportCommand),
+    Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
 }
