@@ -102,6 +102,12 @@ pub struct LspInput {
 impl LspInput {
     pub const NAME_PREFIX: &str = "input_";
     pub const PROROCOL_PREFIX: &str = "lsp-fuzz://";
+
+    pub fn root_uri() -> Uri {
+        static WORKSPACE_ROOT_URI: LazyLock<lsp_types::Uri> =
+            LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
+        WORKSPACE_ROOT_URI.clone()
+    }
 }
 
 impl Input for LspInput {
@@ -166,9 +172,6 @@ impl LspInput {
     }
 
     pub fn message_sequence(&self) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
-        static ROOT_URI: LazyLock<lsp_types::Uri> =
-            LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
-
         #[allow(
             deprecated,
             reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
@@ -179,9 +182,9 @@ impl LspInput {
                 name: env!("CARGO_PKG_NAME").to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
             }),
-            root_uri: Some(ROOT_URI.clone()),
+            root_uri: Some(Self::root_uri()),
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: ROOT_URI.clone(),
+                uri: Self::root_uri(),
                 name: "default_workspace".to_owned(),
             }]),
             capabilities: fuzzer_client_capabilities(),

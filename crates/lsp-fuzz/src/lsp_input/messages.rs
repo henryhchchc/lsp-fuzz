@@ -5,14 +5,14 @@ use std::{
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
 use libafl::{
+    HasMetadata,
     mutators::{MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
-    HasMetadata,
 };
 use libafl_bolts::{
+    HasLen, Named,
     rands::Rand,
     tuples::{Merge, NamedTuple},
-    HasLen, Named,
 };
 use serde::{Deserialize, Serialize};
 use trait_gen::trait_gen;
@@ -20,17 +20,16 @@ use tuple_list::{tuple_list, tuple_list_type};
 
 use crate::{
     lsp::{
-        self,
+        self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
         generation::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
             TokensGenerator,
         },
-        ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
-    text_document::{mutations::text_document_selectors::RandomDoc, TextDocument},
+    text_document::{TextDocument, mutations::text_document_selectors::RandomDoc},
 };
 
 use super::LspInput;
@@ -170,7 +169,6 @@ use lsp_types::*;
         CancelParams,
         CodeAction,
         CodeLens,
-        ColorPresentationParams,
         CompletionItem,
         ConfigurationParams,
         CreateFilesParams,
@@ -195,16 +193,12 @@ use lsp_types::*;
         PublishDiagnosticsParams,
         RegistrationParams,
         RenameFilesParams,
-        RenameParams,
         SelectionRangeParams,
         SemanticTokensDeltaParams,
         TypeHierarchySubtypesParams,
         TypeHierarchySupertypesParams,
         UnregistrationParams,
         WillSaveTextDocumentParams,
-        WorkDoneProgressCancelParams,
-        WorkDoneProgressCreateParams,
-        WorkspaceDiagnosticParams,
         WorkspaceSymbol,
 )]
 impl<S> HasPredefinedGenerators<S> for P {
@@ -504,7 +498,6 @@ append_randoms! {
         // request::CallHierarchyOutgoingCalls,
         // request::CodeActionResolveRequest,
         // request::CodeLensResolve,
-        // request::ColorPresentationRequest,
         // request::DocumentLinkResolve,
         // request::ExecuteCommand,
         // request::InlayHintResolveRequest,
@@ -512,23 +505,20 @@ append_randoms! {
         // request::InlineValueRequest,
         // request::OnTypeFormatting,
         // request::RangeFormatting,
-        // request::Rename,
         // request::ResolveCompletionItem,
         // request::SelectionRangeRequest,
         // request::SemanticTokensFullDeltaRequest,
-        request::SignatureHelpRequest,
         // request::TypeHierarchySubtypes,
         // request::TypeHierarchySupertypes,
         // request::WillCreateFiles,
         // request::WillDeleteFiles,
         // request::WillRenameFiles,
         // request::WillSaveWaitUntil,
-        // request::WorkspaceDiagnosticRefresh,
-        // request::WorkspaceDiagnosticRequest,
         // request::WorkspaceSymbolResolve,
         request::CallHierarchyPrepare,
         request::CodeActionRequest,
         request::CodeLensRequest,
+        request::ColorPresentationRequest,
         request::Completion,
         request::DocumentColor,
         request::DocumentDiagnosticRequest,
@@ -546,9 +536,13 @@ append_randoms! {
         request::MonikerRequest,
         request::PrepareRenameRequest,
         request::References,
+        request::Rename,
         request::SemanticTokensFullRequest,
         request::SemanticTokensRangeRequest,
+        request::SignatureHelpRequest,
         request::TypeHierarchyPrepare,
+        request::WorkspaceDiagnosticRefresh,
+        request::WorkspaceDiagnosticRequest,
         request::WorkspaceSymbolRequest,
         // notification::Cancel,
         // notification::DidChangeConfiguration,

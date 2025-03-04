@@ -23,7 +23,10 @@ impl Language {
     }
 
     /// Query for tree-sitter syntax highlighting
-    /// See https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups for common highlight groups
+    /// 
+    /// See the following two links for common highlight groups
+    /// - https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups
+    /// - https://zed.dev/docs/extensions/languages#syntax-highlighting
     pub fn ts_highlight_query(&self) -> tree_sitter::Query {
         let query_src = match self {
             Self::C => tree_sitter_c::HIGHLIGHT_QUERY,

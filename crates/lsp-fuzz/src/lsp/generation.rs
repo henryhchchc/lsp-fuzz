@@ -2,10 +2,11 @@ use std::{
     marker::{PhantomData, Sized},
     num::NonZeroUsize,
     ops::Deref,
+    result::Result,
 };
 
 use derive_new::new as New;
-use libafl::{mutators::Tokens, state::HasRand, HasMetadata};
+use libafl::{HasMetadata, mutators::Tokens, state::HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{
     CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range, SetTraceParams,
@@ -13,11 +14,11 @@ use lsp_types::{
 };
 
 use crate::{
-    lsp_input::{messages::PositionSelector, LspInput},
+    lsp_input::{LspInput, messages::PositionSelector},
     macros::const_generators,
     text_document::{
-        mutations::{text_document_selectors::RandomDoc, TextDocumentSelector},
         TextDocument,
+        mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
     },
 };
 
@@ -351,6 +352,37 @@ where
             }
         };
         [whole_range, after_range, inverted_range].map(RangeInDocGenerator::new)
+    }
+}
+
+#[derive(Debug)]
+pub struct ZeroToOne32(pub f32);
+
+#[derive(Debug, Clone)]
+pub struct ZeroToOne32Gen;
+
+impl<S> LspParamsGenerator<S> for ZeroToOne32Gen
+where
+    S: HasRand,
+{
+    type Output = ZeroToOne32;
+
+    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<ZeroToOne32, GenerationError> {
+        Ok(ZeroToOne32(state.rand_mut().next_float() as f32))
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for ZeroToOne32
+where
+    S: HasRand,
+{
+    type Generator = ZeroToOne32Gen;
+
+    fn generators() -> impl IntoIterator<Item = Self::Generator>
+    where
+        S: 'static,
+    {
+        [ZeroToOne32Gen]
     }
 }
 

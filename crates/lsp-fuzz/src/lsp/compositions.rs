@@ -1,18 +1,24 @@
 use lsp_types::{
     CallHierarchyPrepareParams, CodeActionContext, CodeActionKind, CodeActionParams,
-    CodeActionTriggerKind, CodeLensParams, CompletionContext, CompletionParams,
-    CompletionTriggerKind, DocumentColorParams, DocumentDiagnosticParams, DocumentHighlightParams,
-    DocumentLinkParams, DocumentSymbolParams, FoldingRangeParams, GotoDefinitionParams,
-    HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams, MonikerParams,
-    PartialResultParams, ReferenceContext, ReferenceParams, SemanticTokensParams,
-    SemanticTokensRangeParams, SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyPrepareParams,
-    WorkDoneProgressParams, WorkspaceSymbolParams,
+    CodeActionTriggerKind, CodeLensParams, Color, ColorPresentationParams, CompletionContext,
+    CompletionParams, CompletionTriggerKind, DocumentColorParams, DocumentDiagnosticParams,
+    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, FoldingRangeParams,
+    GotoDefinitionParams, HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams,
+    MonikerParams, PartialResultParams, PreviousResultId, ReferenceContext, ReferenceParams,
+    RenameParams, SemanticTokensParams, SemanticTokensRangeParams, SignatureHelpContext,
+    SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentIdentifier,
+    TextDocumentPositionParams, TypeHierarchyPrepareParams, WorkDoneProgressParams,
+    WorkspaceDiagnosticParams, WorkspaceSymbolParams,
 };
 use trait_gen::trait_gen;
-use tuple_list::{tuple_list_type, TupleList};
+use tuple_list::{TupleList, tuple_list_type};
 
-use super::{generation::RangeInDoc, Compose};
+use crate::lsp_input::LspInput;
+
+use super::{
+    Compose,
+    generation::{RangeInDoc, ZeroToOne32},
+};
 
 impl<Head, Tail> Compose for (Head, Tail) {
     type Components = (Head, Tail);
@@ -343,5 +349,94 @@ impl Compose for LogTraceParams {
     fn compose(components: Self::Components) -> Self {
         let (message, verbose) = components.into_tuple();
         Self { message, verbose }
+    }
+}
+
+impl Compose for WorkspaceDiagnosticParams {
+    type Components = tuple_list_type![
+        Option<String>,
+        Vec<PreviousResultId>,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (identifier, previous_result_ids, work_done_progress_params, partial_result_params) =
+            components.into_tuple();
+        Self {
+            identifier,
+            previous_result_ids,
+            work_done_progress_params,
+            partial_result_params,
+        }
+    }
+}
+
+impl Compose for PreviousResultId {
+    type Components = tuple_list_type![String];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (value,) = components.into_tuple();
+        Self {
+            uri: LspInput::root_uri(),
+            value,
+        }
+    }
+}
+
+impl Compose for RenameParams {
+    type Components = tuple_list_type![TextDocumentPositionParams, String, WorkDoneProgressParams,];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position, new_name, work_done_progress_params) = components.into_tuple();
+        Self {
+            text_document_position,
+            new_name,
+            work_done_progress_params,
+        }
+    }
+}
+
+impl Compose for ColorPresentationParams {
+    type Components = tuple_list_type![
+        RangeInDoc,
+        Color,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            RangeInDoc(text_document, range),
+            color,
+            work_done_progress_params,
+            partial_result_params,
+        ) = components.into_tuple();
+        Self {
+            text_document,
+            color,
+            range,
+            work_done_progress_params,
+            partial_result_params,
+        }
+    }
+}
+
+impl Compose for Color {
+    type Components = tuple_list_type![ZeroToOne32, ZeroToOne32, ZeroToOne32, ZeroToOne32];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (ZeroToOne32(red), ZeroToOne32(green), ZeroToOne32(blue), ZeroToOne32(alpha)) =
+            components.into_tuple();
+        Self {
+            red,
+            green,
+            blue,
+            alpha,
+        }
     }
 }
