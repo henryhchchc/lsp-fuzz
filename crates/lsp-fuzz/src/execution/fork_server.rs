@@ -203,12 +203,12 @@ impl NeoForkServer {
         let host_writer_fd = tx.as_raw_fd();
         let bind_pipes = move || {
             use nix::unistd::{close, dup2};
-            dup2(child_reader_fd, FORKSRV_CTL_FD).map_err(|_| io::Error::last_os_error())?;
-            dup2(child_writer_fd, FORKSRV_ST_FD).map_err(|_| io::Error::last_os_error())?;
-            close(child_reader_fd).map_err(|_| io::Error::last_os_error())?;
-            close(child_writer_fd).map_err(|_| io::Error::last_os_error())?;
-            close(host_reader_fd).map_err(|_| io::Error::last_os_error())?;
-            close(host_writer_fd).map_err(|_| io::Error::last_os_error())?;
+            dup2(child_reader_fd, FORKSRV_CTL_FD).map_err(io::Error::from)?;
+            dup2(child_writer_fd, FORKSRV_ST_FD).map_err(io::Error::from)?;
+            close(child_reader_fd).map_err(io::Error::from)?;
+            close(child_writer_fd).map_err(io::Error::from)?;
+            close(host_reader_fd).map_err(io::Error::from)?;
+            close(host_writer_fd).map_err(io::Error::from)?;
             Ok(())
         };
         unsafe { command.pre_exec(bind_pipes) };
