@@ -157,8 +157,6 @@ fn repdoruce(
         info!("Target exited with signal: {}", signal_name);
     }
 
-    let crashing_request = crashing_request.expect("The target should have crashed");
-
     let pid = child.id();
     let asan_log_file_path = asan_log_file_prefix.with_extension(child.id().to_string());
     let mut asan_log = match File::open(&asan_log_file_path) {
@@ -244,7 +242,7 @@ fn asan_options(asan_log_file: &Path) -> Vec<Cow<'_, str>> {
 pub struct ReproductionInfo {
     pub input_id: String,
     pub input: LspInput,
-    pub crashing_request: JsonRPCMessage,
+    pub crashing_request: Option<JsonRPCMessage>,
     pub asan_summary: String,
     pub asan_classification: Option<ExecutionClass>,
     pub stack_trace: Vec<StacktraceEntry>,
