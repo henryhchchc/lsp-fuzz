@@ -26,6 +26,7 @@ use crate::{lsp_input::LspInput, utils::AflContext};
 pub mod fork_server;
 pub mod sanitizers;
 pub mod workspace_observer;
+mod test;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
