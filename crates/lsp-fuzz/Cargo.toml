@@ -36,6 +36,8 @@ trait-gen = "0.3.2"
 tree-sitter = { version = "0.25" }
 tree-sitter-c.workspace = true
 tree-sitter-cpp.workspace = true
+tree-sitter-latex.workspace = true
+tree-sitter-bibtex.workspace = true
 tree-sitter-javascript.workspace = true
 tree-sitter-ruby.workspace = true
 tree-sitter-rust.workspace = true

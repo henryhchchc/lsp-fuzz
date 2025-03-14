@@ -30,6 +30,8 @@ pub enum Language {
     Ruby,
     Rust,
     Toml,
+    LaTeX,
+    BibTeX
 }
 
 pub mod language;

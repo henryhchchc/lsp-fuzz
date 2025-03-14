@@ -11,6 +11,8 @@ impl Language {
             Self::Ruby => BTreeSet::from(["rb"]),
             Self::Rust => BTreeSet::from(["rs"]),
             Self::Toml => BTreeSet::from(["toml"]),
+            Self::LaTeX => BTreeSet::from(["tex", "dtx"]),
+            Self::BibTeX => BTreeSet::from(["bib"]),
         }
     }
 
@@ -23,7 +25,7 @@ impl Language {
     }
 
     /// Query for tree-sitter syntax highlighting
-    /// 
+    ///
     /// See the following two links for common highlight groups
     /// - https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups
     /// - https://zed.dev/docs/extensions/languages#syntax-highlighting
@@ -35,6 +37,9 @@ impl Language {
             Self::Ruby => tree_sitter_ruby::HIGHLIGHTS_QUERY,
             Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
             Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
+            // Stolen from https://github.com/rzukic/zed-latex/blob/main/languages/latex/highlights.scm
+            Self::LaTeX => include_str!("grammars/tree_sitter/highlights/latex.scm"),
+            Self::BibTeX => tree_sitter_bibtex::HIGHLIGHTS_QUERY,
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
@@ -48,6 +53,8 @@ impl Language {
             Self::Ruby => tree_sitter_ruby::LANGUAGE,
             Self::Rust => tree_sitter_rust::LANGUAGE,
             Self::Toml => tree_sitter_toml_ng::LANGUAGE,
+            Self::LaTeX => tree_sitter_latex::LANGUAGE,
+            Self::BibTeX => tree_sitter_bibtex::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -60,9 +67,13 @@ impl Language {
             Self::Ruby => GrammarJson::RUBY,
             Self::Rust => GrammarJson::RUST,
             Self::Toml => GrammarJson::TOML,
+            Self::LaTeX => GrammarJson::LATEX,
+            Self::BibTeX => GrammarJson::BIBTEX,
         }
     }
 
+    /// The language identifier used by the Language Server Protocol
+    /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
     pub const fn lsp_language_id<'a>(&self) -> &'a str {
         match self {
             Self::C => "c",
@@ -71,6 +82,8 @@ impl Language {
             Self::Ruby => "ruby",
             Self::Rust => "rust",
             Self::Toml => "toml",
+            Self::LaTeX => "latex",
+            Self::BibTeX => "bibtex",
         }
     }
 }

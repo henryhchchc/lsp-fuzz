@@ -41,6 +41,8 @@ tokio-stream = "0"
 tokio-util = { version = "0", features = ["full"] }
 tree-sitter-c = "0"
 tree-sitter-cpp = "0"
+tree-sitter-latex = { git = "https://github.com/henryhchchc/tree-sitter-latex.git", branch = "self-use" }
+tree-sitter-bibtex = { git = "https://github.com/henryhchchc/tree-sitter-bibtex.git", branch = "master" }
 tree-sitter-javascript = "0"
 tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
