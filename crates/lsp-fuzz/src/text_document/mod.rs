@@ -1,14 +1,14 @@
 use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
 
 use derive_more::derive::{Display, FromStr};
-use grammars::{tree::TreeIter, GrammarContext};
+use grammars::{GrammarContext, tree::TreeIter};
 use libafl::{
+    SerdeAny,
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
     state::{HasMaxSize, HasRand},
-    SerdeAny,
 };
-use libafl_bolts::{ownedref::OwnedSlice, tuples::NamedTuple, HasLen};
+use libafl_bolts::{HasLen, ownedref::OwnedSlice, tuples::NamedTuple};
 use mutations::text_document_selectors::RandomDoc;
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;

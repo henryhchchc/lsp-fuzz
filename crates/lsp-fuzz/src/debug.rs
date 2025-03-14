@@ -20,14 +20,6 @@ impl<F, S, E, EM, Z> Stage<E, EM, S, Z> for ActionStage<F>
 where
     F: for<'a> Fn(&'a mut S),
 {
-    fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
-        Ok(true)
-    }
-
-    fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
-        Ok(())
-    }
-
     fn perform(
         &mut self,
         _fuzzer: &mut Z,

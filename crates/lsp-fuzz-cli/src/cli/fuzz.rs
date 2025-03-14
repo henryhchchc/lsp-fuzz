@@ -6,23 +6,11 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
-    corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
-    events::{EventFirer, SimpleEventManager},
-    executors::{Executor, HasObservers},
-    feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
-    monitors::SimpleMonitor,
-    mutators::{StdScheduledMutator, Tokens},
-    observers::{
+    corpus::{ondisk::OnDiskMetadataFormat, Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus}, events::{EventFirer, SimpleEventManager}, executors::{Executor, HasObservers}, feedback_and_fast, feedback_or, feedback_or_fast, feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback}, monitors::SimpleMonitor, mutators::{StdScheduledMutator, Tokens}, observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
-    },
-    schedulers::{
-        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
-        powersched::{BaseSchedule, PowerSchedule},
-    },
-    stages::{CalibrationStage, Stage, StdPowerMutationalStage},
-    state::{HasCorpus, HasExecutions, HasMaxSize, HasRand, MaybeHasClientPerfMonitor, StdState},
+    }, schedulers::{
+        powersched::{BaseSchedule, PowerSchedule}, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler
+    }, stages::{CalibrationStage, Restartable, Stage, StdPowerMutationalStage}, state::{HasCorpus, HasExecutions, HasMaxSize, HasRand, MaybeHasClientPerfMonitor, StdState}, Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer
 };
 
 use libafl_bolts::{
@@ -363,7 +351,7 @@ fn trigger_stop_stage<S>(
 
 fn mutation_stage<E, EM, S, Z>(
     grammar_ctx: &GrammarContextLookup,
-) -> impl Stage<E, EM, S, Z> + use<'_, E, EM, S, Z>
+) -> impl Stage<E, EM, S, Z> + Restartable<S> + use<'_, E, EM, S, Z>
 where
     S: HasRand
         + HasMaxSize

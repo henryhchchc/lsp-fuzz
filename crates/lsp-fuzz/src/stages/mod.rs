@@ -2,10 +2,10 @@ use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread};
 
 use derive_new::new as New;
 use libafl::{
-    events::{Event, EventFirer, LogSeverity},
-    stages::Stage,
-    state::HasExecutions,
     HasNamedMetadata, SerdeAny,
+    events::{Event, EventFirer, LogSeverity},
+    stages::{Restartable, Stage},
+    state::HasExecutions,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -22,10 +22,9 @@ pub struct CleanupWorkspaceDirs {
     cleanup_threshold: u64,
 }
 
-impl<E, M, Z, S> Stage<E, M, S, Z> for CleanupWorkspaceDirs
+impl<S> Restartable<S> for CleanupWorkspaceDirs
 where
     S: HasExecutions + HasNamedMetadata,
-    M: EventFirer<LspInput, S>,
 {
     fn should_restart(&mut self, state: &mut S) -> Result<bool, libafl::Error> {
         let LastCleanupDir(last_cleanup) =
@@ -36,7 +35,13 @@ where
     fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
         Ok(())
     }
+}
 
+impl<E, M, Z, S> Stage<E, M, S, Z> for CleanupWorkspaceDirs
+where
+    S: HasExecutions + HasNamedMetadata,
+    M: EventFirer<LspInput, S>,
+{
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
@@ -78,10 +83,7 @@ pub struct StopOnReceived<S> {
     _phantom: std::marker::PhantomData<S>,
 }
 
-impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
-where
-    M: EventFirer<LspInput, S>,
-{
+impl<S> Restartable<S> for StopOnReceived<S> {
     fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
         Ok(true)
     }
@@ -89,7 +91,12 @@ where
     fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
         Ok(())
     }
+}
 
+impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
+where
+    M: EventFirer<LspInput, S>,
+{
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
