@@ -31,7 +31,7 @@ pub enum Language {
     Rust,
     Toml,
     LaTeX,
-    BibTeX
+    BibTeX,
 }
 
 pub mod language;

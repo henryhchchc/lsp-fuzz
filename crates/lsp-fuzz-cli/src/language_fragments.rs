@@ -7,8 +7,8 @@ use std::{
 
 use anyhow::{Context, Ok};
 use lsp_fuzz::text_document::{
-    grammars::{DerivationGrammar, GrammarContext},
     GrammarContextLookup, Language,
+    grammars::{DerivationGrammar, GrammarContext},
 };
 use rayon::prelude::*;
 

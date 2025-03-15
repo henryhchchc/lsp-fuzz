@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use libafl::{observers::Observer, state::HasExecutions, HasMetadata, SerdeAny};
+use libafl::{HasMetadata, SerdeAny, observers::Observer, state::HasExecutions};
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
 

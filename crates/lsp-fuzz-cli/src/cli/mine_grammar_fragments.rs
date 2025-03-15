@@ -10,11 +10,11 @@ use std::{
 use anyhow::Context;
 use itertools::Itertools;
 use lsp_fuzz::text_document::{
-    grammars::{
-        fragment_extraction::{self, extract_derivation_fragments},
-        DerivationFragments,
-    },
     Language,
+    grammars::{
+        DerivationFragments,
+        fragment_extraction::{self, extract_derivation_fragments},
+    },
 };
 use rayon::prelude::*;
 use tracing::{info, warn};

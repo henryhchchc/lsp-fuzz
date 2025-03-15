@@ -9,8 +9,8 @@ use std::{
 };
 
 use libafl::{
-    feedbacks::{Feedback, StateInitializer},
     HasMetadata, SerdeAny,
+    feedbacks::{Feedback, StateInitializer},
 };
 use libafl_bolts::Named;
 

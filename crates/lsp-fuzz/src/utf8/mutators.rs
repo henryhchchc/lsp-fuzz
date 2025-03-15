@@ -5,7 +5,7 @@ use libafl::{
     mutators::{MutationResult, Mutator},
     state::{HasMaxSize, HasRand},
 };
-use libafl_bolts::{rands::Rand, Named};
+use libafl_bolts::{Named, rands::Rand};
 
 #[derive(Debug)]
 pub struct CharInsertMutator;

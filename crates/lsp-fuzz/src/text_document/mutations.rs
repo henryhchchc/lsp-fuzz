@@ -6,7 +6,7 @@ use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
-use libafl_bolts::{rands::Rand, HasLen, Named};
+use libafl_bolts::{HasLen, Named, rands::Rand};
 use lsp_types::Uri;
 use node_filters::{AnyNode, ErrorNode, MissingNode};
 use node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar};
@@ -15,8 +15,8 @@ use text_document_selectors::RandomDoc;
 use crate::lsp_input::LspInput;
 
 use super::{
-    grammars::{tree::TreeIter, GrammarContext},
     GrammarBasedMutation, GrammarContextLookup, TextDocument,
+    grammars::{GrammarContext, tree::TreeIter},
 };
 
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;

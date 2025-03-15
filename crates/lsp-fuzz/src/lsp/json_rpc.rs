@@ -236,8 +236,8 @@ fn jsonrpc_version_deserialize() {
 fn test_lsp_request() {
     use crate::lsp::ClientToServerMessage;
     use lsp_types::{
-        request::{Initialize, Request},
         InitializeParams, WorkspaceFolder,
+        request::{Initialize, Request},
     };
 
     let request = ClientToServerMessage::Initialize(InitializeParams {
@@ -257,10 +257,12 @@ fn test_lsp_request() {
     assert_eq!(json_value["jsonrpc"], JsonRPC20::VERSION);
     assert_eq!(json_value["id"], 1);
     assert_eq!(json_value["method"], Initialize::METHOD);
-    assert!(json_value["params"]["workspaceFolders"][0]["uri"]
-        .as_str()
-        .unwrap()
-        .contains("path/to/folder"));
+    assert!(
+        json_value["params"]["workspaceFolders"][0]["uri"]
+            .as_str()
+            .unwrap()
+            .contains("path/to/folder")
+    );
 }
 
 #[test]

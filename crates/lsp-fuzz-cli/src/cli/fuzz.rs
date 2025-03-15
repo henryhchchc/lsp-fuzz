@@ -6,18 +6,33 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    corpus::{ondisk::OnDiskMetadataFormat, Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus}, events::{EventFirer, SimpleEventManager}, executors::{Executor, HasObservers}, feedback_and_fast, feedback_or, feedback_or_fast, feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback}, monitors::SimpleMonitor, mutators::{StdScheduledMutator, Tokens}, observers::{
+    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
+    corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    events::{EventFirer, SimpleEventManager},
+    executors::{Executor, HasObservers},
+    feedback_and_fast, feedback_or, feedback_or_fast,
+    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    monitors::SimpleMonitor,
+    mutators::{StdMOptMutator, Tokens},
+    observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
-    }, schedulers::{
-        powersched::{BaseSchedule, PowerSchedule}, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler
-    }, stages::{CalibrationStage, Restartable, Stage, StdPowerMutationalStage}, state::{HasCorpus, HasExecutions, HasMaxSize, HasRand, MaybeHasClientPerfMonitor, StdState}, Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer
+    },
+    schedulers::{
+        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
+        powersched::{BaseSchedule, PowerSchedule},
+    },
+    stages::{CalibrationStage, Restartable, Stage, StdPowerMutationalStage},
+    state::{
+        HasCorpus, HasExecutions, HasMaxSize, HasRand, HasSolutions, MaybeHasClientPerfMonitor,
+        StdState,
+    },
 };
 
 use libafl_bolts::{
     AsSliceMut, HasLen, current_nanos,
     fs::InputFile,
     rands::{Rand, StdRand},
-    shmem::{ShMem, ShMemProvider, UnixShMemProvider},
+    shmem::{ShMem, ShMemProvider, StdShMemProvider},
     tuples::Handled,
 };
 use lsp_fuzz::{

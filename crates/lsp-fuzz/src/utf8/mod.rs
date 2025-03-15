@@ -5,9 +5,9 @@ use libafl::{
     corpus::CorpusId,
     inputs::{HasTargetBytes, Input},
 };
-use libafl_bolts::{ownedref::OwnedSlice, HasLen};
+use libafl_bolts::{HasLen, ownedref::OwnedSlice};
 use serde::{Deserialize, Serialize};
-use tuple_list::{tuple_list, TupleList};
+use tuple_list::{TupleList, tuple_list};
 
 pub mod mutators;
 

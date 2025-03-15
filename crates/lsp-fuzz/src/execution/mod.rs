@@ -25,8 +25,8 @@ use crate::{lsp_input::LspInput, utils::AflContext};
 
 pub mod fork_server;
 pub mod sanitizers;
-pub mod workspace_observer;
 mod test;
+pub mod workspace_observer;
 
 const ASAN_LOG_PATH: &str = "/tmp/asan";
 
@@ -52,7 +52,7 @@ impl<SHM: ShMem> FuzzInput<SHM> {
     const SHM_FUZZ_HEADER_SIZE: usize = mem::size_of::<u32>();
 
     fn write_afl_shmem_input(shmem: &mut SHM, input_bytes: &[u8]) -> Result<(), libafl::Error> {
-        use core::sync::atomic::{compiler_fence, Ordering};
+        use core::sync::atomic::{Ordering, compiler_fence};
 
         if shmem.len() < input_bytes.len() + Self::SHM_FUZZ_HEADER_SIZE {
             Err(libafl::Error::unknown(

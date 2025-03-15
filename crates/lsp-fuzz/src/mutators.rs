@@ -5,7 +5,7 @@ use libafl::{
     mutators::{ComposedByMutations, MutationResult, Mutator, MutatorsTuple},
     state::HasRand,
 };
-use libafl_bolts::{rands::Rand, Named};
+use libafl_bolts::{Named, rands::Rand};
 
 #[derive(Debug, New)]
 pub struct ShortCurcuitMutator<I, MT, S> {

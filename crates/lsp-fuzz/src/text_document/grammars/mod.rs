@@ -350,7 +350,7 @@ mod tests {
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
-    
+
     #[test]
     fn load_derivation_grammar_bibtex() {
         let grammar =
