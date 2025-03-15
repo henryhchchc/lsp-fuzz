@@ -94,7 +94,7 @@ pub(super) struct FuzzCommand {
 impl FuzzCommand {
     pub(super) fn run(mut self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         let mut shmem_provider =
-            UnixShMemProvider::new().context("Creating shared memory provider")?;
+            StdShMemProvider::new().context("Creating shared memory provider")?;
 
         info!("Analyzing fuzz target");
         let binary_info = StaticTargetBinaryInfo::scan(&self.execution.lsp_executable)
@@ -206,7 +206,7 @@ impl FuzzCommand {
         let temp_dir = self.temp_dir.unwrap_or_else(temp_dir);
 
         let mut fuzz_stages = {
-            let mutation_stage = mutation_stage(&grammar_ctx);
+            let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
             let temp_dir_str = temp_dir
                 .to_str()
                 .context("temp_dir is not a valid UTF-8 string")?;
@@ -349,14 +349,16 @@ fn trigger_stop_stage<S>(
     Ok(StopOnReceived::new(rx))
 }
 
-fn mutation_stage<E, EM, S, Z>(
-    grammar_ctx: &GrammarContextLookup,
-) -> impl Stage<E, EM, S, Z> + Restartable<S> + use<'_, E, EM, S, Z>
+fn mutation_stage<'g, E, EM, S, Z>(
+    state: &mut S,
+    grammar_ctx: &'g GrammarContextLookup,
+) -> Result<impl Stage<E, EM, S, Z> + Restartable<S> + use<'g, E, EM, S, Z>, libafl::Error>
 where
     S: HasRand
         + HasMaxSize
         + HasMetadata
         + HasCorpus<LspInput>
+        + HasSolutions<LspInput>
         + HasCurrentCorpusId
         + HasNamedMetadata
         + HasExecutions
@@ -366,10 +368,10 @@ where
     E: Executor<EM, LspInput, S, Z> + HasObservers,
 {
     let text_document_mutator =
-        StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 2);
-    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
+        StdMOptMutator::new(state, text_document_mutations(grammar_ctx), 4, 5)?;
+    let messages_mutator = StdMOptMutator::new(state, message_mutations(), 4, 5)?;
     let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
-    StdPowerMutationalStage::new(mutator)
+    Ok(StdPowerMutationalStage::new(mutator))
 }
 
 fn initialize_corpus<E, Z, EM, R, C, SC>(
