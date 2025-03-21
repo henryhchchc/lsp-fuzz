@@ -8,7 +8,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use tracing::info;
 
 use crate::cli::GlobalOptions;
-use crate::cli::reproduce::repdoruce;
+use crate::cli::reproduce::reproduce;
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]
@@ -31,7 +31,7 @@ pub struct ReproduceAll {
 }
 
 impl ReproduceAll {
-    pub fn run(self, _global_opttions: GlobalOptions) -> anyhow::Result<()> {
+    pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
         let input_files = self
             .solution_dir
             .read_dir()
@@ -54,11 +54,12 @@ impl ReproduceAll {
                     .to_owned();
                 let lsp_input = LspInput::from_file(&input_file).context("Loading input file")?;
                 info!("Reproducing crash for input {}", input_id);
-                repdoruce(
+                reproduce(
                     input_id,
                     lsp_input,
                     &self.target_executable,
                     &self.target_args,
+                    false,
                 )
                 .with_context(|| format!("Reproducing crash for {}", input_file.display()))
             })

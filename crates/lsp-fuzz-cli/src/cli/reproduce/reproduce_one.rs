@@ -7,7 +7,7 @@ use lsp_fuzz::lsp_input::LspInput;
 use tracing::info;
 
 use crate::cli::GlobalOptions;
-use crate::cli::reproduce::repdoruce;
+use crate::cli::reproduce::reproduce;
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]
@@ -30,7 +30,7 @@ pub struct ReproduceOne {
 }
 
 impl ReproduceOne {
-    pub fn run(self, _global_opttions: GlobalOptions) -> anyhow::Result<()> {
+    pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
         let input_id = self
             .input_file
             .file_name()
@@ -40,11 +40,12 @@ impl ReproduceOne {
             .to_owned();
         let lsp_input = LspInput::from_file(&self.input_file).context("Loading input file")?;
         info!("Reproducing crash for input {}", input_id);
-        let result = repdoruce(
+        let result = reproduce(
             input_id,
             lsp_input,
             &self.target_executable,
             &self.target_args,
+            true,
         )
         .with_context(|| format!("Reproducing crash for {}", self.input_file.display()))?;
 

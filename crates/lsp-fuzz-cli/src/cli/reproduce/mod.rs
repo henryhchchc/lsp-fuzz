@@ -39,7 +39,7 @@ fn find_crashing_request(
     input: &LspInput,
     workspace_url: &str,
     child: &mut Child,
-) -> Result<Option<JsonRPCMessage>, anyhow::Error> {
+) -> Result<Option<(usize, JsonRPCMessage)>, anyhow::Error> {
     let mut target_stdin = child
         .stdin
         .take()
@@ -50,7 +50,7 @@ fn find_crashing_request(
         .context("Child should have its stdout piped")?;
     let mut target_stdout = BufReader::new(target_stdout);
     let mut crashing_request = None;
-    for jsonrpc in json_rpc_messages(input, workspace_url) {
+    for (idx, jsonrpc) in json_rpc_messages(input, workspace_url).enumerate() {
         info!(
             id = ?jsonrpc.id(),
             method = ?jsonrpc.method(),
@@ -105,7 +105,7 @@ fn find_crashing_request(
         }
         if let Some(status) = child.try_wait().context("Waiting child")? {
             if !status.success() {
-                crashing_request = Some(jsonrpc);
+                crashing_request = Some((idx, jsonrpc));
             }
             break;
         }
@@ -116,11 +116,12 @@ fn find_crashing_request(
 const ASAN_LOG_FN: &str = "lsp-fuzz-asan";
 
 #[tracing::instrument(skip(input, target_executable, target_args))]
-fn repdoruce(
+fn reproduce(
     input_id: String,
     input: LspInput,
     target_executable: &Path,
     target_args: &[String],
+    show_stderr: bool,
 ) -> Result<Option<ReproductionInfo>, anyhow::Error> {
     let temp_directory = tempfile::tempdir().context("Creating temporary working directory")?;
     let workspace_dir = temp_directory.path();
@@ -136,7 +137,11 @@ fn repdoruce(
         .current_dir(workspace_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(if show_stderr {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        });
     let mut child = target.spawn().context("Starting target process")?;
     let workspace_url = format!(
         "file://{}/",
@@ -173,9 +178,11 @@ fn repdoruce(
         parse_asan_log(&mut asan_log, pid).context("Parsing ASAN logs")?;
     info!(?classification);
     info!(location = ?stack_trace.first());
+    let (crashing_request_idx, crashing_request) = crashing_request.unzip();
     Ok(Some(ReproductionInfo {
         input_id,
         input,
+        crashing_request_idx,
         crashing_request,
         asan_summary,
         asan_classification: classification,
@@ -242,6 +249,7 @@ fn asan_options(asan_log_file: &Path) -> Vec<Cow<'_, str>> {
 pub struct ReproductionInfo {
     pub input_id: String,
     pub input: LspInput,
+    pub crashing_request_idx: Option<usize>,
     pub crashing_request: Option<JsonRPCMessage>,
     pub asan_summary: String,
     pub asan_classification: Option<ExecutionClass>,
