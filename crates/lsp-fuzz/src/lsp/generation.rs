@@ -386,6 +386,46 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct TabSize(pub u32);
+
+#[derive(Debug, Clone)]
+pub struct TabSizeGen;
+
+impl<S> LspParamsGenerator<S> for TabSizeGen
+where
+    S: HasRand,
+{
+    type Output = TabSize;
+
+    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<TabSize, GenerationError> {
+        let inner = match state.rand_mut().next() % 6 {
+            0 => 0,
+            1 => 1,
+            2 => 2,
+            3 => 4,
+            4 => 8,
+            5 => state.rand_mut().next() as u32,
+            _ => unreachable!("Modulo of 6 should not be greater than 5"),
+        };
+        Ok(TabSize(inner))
+    }
+}
+
+impl<S> HasPredefinedGenerators<S> for TabSize
+where
+    S: HasRand,
+{
+    type Generator = TabSizeGen;
+
+    fn generators() -> impl IntoIterator<Item = Self::Generator>
+    where
+        S: 'static,
+    {
+        [TabSizeGen]
+    }
+}
+
 const_generators!(for CompletionTriggerKind => [
     CompletionTriggerKind::INVOKED,
     CompletionTriggerKind::TRIGGER_FOR_INCOMPLETE_COMPLETIONS,

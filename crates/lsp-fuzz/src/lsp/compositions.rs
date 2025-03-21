@@ -2,11 +2,12 @@ use lsp_types::{
     CallHierarchyPrepareParams, CodeActionContext, CodeActionKind, CodeActionParams,
     CodeActionTriggerKind, CodeLensParams, Color, ColorPresentationParams, CompletionContext,
     CompletionParams, CompletionTriggerKind, DocumentColorParams, DocumentDiagnosticParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, FoldingRangeParams,
+    DocumentHighlightParams, DocumentLinkParams, DocumentOnTypeFormattingParams,
+    DocumentRangeFormattingParams, DocumentSymbolParams, FoldingRangeParams, FormattingOptions,
     GotoDefinitionParams, HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams,
     MonikerParams, PartialResultParams, PreviousResultId, ReferenceContext, ReferenceParams,
-    RenameParams, SemanticTokensParams, SemanticTokensRangeParams, SignatureHelpContext,
-    SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentIdentifier,
+    RenameParams, SelectionRangeParams, SemanticTokensParams, SemanticTokensRangeParams,
+    SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentIdentifier,
     TextDocumentPositionParams, TypeHierarchyPrepareParams, WorkDoneProgressParams,
     WorkspaceDiagnosticParams, WorkspaceSymbolParams,
 };
@@ -17,7 +18,7 @@ use crate::lsp_input::LspInput;
 
 use super::{
     Compose,
-    generation::{RangeInDoc, ZeroToOne32},
+    generation::{RangeInDoc, TabSize, ZeroToOne32},
 };
 
 impl<Head, Tail> Compose for (Head, Tail) {
@@ -437,6 +438,84 @@ impl Compose for Color {
             green,
             blue,
             alpha,
+        }
+    }
+}
+
+impl Compose for FormattingOptions {
+    type Components = tuple_list_type![TabSize, bool, Option<bool>, Option<bool>, Option<bool>];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (
+            TabSize(tab_size),
+            insert_spaces,
+            trim_trailing_whitespace,
+            insert_final_newline,
+            trim_final_newlines,
+        ) = components.into_tuple();
+        Self {
+            tab_size,
+            insert_spaces,
+            properties: Default::default(),
+            trim_trailing_whitespace,
+            insert_final_newline,
+            trim_final_newlines,
+        }
+    }
+}
+
+impl Compose for DocumentOnTypeFormattingParams {
+    type Components = tuple_list_type![TextDocumentPositionParams, String, FormattingOptions];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (text_document_position, ch, options) = components.into_tuple();
+        Self {
+            text_document_position,
+            ch,
+            options,
+        }
+    }
+}
+
+impl Compose for DocumentRangeFormattingParams {
+    type Components = tuple_list_type![RangeInDoc, FormattingOptions, WorkDoneProgressParams];
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        let (RangeInDoc(text_document, range), options, work_done_progress_params) =
+            components.into_tuple();
+        Self {
+            text_document,
+            range,
+            options,
+            work_done_progress_params,
+        }
+    }
+}
+
+impl Compose for SelectionRangeParams {
+    type Components = tuple_list_type![
+        TextDocumentPositionParams,
+        WorkDoneProgressParams,
+        PartialResultParams
+    ];
+
+    fn compose(components: Self::Components) -> Self {
+        let (
+            TextDocumentPositionParams {
+                text_document,
+                position,
+            },
+            work_done_progress_params,
+            partial_result_params,
+        ) = components.into_tuple();
+        Self {
+            text_document,
+            positions: vec![position],
+            work_done_progress_params,
+            partial_result_params,
         }
     }
 }

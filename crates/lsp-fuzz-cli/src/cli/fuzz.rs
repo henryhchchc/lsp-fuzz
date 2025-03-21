@@ -104,6 +104,9 @@ pub(super) struct FuzzCommand {
     /// Stop fuzzing after a certain number of hours.
     #[clap(long)]
     stop_after_hours: Option<u64>,
+
+    #[clap(long)]
+    no_asan: bool,
 }
 
 impl FuzzCommand {
@@ -151,8 +154,12 @@ impl FuzzCommand {
 
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
-        let asan_handle = binary_info.uses_address_sanitizer.then(|| {
-            info!("Fuzz target is compiled with Address Sanitizer. Crash stack hashing will be enabled");
+        binary_info
+            .uses_address_sanitizer
+            .then(|| info!("Fuzz target is compiled with Address Sanitizer."));
+
+        let asan_handle = (binary_info.uses_address_sanitizer && self.no_asan.not()).then(|| {
+            info!("Crash stack hashing will be enabled");
             asan_observer.handle()
         });
 
@@ -174,7 +181,7 @@ impl FuzzCommand {
             CrashFeedback::new(),
             MaxMapFeedback::with_name("crash_cov", &edges_observer),
             feedback_or_fast!(
-                ConstFeedback::new(binary_info.uses_address_sanitizer.not()),
+                ConstFeedback::new(asan_handle.is_none()),
                 NewHashFeedback::new(&asan_observer)
             )
         );
@@ -208,7 +215,7 @@ impl FuzzCommand {
             IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
         };
 
-        // A fuzzer with feedbacks and a corpus scheduler
+        // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         let test_case_shm = self
@@ -226,7 +233,7 @@ impl FuzzCommand {
                 .to_str()
                 .context("temp_dir is not a valid UTF-8 string")?;
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            let trigget_stop = trigger_stop_stage(
+            let trigger_stop = trigger_stop_stage(
                 self.stop_after_hours
                     .map(|it| Duration::from_secs(it * 60 * 60)),
             )?;
@@ -234,7 +241,7 @@ impl FuzzCommand {
                 calibration_stage,
                 mutation_stage,
                 cleanup_workspace_stage,
-                trigget_stop
+                trigger_stop
             ]
         };
 
@@ -338,7 +345,7 @@ fn trigger_stop_stage<S>(
     after_duration: Option<Duration>,
 ) -> Result<StopOnReceived<S>, anyhow::Error> {
     let (tx, rx) = mpsc::channel();
-    let mut is_contgrol_c_pressed = false;
+    let mut is_control_c_pressed = false;
     if let Some(duration) = after_duration {
         let timeout_tx = tx.clone();
         std::thread::Builder::new()
@@ -350,12 +357,12 @@ fn trigger_stop_stage<S>(
             .context("Spawning timeout thread")?;
     }
     ctrlc::try_set_handler(move || {
-        if is_contgrol_c_pressed {
+        if is_control_c_pressed {
             info!("Control-C pressed again. Exiting immediately.");
             const EXIT_CODE: i32 = 128 + (nix::sys::signal::SIGINT as i32);
             std::process::exit(EXIT_CODE);
         }
-        is_contgrol_c_pressed = true;
+        is_control_c_pressed = true;
         info!("Control-C pressed. The fuzzer will stop after this cycle.");
         tx.send(()).expect("Failed to send stop signal");
     })

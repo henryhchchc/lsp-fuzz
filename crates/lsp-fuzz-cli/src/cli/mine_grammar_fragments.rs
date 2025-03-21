@@ -85,10 +85,12 @@ impl MineGrammarFragments {
         let source_files: Vec<_> = walkdir::WalkDir::new(&self.search_directory)
             .into_iter()
             .filter_ok(|it| {
-                it.path()
-                    .extension()
-                    .map(|it| it.to_string_lossy())
-                    .is_some_and(|ext| extensions.contains(ext.as_ref()))
+                it.metadata().is_ok_and(|it| it.is_file())
+                    && it
+                        .path()
+                        .extension()
+                        .map(|it| it.to_string_lossy())
+                        .is_some_and(|ext| extensions.contains(ext.as_ref()))
             })
             .map_ok(|it| it.into_path())
             .try_collect()
