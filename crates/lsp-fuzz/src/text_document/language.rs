@@ -13,6 +13,7 @@ impl Language {
             Self::Toml => BTreeSet::from(["toml"]),
             Self::LaTeX => BTreeSet::from(["tex", "dtx"]),
             Self::BibTeX => BTreeSet::from(["bib"]),
+            Self::Verilog => BTreeSet::from(["v", "sv", "svh"]),
         }
     }
 
@@ -40,6 +41,8 @@ impl Language {
             // Stolen from https://github.com/rzukic/zed-latex/blob/main/languages/latex/highlights.scm
             Self::LaTeX => include_str!("grammars/tree_sitter/highlights/latex.scm"),
             Self::BibTeX => tree_sitter_bibtex::HIGHLIGHTS_QUERY,
+            // Stolen from https://github.com/someone13574/zed-verilog-extension/raw/refs/heads/main/languages/verilog/highlights.scm
+            Self::Verilog => include_str!("grammars/tree_sitter/highlights/verilog.scm"),
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
@@ -55,6 +58,7 @@ impl Language {
             Self::Toml => tree_sitter_toml_ng::LANGUAGE,
             Self::LaTeX => tree_sitter_latex::LANGUAGE,
             Self::BibTeX => tree_sitter_bibtex::LANGUAGE,
+            Self::Verilog => tree_sitter_verilog::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -69,6 +73,7 @@ impl Language {
             Self::Toml => GrammarJson::TOML,
             Self::LaTeX => GrammarJson::LATEX,
             Self::BibTeX => GrammarJson::BIBTEX,
+            Self::Verilog => GrammarJson::VERILOG,
         }
     }
 
@@ -84,6 +89,7 @@ impl Language {
             Self::Toml => "toml",
             Self::LaTeX => "latex",
             Self::BibTeX => "bibtex",
+            Self::Verilog => "verilog",
         }
     }
 }

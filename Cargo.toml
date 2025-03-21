@@ -47,6 +47,7 @@ tree-sitter-javascript = "0"
 tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
 tree-sitter-toml-ng = "0"
+tree-sitter-verilog = "1"
 tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 
