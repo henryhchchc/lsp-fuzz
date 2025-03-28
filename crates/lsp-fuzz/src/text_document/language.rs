@@ -4,18 +4,19 @@ use super::{Language, grammars::GrammarJson};
 
 impl Language {
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
-        match self {
-            Self::C => BTreeSet::from(["c", "cc", "h"]),
-            Self::CPlusPlus => BTreeSet::from(["cpp", "cxx", "hpp"]),
-            Self::JavaScript => BTreeSet::from(["js"]),
-            Self::Ruby => BTreeSet::from(["rb"]),
-            Self::Rust => BTreeSet::from(["rs"]),
-            Self::Toml => BTreeSet::from(["toml"]),
-            Self::LaTeX => BTreeSet::from(["tex", "dtx"]),
-            Self::BibTeX => BTreeSet::from(["bib"]),
-            Self::Verilog => BTreeSet::from(["v", "sv", "svh"]),
-            Self::Solidity => BTreeSet::from(["sol"]),
-        }
+        let extensions: &[&str] = match self {
+            Self::C => &["c", "cc", "h"],
+            Self::CPlusPlus => &["cpp", "cxx", "hpp"],
+            Self::JavaScript => &["js"],
+            Self::Ruby => &["rb"],
+            Self::Rust => &["rs"],
+            Self::Toml => &["toml"],
+            Self::LaTeX => &["tex", "dtx"],
+            Self::BibTeX => &["bib"],
+            Self::Verilog => &["v", "sv", "svh"],
+            Self::Solidity => &["sol"],
+        };
+        extensions.iter().copied().collect()
     }
 
     pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
