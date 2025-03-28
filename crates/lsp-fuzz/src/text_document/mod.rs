@@ -32,7 +32,8 @@ pub enum Language {
     Toml,
     LaTeX,
     BibTeX,
-    Verilog
+    Verilog,
+    Solidity,
 }
 
 pub mod language;
