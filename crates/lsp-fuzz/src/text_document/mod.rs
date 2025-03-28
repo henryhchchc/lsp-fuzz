@@ -34,6 +34,7 @@ pub enum Language {
     BibTeX,
     Verilog,
     Solidity,
+    ShaderLang,
 }
 
 pub mod language;

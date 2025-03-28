@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use super::{Language, grammars::GrammarJson};
+use std::collections::BTreeSet;
 
 impl Language {
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
@@ -15,6 +14,7 @@ impl Language {
             Self::BibTeX => &["bib"],
             Self::Verilog => &["v", "sv", "svh"],
             Self::Solidity => &["sol"],
+            Self::ShaderLang => &["slang"],
         };
         extensions.iter().copied().collect()
     }
@@ -46,6 +46,8 @@ impl Language {
             // Stolen from https://github.com/someone13574/zed-verilog-extension/raw/refs/heads/main/languages/verilog/highlights.scm
             Self::Verilog => include_str!("grammars/tree_sitter/highlights/verilog.scm"),
             Self::Solidity => tree_sitter_solidity::HIGHLIGHT_QUERY,
+            // [TODO] There is no query for slang avaliable yet.
+            Self::ShaderLang => "",
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
@@ -63,6 +65,7 @@ impl Language {
             Self::BibTeX => tree_sitter_bibtex::LANGUAGE,
             Self::Verilog => tree_sitter_verilog::LANGUAGE,
             Self::Solidity => tree_sitter_solidity::LANGUAGE,
+            Self::ShaderLang => tree_sitter_slang::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -79,6 +82,7 @@ impl Language {
             Self::BibTeX => GrammarJson::BIBTEX,
             Self::Verilog => GrammarJson::VERILOG,
             Self::Solidity => GrammarJson::SOLIDITY,
+            Self::ShaderLang => GrammarJson::SLANG,
         }
     }
 
@@ -96,6 +100,7 @@ impl Language {
             Self::BibTeX => "bibtex",
             Self::Verilog => "verilog",
             Self::Solidity => "solidity",
+            Self::ShaderLang => "slang",
         }
     }
 }

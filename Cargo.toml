@@ -23,7 +23,7 @@ libafl = { version = "0.*", features = ["errors_backtrace", "casr"] }
 libafl_bolts = { version = "0.*" }
 libcasr = { version = "2", features = ["serde"] }
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev", features = [
-    "hash",
+  "hash",
 ] }
 nix = "0.29"
 num_cpus = "1.16"
@@ -47,6 +47,7 @@ tree-sitter-javascript = "0"
 tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
 tree-sitter-solidity = "1"
+tree-sitter-slang = { git = "https://github.com/henryhchchc/tree-sitter-slang.git", branch = "master" }
 tree-sitter-toml-ng = "0"
 tree-sitter-verilog = "1"
 tuple_list = "0.1"
