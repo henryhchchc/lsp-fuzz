@@ -13,7 +13,7 @@ use libafl::{
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
-    mutators::{StdMOptMutator, Tokens},
+    mutators::{StdScheduledMutator, Tokens},
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
@@ -372,7 +372,7 @@ fn trigger_stop_stage<S>(
 }
 
 fn mutation_stage<'g, E, EM, S, Z>(
-    state: &mut S,
+    _state: &mut S,
     grammar_ctx: &'g GrammarContextLookup,
 ) -> Result<impl Stage<E, EM, S, Z> + Restartable<S> + use<'g, E, EM, S, Z>, libafl::Error>
 where
@@ -390,8 +390,8 @@ where
     E: Executor<EM, LspInput, S, Z> + HasObservers,
 {
     let text_document_mutator =
-        StdMOptMutator::new(state, text_document_mutations(grammar_ctx), 4, 5)?;
-    let messages_mutator = StdMOptMutator::new(state, message_mutations(), 4, 5)?;
+        StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
+    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
     let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
     Ok(StdPowerMutationalStage::new(mutator))
 }
