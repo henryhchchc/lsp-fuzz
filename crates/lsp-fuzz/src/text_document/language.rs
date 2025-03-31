@@ -15,6 +15,7 @@ impl Language {
             Self::Verilog => &["v", "sv", "svh"],
             Self::Solidity => &["sol"],
             Self::ShaderLang => &["slang"],
+            Self::MLIR => &["mlir"],
         };
         extensions.iter().copied().collect()
     }
@@ -48,6 +49,7 @@ impl Language {
             Self::Solidity => tree_sitter_solidity::HIGHLIGHT_QUERY,
             // [TODO] There is no query for slang avaliable yet.
             Self::ShaderLang => "",
+            Self::MLIR => tree_sitter_mlir::HIGHLIGHTS_QUERY,
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
@@ -66,6 +68,7 @@ impl Language {
             Self::Verilog => tree_sitter_verilog::LANGUAGE,
             Self::Solidity => tree_sitter_solidity::LANGUAGE,
             Self::ShaderLang => tree_sitter_slang::LANGUAGE,
+            Self::MLIR => tree_sitter_mlir::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -83,6 +86,7 @@ impl Language {
             Self::Verilog => GrammarJson::VERILOG,
             Self::Solidity => GrammarJson::SOLIDITY,
             Self::ShaderLang => GrammarJson::SLANG,
+            Self::MLIR => GrammarJson::MLIR,
         }
     }
 
@@ -101,6 +105,7 @@ impl Language {
             Self::Verilog => "verilog",
             Self::Solidity => "solidity",
             Self::ShaderLang => "slang",
+            Self::MLIR => "mlir",
         }
     }
 }

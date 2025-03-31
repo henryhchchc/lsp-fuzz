@@ -35,6 +35,7 @@ pub enum Language {
     Verilog,
     Solidity,
     ShaderLang,
+    MLIR,
 }
 
 pub mod language;
