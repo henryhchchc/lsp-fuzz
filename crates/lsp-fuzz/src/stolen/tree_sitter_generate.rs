@@ -115,7 +115,7 @@ impl DerivationGrammar {
     }
 
     pub(crate) fn from_tree_sitter_grammar(
-        language: crate::text_document::Language,
+        language: lsp_fuzz_grammars::Language,
         syntax_grammar: SyntaxGrammar,
         lexical_grammar: LexicalGrammar,
         alias_map: AliasMap,

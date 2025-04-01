@@ -112,6 +112,7 @@ impl SeenTokenHashes {
 
 #[cfg(test)]
 mod tests {
+    use lsp_fuzz_grammars::Language;
 
     #[test]
     fn node_hashing() {
@@ -121,10 +122,7 @@ mod tests {
         }
         "#;
 
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&tree_sitter_rust::LANGUAGE.into())
-            .unwrap();
+        let mut parser = Language::Rust.tree_sitter_parser();
         let parse_tree = parser.parse(rust_code, None).unwrap();
         let hashes = super::hash_paths(&parse_tree, 10).unwrap();
 

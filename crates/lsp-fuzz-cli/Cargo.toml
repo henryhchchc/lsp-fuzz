@@ -13,6 +13,7 @@ libafl = { workspace = true, features = ["clap"] }
 libafl_bolts.workspace = true
 libcasr.workspace = true
 lsp-fuzz = { path = "../lsp-fuzz" }
+lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 nix.workspace = true
 serde.workspace = true
 serde_cbor = "0.11"
@@ -26,8 +27,6 @@ walkdir = "2.5.0"
 rayon.workspace = true
 zstd.workspace = true
 num_cpus.workspace = true
-tree-sitter-c.workspace = true
-tree-sitter-rust.workspace = true
 rustversion.workspace = true
 
 [features]

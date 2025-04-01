@@ -1,6 +1,5 @@
 use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
 
-use derive_more::derive::{Display, FromStr};
 use grammars::{GrammarContext, tree::TreeIter};
 use libafl::{
     SerdeAny,
@@ -9,6 +8,7 @@ use libafl::{
     state::{HasMaxSize, HasRand},
 };
 use libafl_bolts::{HasLen, ownedref::OwnedSlice, tuples::NamedTuple};
+use lsp_fuzz_grammars::Language;
 use mutations::text_document_selectors::RandomDoc;
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
@@ -20,25 +20,6 @@ pub mod mutations;
 pub mod token_novelty;
 
 pub const LINE_SEP: u8 = b'\n';
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Display, FromStr)]
-#[non_exhaustive]
-pub enum Language {
-    C,
-    CPlusPlus,
-    JavaScript,
-    Ruby,
-    Rust,
-    Toml,
-    LaTeX,
-    BibTeX,
-    Verilog,
-    Solidity,
-    ShaderLang,
-    MLIR,
-}
-
-pub mod language;
 
 #[derive(Debug, Serialize, Deserialize, SerdeAny, derive_more::Deref)]
 pub struct GrammarContextLookup {

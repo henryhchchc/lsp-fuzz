@@ -1,0 +1,22 @@
+[package]
+name = "lsp-fuzz-grammars"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+serde.workspace = true
+tree-sitter.workspace = true
+
+tree-sitter-c = "0"
+tree-sitter-cpp = "0"
+tree-sitter-latex = { git = "https://github.com/henryhchchc/tree-sitter-latex.git", branch = "self-use" }
+tree-sitter-bibtex = { git = "https://github.com/henryhchchc/tree-sitter-bibtex.git", branch = "master" }
+tree-sitter-mlir = {git = "https://github.com/henryhchchc/tree-sitter-mlir.git", branch = "master"}
+tree-sitter-javascript = "0"
+tree-sitter-ruby = "0"
+tree-sitter-rust = "0"
+tree-sitter-solidity = "1"
+tree-sitter-slang = { git = "https://github.com/henryhchchc/tree-sitter-slang.git", branch = "master" }
+tree-sitter-toml-ng = "0"
+tree-sitter-verilog = "1"

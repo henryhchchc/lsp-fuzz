@@ -7,9 +7,10 @@ use std::{
 
 use anyhow::{Context, Ok};
 use lsp_fuzz::text_document::{
-    GrammarContextLookup, Language,
+    GrammarContextLookup,
     grammars::{DerivationGrammar, GrammarContext},
 };
+use lsp_fuzz_grammars::Language;
 use rayon::prelude::*;
 
 pub fn load_grammar_context(

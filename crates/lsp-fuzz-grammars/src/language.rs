@@ -1,4 +1,6 @@
-use super::{Language, grammars::GrammarJson};
+use crate::data::{GrammarHighLights, GrammarJson};
+
+use super::Language;
 use std::collections::BTreeSet;
 
 impl Language {
@@ -31,25 +33,22 @@ impl Language {
     /// Query for tree-sitter syntax highlighting
     ///
     /// See the following two links for common highlight groups
-    /// - https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups
-    /// - https://zed.dev/docs/extensions/languages#syntax-highlighting
+    /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
+    /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
     pub fn ts_highlight_query(&self) -> tree_sitter::Query {
         let query_src = match self {
-            Self::C => tree_sitter_c::HIGHLIGHT_QUERY,
-            Self::CPlusPlus => tree_sitter_cpp::HIGHLIGHT_QUERY,
-            Self::JavaScript => tree_sitter_javascript::HIGHLIGHT_QUERY,
-            Self::Ruby => tree_sitter_ruby::HIGHLIGHTS_QUERY,
-            Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
-            Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
-            // Stolen from https://github.com/rzukic/zed-latex/blob/main/languages/latex/highlights.scm
-            Self::LaTeX => include_str!("grammars/tree_sitter/highlights/latex.scm"),
-            Self::BibTeX => tree_sitter_bibtex::HIGHLIGHTS_QUERY,
-            // Stolen from https://github.com/someone13574/zed-verilog-extension/raw/refs/heads/main/languages/verilog/highlights.scm
-            Self::Verilog => include_str!("grammars/tree_sitter/highlights/verilog.scm"),
-            Self::Solidity => tree_sitter_solidity::HIGHLIGHT_QUERY,
-            // [TODO] There is no query for slang avaliable yet.
-            Self::ShaderLang => "",
-            Self::MLIR => tree_sitter_mlir::HIGHLIGHTS_QUERY,
+            Self::C => GrammarHighLights::C,
+            Self::CPlusPlus => GrammarHighLights::CPP,
+            Self::JavaScript => GrammarHighLights::JAVASCRIPT,
+            Self::Ruby => GrammarHighLights::RUBY,
+            Self::Rust => GrammarHighLights::RUST,
+            Self::Toml => GrammarHighLights::TOML,
+            Self::LaTeX => GrammarHighLights::LATEX,
+            Self::BibTeX => GrammarHighLights::BIBTEX,
+            Self::Verilog => GrammarHighLights::VERILOG,
+            Self::Solidity => GrammarHighLights::SOLIDITY,
+            Self::ShaderLang => GrammarHighLights::SHADERLANG,
+            Self::MLIR => GrammarHighLights::MLIR,
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")

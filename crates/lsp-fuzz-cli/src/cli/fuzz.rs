@@ -45,11 +45,11 @@ use lsp_fuzz::{
     lsp_input::{LspInput, LspInputGenerator, LspInputMutator, messages::message_mutations},
     stages::{CleanupWorkspaceDirs, StopOnReceived},
     text_document::{
-        GrammarContextLookup, Language, text_document_mutations,
-        token_novelty::TokenNoveltyFeedback,
+        GrammarContextLookup, text_document_mutations, token_novelty::TokenNoveltyFeedback,
     },
 };
 
+use lsp_fuzz_grammars::Language;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
 

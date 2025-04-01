@@ -190,6 +190,8 @@ pub enum Error {
 #[cfg(test)]
 mod test {
 
+    use lsp_fuzz_grammars::Language;
+
     use super::*;
 
     const C_CODE: &str = r#"
@@ -207,7 +209,7 @@ mod test {
     #[test]
     fn test_extract_derivation_fragments() {
         let mut parser = tree_sitter::Parser::new();
-        let lang = tree_sitter_c::LANGUAGE.into();
+        let lang = Language::C.ts_language();
         parser.set_language(&lang).unwrap();
         let fragments = extract_derivation_fragments(C_CODE.as_bytes(), &mut parser).unwrap();
         eprintln!("{:?}", fragments);

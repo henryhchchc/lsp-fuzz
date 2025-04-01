@@ -4,6 +4,7 @@ edition.workspace = true
 version.workspace = true
 
 [dependencies]
+lsp-fuzz-grammars = {path = "../lsp-fuzz-grammars"}
 ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
@@ -33,19 +34,7 @@ static_assertions.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 trait-gen = "0.3.2"
-tree-sitter = { version = "0.25" }
-tree-sitter-c.workspace = true
-tree-sitter-cpp.workspace = true
-tree-sitter-latex.workspace = true
-tree-sitter-bibtex.workspace = true
-tree-sitter-mlir.workspace = true
-tree-sitter-javascript.workspace = true
-tree-sitter-ruby.workspace = true
-tree-sitter-rust.workspace = true
-tree-sitter-solidity.workspace = true
-tree-sitter-slang.workspace = true
-tree-sitter-verilog.workspace = true
-tree-sitter-toml-ng.workspace = true
+tree-sitter.workspace = true
 tuple_list.workspace = true
 zstd.workspace = true
 

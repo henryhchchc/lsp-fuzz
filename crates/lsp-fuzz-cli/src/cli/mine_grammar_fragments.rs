@@ -9,13 +9,11 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use lsp_fuzz::text_document::{
-    Language,
-    grammars::{
-        DerivationFragments,
-        fragment_extraction::{self, extract_derivation_fragments},
-    },
+use lsp_fuzz::text_document::grammars::{
+    DerivationFragments,
+    fragment_extraction::{self, extract_derivation_fragments},
 };
+use lsp_fuzz_grammars::Language;
 use rayon::prelude::*;
 use tracing::{info, warn};
 

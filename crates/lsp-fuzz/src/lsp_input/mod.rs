@@ -19,6 +19,7 @@ use libafl::{
     state::{HasCorpus, HasMaxSize, HasRand},
 };
 use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice, rands::Rand};
+use lsp_fuzz_grammars::Language;
 use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
 use messages::LspMessages;
 use serde::{Deserialize, Serialize};
@@ -26,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capabilities::fuzzer_client_capabilities},
-    text_document::{GrammarBasedMutation, GrammarContextLookup, Language, TextDocument},
+    text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
     utf8::Utf8Input,
     utils::AflContext,
 };
