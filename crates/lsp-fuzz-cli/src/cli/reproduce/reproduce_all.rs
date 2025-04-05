@@ -28,10 +28,14 @@ pub struct ReproduceAll {
     /// The path to the output file.
     #[clap(long, short)]
     output_file: PathBuf,
+
+    #[clap(long)]
+    no_parallel: bool,
 }
 
 impl ReproduceAll {
     pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
+        info!(?self);
         let input_files = self
             .solution_dir
             .read_dir()
@@ -43,28 +47,36 @@ impl ReproduceAll {
             })
             .map(|it| it.path());
 
-        let reproduction_infos: Vec<_> = input_files
-            .par_bridge()
-            .map(|input_file| {
-                let input_id = input_file
-                    .file_name()
-                    .expect("We have checked that it is a file")
-                    .to_str()
-                    .context("The file name is not valid UTF-8")?
-                    .to_owned();
-                let lsp_input = LspInput::from_file(&input_file).context("Loading input file")?;
-                info!("Reproducing crash for input {}", input_id);
-                reproduce(
-                    input_id,
-                    lsp_input,
-                    &self.target_executable,
-                    &self.target_args,
-                    false,
-                )
-                .with_context(|| format!("Reproducing crash for {}", input_file.display()))
-            })
-            .filter_map(|it| it.unwrap())
-            .collect();
+        let reproduce_one = |input_file: PathBuf| {
+            let input_id = input_file
+                .file_name()
+                .expect("We have checked that it is a file")
+                .to_str()
+                .context("The file name is not valid UTF-8")?
+                .to_owned();
+            let lsp_input = LspInput::from_file(&input_file).context("Loading input file")?;
+            info!("Reproducing crash for input {}", input_id);
+            reproduce(
+                input_id,
+                lsp_input,
+                &self.target_executable,
+                &self.target_args,
+                false,
+            )
+            .with_context(|| format!("Reproducing crash for {}", input_file.display()))
+        };
+        let reproduction_infos: Vec<_> = if self.no_parallel {
+            input_files
+                .map(reproduce_one)
+                .filter_map(Result::unwrap)
+                .collect()
+        } else {
+            input_files
+                .par_bridge()
+                .map(reproduce_one)
+                .filter_map(Result::unwrap)
+                .collect()
+        };
 
         let mut output_file = File::create(&self.output_file).context("Creating output file")?;
         serde_json::to_writer(&mut output_file, &reproduction_infos)
