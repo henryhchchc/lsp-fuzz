@@ -136,19 +136,19 @@ impl FuzzCommand {
         }
 
         info!("Detected coverage map size: {}", map_size);
-        let mut cov_shmem = shmem_provider
+        let mut coverage_shmem = shmem_provider
             .new_shmem(map_size)
             .context("Creating shared memory")?;
-        let cov_map_shmem_id = cov_shmem.id();
+        let coverage_map_shmem_id = coverage_shmem.id();
 
         info!("Loading grammar context");
         let grammar_ctx =
             load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
         // Create an observation channel using the signals map
-        let cov_map_observer = {
-            let shmem_buf = cov_shmem.as_slice_mut();
-            // SAFETY: We never move the pirce of the shared memory.
+        let coverage_map_observer = {
+            let shmem_buf = coverage_shmem.as_slice_mut();
+            // SAFETY: We never move the piece of the shared memory.
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
@@ -163,7 +163,7 @@ impl FuzzCommand {
             asan_observer.handle()
         });
 
-        let edges_observer = HitcountsMapObserver::new(cov_map_observer).track_indices();
+        let edges_observer = HitcountsMapObserver::new(coverage_map_observer).track_indices();
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -179,7 +179,7 @@ impl FuzzCommand {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
-            MaxMapFeedback::with_name("crash_cov", &edges_observer),
+            MaxMapFeedback::with_name("crash_edges", &edges_observer),
             feedback_or_fast!(
                 ConstFeedback::new(asan_handle.is_none()),
                 NewHashFeedback::new(&asan_observer)
@@ -218,7 +218,7 @@ impl FuzzCommand {
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        let test_case_shm = self
+        let test_case_shmem = self
             .execution
             .shared_memory_fuzzing
             .map(|size| shmem_provider.new_shmem(size))
@@ -245,7 +245,7 @@ impl FuzzCommand {
             ]
         };
 
-        let fuzz_input = if let Some(shm) = test_case_shm {
+        let fuzz_input = if let Some(shm) = test_case_shmem {
             FuzzInput::SharedMemory(shm)
         } else {
             let filename = format!("lsp-fuzz-input_{}", current_nanos());
@@ -282,7 +282,7 @@ impl FuzzCommand {
             debug_afl: self.execution.debug_afl,
             fuzz_input,
             auto_tokens: tokens.as_mut(),
-            coverage_map_info: Some((cov_map_shmem_id, edges_observer.as_ref().len())),
+            coverage_map_info: Some((coverage_map_shmem_id, edges_observer.as_ref().len())),
             map_observer: edges_observer,
             asan_observer_handle: asan_handle,
             other_observers: tuple_list![workspace_observer, asan_observer, time_observer],
