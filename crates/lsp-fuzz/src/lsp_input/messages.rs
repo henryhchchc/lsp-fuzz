@@ -250,7 +250,15 @@ where
     type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let result: [Self::Generator; 4] = [
+        let term_start: Self::Generator = Rc::new(TextDocumentPositionParamsGenerator::<
+            RandomDoc<S>,
+            TerminalStartPosition,
+        >::new());
+        let result: [Self::Generator; 7] = [
+            Rc::new(TextDocumentPositionParamsGenerator::<
+                RandomDoc<S>,
+                ValidPosition,
+            >::new()),
             Rc::new(TextDocumentPositionParamsGenerator::<
                 RandomDoc<S>,
                 RandomPosition,
@@ -259,10 +267,9 @@ where
                 RandomDoc<S>,
                 TerminalStartPosition,
             >::new()),
-            Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<S>,
-                ValidPosition,
-            >::new()),
+            term_start.clone(),
+            term_start.clone(),
+            term_start.clone(),
             Rc::new(TextDocumentPositionParamsGenerator::<
                 RandomDoc<S>,
                 HotspotPosition,

@@ -188,9 +188,7 @@ where
     type Output = U;
 
     fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
-        self.generator
-            .generate(state, input)
-            .map(|it| (self.mapper)(it))
+        self.generator.generate(state, input).map(self.mapper)
     }
 }
 
@@ -300,7 +298,7 @@ pub struct RangeInDoc(pub TextDocumentIdentifier, pub Range);
 #[derive(Debug, New)]
 pub struct RangeInDocGenerator<S, D> {
     range_selector: fn(&mut S, &TextDocument) -> Range,
-    _phantom: PhantomData<(S, D)>,
+    _phantom: PhantomData<D>,
 }
 
 impl<S, D> Clone for RangeInDocGenerator<S, D> {
@@ -332,9 +330,28 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        S: 'static,
+        S: HasRand + 'static,
     {
         let whole_range = |_: &mut S, doc: &TextDocument| doc.lsp_range();
+        let random_range = |state: &mut S, doc: &TextDocument| {
+            let rand = state.rand_mut();
+            let lines: Vec<_> = doc.lines().collect();
+            let start_line_idx = rand.below_or_zero(lines.len());
+            let start_line = lines[start_line_idx];
+            let end_line_idx = rand.between(start_line_idx, lines.len());
+            let end_line = lines[end_line_idx];
+            let start = Position {
+                line: start_line_idx as u32,
+                character: rand.below_or_zero(start_line.len()) as u32,
+            };
+            let end = Position {
+                line: end_line_idx as u32,
+                character: rand.below_or_zero(end_line.len()) as u32,
+            };
+            Range { start, end }
+        };
+        // [TODO] Put grammar context into state and add random subtree
+
         let after_range = |_: &mut S, doc: &TextDocument| {
             let Range { end, .. } = doc.lsp_range();
             let start = end;
@@ -351,7 +368,14 @@ where
                 end: start,
             }
         };
-        [whole_range, after_range, inverted_range].map(RangeInDocGenerator::new)
+        [
+            whole_range,
+            random_range,
+            random_range,
+            after_range,
+            inverted_range,
+        ]
+        .map(RangeInDocGenerator::new)
     }
 }
 
