@@ -18,6 +18,7 @@ impl Language {
             Self::Solidity => &["sol"],
             Self::ShaderLang => &["slang"],
             Self::MLIR => &["mlir"],
+            Self::QML => &["qml"],
         };
         extensions.iter().copied().collect()
     }
@@ -49,6 +50,7 @@ impl Language {
             Self::Solidity => GrammarHighLights::SOLIDITY,
             Self::ShaderLang => GrammarHighLights::SHADERLANG,
             Self::MLIR => GrammarHighLights::MLIR,
+            Self::QML => GrammarHighLights::QML,
         };
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
@@ -68,6 +70,7 @@ impl Language {
             Self::Solidity => tree_sitter_solidity::LANGUAGE,
             Self::ShaderLang => tree_sitter_slang::LANGUAGE,
             Self::MLIR => tree_sitter_mlir::LANGUAGE,
+            Self::QML => tree_sitter_qmljs::LANGUAGE,
         };
         tree_sitter::Language::new(lang_fn)
     }
@@ -86,6 +89,7 @@ impl Language {
             Self::Solidity => GrammarJson::SOLIDITY,
             Self::ShaderLang => GrammarJson::SLANG,
             Self::MLIR => GrammarJson::MLIR,
+            Self::QML => GrammarJson::QML,
         }
     }
 
@@ -105,6 +109,7 @@ impl Language {
             Self::Solidity => "solidity",
             Self::ShaderLang => "slang",
             Self::MLIR => "mlir",
+            Self::QML => "qml",
         }
     }
 }

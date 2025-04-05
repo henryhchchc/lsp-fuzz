@@ -19,4 +19,5 @@ pub enum Language {
     Solidity,
     ShaderLang,
     MLIR,
+    QML,
 }
