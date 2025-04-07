@@ -247,7 +247,7 @@ pub mod node_generators {
         where
             R: Rand,
         {
-            let fragments = grammar_context.derivation_fragment(node.kind());
+            let fragments = grammar_context.node_fragments(node.kind());
             rand.choose(fragments).map(|it| it.to_vec())
         }
     }

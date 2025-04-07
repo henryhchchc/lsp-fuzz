@@ -147,7 +147,7 @@ impl DerivationFragments {
 #[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct GrammarContext {
     grammar: DerivationGrammar,
-    derivation_fragments: DerivationFragments,
+    node_fragments: DerivationFragments,
 }
 
 impl GrammarContext {
@@ -172,8 +172,8 @@ impl GrammarContext {
         self.grammar.language
     }
 
-    pub fn derivation_fragment(&self, node_kind: &str) -> impl ExactSizeIterator<Item = &[u8]> {
-        if let Some(fragments) = self.derivation_fragments.get(node_kind) {
+    pub fn node_fragments(&self, node_kind: &str) -> impl ExactSizeIterator<Item = &[u8]> {
+        if let Some(fragments) = self.node_fragments.get(node_kind) {
             Either::Right(fragments)
         } else {
             Either::Left(std::iter::empty())
@@ -187,7 +187,7 @@ impl GrammarContext {
     pub fn start_symbol_fragments(
         &self,
     ) -> Result<impl ExactSizeIterator<Item = &[u8]>, DerivationError> {
-        self.derivation_fragments
+        self.node_fragments
             .get(&self.grammar.start_symbol)
             .ok_or(DerivationError::InvalidGrammar)
     }
@@ -198,7 +198,7 @@ impl GrammarContext {
         rand: &mut impl Rand,
         max_depth: Option<usize>,
     ) -> Result<Vec<u8>, DerivationError> {
-        let derivation_fragments = self.derivation_fragment(node_kind);
+        let derivation_fragments = self.node_fragments(node_kind);
         let has_derivation_rule = self.grammar.derivation_rules.contains_key(node_kind);
         let has_derivation_fragments = derivation_fragments.len() > 0;
         let depth_limit_reached = max_depth.is_some_and(|it| it == 0);
@@ -231,7 +231,7 @@ impl GrammarContext {
                     Symbol::Terminal(term) => match term {
                         Terminal::Immediate(content) => Ok(content.to_vec()),
                         Terminal::Named(name) | Terminal::Auxiliary(name) => {
-                            let fragments = self.derivation_fragment(name);
+                            let fragments = self.node_fragments(name);
                             let fragment = rand
                                 .choose(fragments)
                                 .ok_or(DerivationError::InvalidGrammar)?;
@@ -243,7 +243,7 @@ impl GrammarContext {
                 .flatten_ok()
                 .collect::<Result<Vec<_>, _>>()
         } else {
-            let fragments = self.derivation_fragment(node_kind);
+            let fragments = self.node_fragments(node_kind);
             let fragment = rand
                 .choose(fragments)
                 .ok_or(DerivationError::InvalidGrammar)?;
