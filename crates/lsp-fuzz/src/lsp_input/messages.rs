@@ -161,7 +161,6 @@ use lsp_types::*;
         PublishDiagnosticsParams,
         RegistrationParams,
         RenameFilesParams,
-        // SelectionRangeParams,
         SemanticTokensDeltaParams,
         TypeHierarchySubtypesParams,
         TypeHierarchySupertypesParams,
