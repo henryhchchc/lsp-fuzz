@@ -30,7 +30,7 @@ impl GrammarContextLookup {
     pub fn get(&self, language: Language) -> Option<&GrammarContext> {
         self.inner.get(&language)
     }
-    
+
     pub fn iter(&self) -> impl Iterator<Item = &GrammarContext> {
         self.inner.values()
     }

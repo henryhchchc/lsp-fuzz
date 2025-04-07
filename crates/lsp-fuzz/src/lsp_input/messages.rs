@@ -24,7 +24,7 @@ use crate::{
         generation::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
-            TokensGenerator,
+            UTF8TokensGenerator,
         },
     },
     macros::{append_randoms, prop_mutator},
@@ -329,7 +329,7 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
-        static TOKENS: TokensGenerator<String> = TokensGenerator::new();
+        static TOKENS: UTF8TokensGenerator<String> = UTF8TokensGenerator::new();
         [&DEFAULT as _, &TOKENS as _]
     }
 }

@@ -4,7 +4,6 @@ use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
     HasMetadata,
     executors::{Executor, ExitKind, HasObservers},
-    mutators::Tokens,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
 };
@@ -21,7 +20,7 @@ use nix::{
 use tracing::info;
 use workspace_observer::CurrentWorkspaceMetadata;
 
-use crate::{lsp_input::LspInput, utils::AflContext};
+use crate::{lsp_input::LspInput, utf8::UTF8Tokens, utils::AflContext};
 
 pub mod fork_server;
 pub mod sanitizers;
@@ -92,7 +91,7 @@ pub struct FuzzExecutionConfig<'a, SHM, A, OBS> {
     pub debug_child: bool,
     pub debug_afl: bool,
     pub fuzz_input: FuzzInput<SHM>,
-    pub auto_tokens: Option<&'a mut Tokens>,
+    pub auto_tokens: Option<&'a mut UTF8Tokens>,
     pub coverage_map_info: Option<(ShMemId, usize)>,
     pub map_observer: A,
     pub asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
@@ -196,10 +195,8 @@ where
             ))?;
         }
 
-        if let (Some(auto_dict), Some(ref auto_dict_content)) =
-            (config.auto_tokens, options.autodict)
-        {
-            auto_dict.parse_autodict(auto_dict_content, auto_dict_content.len());
+        if let (Some(auto_dict), Some(auto_dict_content)) = (config.auto_tokens, options.autodict) {
+            auto_dict.load_from_bytes(auto_dict_content);
         }
 
         let observers = (config.map_observer, config.other_observers);

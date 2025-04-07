@@ -13,7 +13,7 @@ use libafl::{
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
-    mutators::{StdScheduledMutator, Tokens},
+    mutators::StdScheduledMutator,
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
@@ -47,6 +47,7 @@ use lsp_fuzz::{
     text_document::{
         GrammarContextLookup, text_document_mutations, token_novelty::TokenNoveltyFeedback,
     },
+    utf8::UTF8Tokens,
 };
 
 use lsp_fuzz_grammars::Language;
@@ -200,7 +201,7 @@ impl FuzzCommand {
         let mut state = StdState::new(rand, corpus, solutions, &mut feedback, &mut objective)
             .context("Creating state")?;
 
-        let mut tokens = self.no_auto_dict.not().then(Tokens::new);
+        let mut tokens = self.no_auto_dict.not().then(UTF8Tokens::new);
 
         let scheduler = {
             let power_schedule = PowerSchedule::new(self.power_schedule);
@@ -291,14 +292,15 @@ impl FuzzCommand {
         let mut executor =
             LspExecutor::start(target_info, exec_config).context("Starting executor")?;
 
+        if let Some(tokens) = tokens {
+            info!("Extracted {} UTF-8 token(s) from the target.", tokens.len());
+            state.add_metadata(tokens);
+        }
+
         let mut event_manager = {
             let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
-
-        if let Some(tokens) = tokens {
-            state.add_metadata(tokens);
-        }
 
         // In case the corpus is empty (on first run), reset
         initialize_corpus(

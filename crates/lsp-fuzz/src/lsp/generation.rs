@@ -6,7 +6,7 @@ use std::{
 };
 
 use derive_new::new as New;
-use libafl::{HasMetadata, mutators::Tokens, state::HasRand};
+use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{
     CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range, SetTraceParams,
@@ -20,6 +20,7 @@ use crate::{
         TextDocument,
         mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
     },
+    utf8::UTF8Tokens,
 };
 
 use super::{Compose, HasPredefinedGenerators};
@@ -291,11 +292,11 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct TokensGenerator<T> {
+pub struct UTF8TokensGenerator<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T> TokensGenerator<T> {
+impl<T> UTF8TokensGenerator<T> {
     pub const fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -303,7 +304,7 @@ impl<T> TokensGenerator<T> {
     }
 }
 
-impl<State> LspParamsGenerator<State> for TokensGenerator<String>
+impl<State> LspParamsGenerator<State> for UTF8TokensGenerator<String>
 where
     State: HasMetadata + HasRand,
 {
@@ -316,14 +317,14 @@ where
     ) -> Result<Self::Output, GenerationError> {
         let token_cnt = state
             .metadata()
-            .map(Tokens::len)
+            .map(UTF8Tokens::len)
             .ok()
             .and_then(NonZeroUsize::new)
             .ok_or(GenerationError::NothingGenerated)?;
         let idx = state.rand_mut().below(token_cnt);
         // SAFETY: We checked just now that the metadata is present
-        let tokens: &Tokens = unsafe { state.metadata().unwrap_unchecked() };
-        let token = String::from_utf8_lossy(&tokens[idx]).into_owned();
+        let tokens: &UTF8Tokens = unsafe { state.metadata().unwrap_unchecked() };
+        let token = tokens[idx].clone();
         Ok(token)
     }
 }
