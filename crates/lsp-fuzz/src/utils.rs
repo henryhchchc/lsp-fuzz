@@ -26,14 +26,14 @@ impl<T> OptionExt<T> for Option<T> {
 }
 
 impl<T> AflContext<T> for Option<T> {
-    fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
+    fn afl_context<M: Into<String>>(self, message: M) -> Result<T, libafl::Error> {
         self.ok_or("Unwrapping a None").afl_context(message)
     }
 
-    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, M>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> S,
-        S: Into<String>,
+        F: FnOnce() -> M,
+        M: Into<String>,
     {
         self.ok_or("Unwrapping a None").with_afl_context(message)
     }
@@ -41,22 +41,22 @@ impl<T> AflContext<T> for Option<T> {
 
 pub(crate) trait AflContext<T> {
     fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error>;
-    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, M>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> S,
-        S: Into<String>;
+        F: FnOnce() -> M,
+        M: Into<String>;
 }
 
 impl<T, E: Display> AflContext<T> for Result<T, E> {
     /// Wraps the error in an [`libafl::Error::Unknown`] with the given message.
-    fn afl_context<S: Into<String>>(self, message: S) -> Result<T, libafl::Error> {
+    fn afl_context<M: Into<String>>(self, message: M) -> Result<T, libafl::Error> {
         self.map_err(|e| libafl::Error::unknown(format!("{}: {}", message.into(), e)))
     }
 
-    fn with_afl_context<F, S>(self, message: F) -> Result<T, libafl::Error>
+    fn with_afl_context<F, M>(self, message: F) -> Result<T, libafl::Error>
     where
-        F: FnOnce() -> S,
-        S: Into<String>,
+        F: FnOnce() -> M,
+        M: Into<String>,
     {
         self.map_err(|_| libafl::Error::unknown(message()))
     }

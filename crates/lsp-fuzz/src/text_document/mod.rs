@@ -221,11 +221,11 @@ impl HasLen for TextDocument {
     }
 }
 
-pub fn text_document_mutations<S>(
+pub fn text_document_mutations<State>(
     grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<LspInput, S> + NamedTuple + use<'_, S>
+) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
 where
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
     use mutations::*;
     tuple_list![
@@ -234,21 +234,21 @@ where
         GenerateMissingNode::new(grammar_lookup),
         ReplaceNodeWithGenerated::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::<'_, RandomDoc<S>>::new(grammar_lookup),
+        DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
     ]
 }
 
-pub fn text_document_reductions<S>(
+pub fn text_document_reductions<State>(
     grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<LspInput, S> + NamedTuple + use<'_, S>
+) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
 where
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
     use mutations::*;
     tuple_list![
         RemoveErrorNode::new(grammar_lookup),
         DropRandomNode::new(grammar_lookup),
-        DropUncoveredArea::<'_, RandomDoc<S>>::new(grammar_lookup),
+        DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
     ]
 }
 

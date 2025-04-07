@@ -22,31 +22,31 @@ pub struct CleanupWorkspaceDirs {
     cleanup_threshold: u64,
 }
 
-impl<S> Restartable<S> for CleanupWorkspaceDirs
+impl<State> Restartable<State> for CleanupWorkspaceDirs
 where
-    S: HasExecutions + HasNamedMetadata,
+    State: HasExecutions + HasNamedMetadata,
 {
-    fn should_restart(&mut self, state: &mut S) -> Result<bool, libafl::Error> {
+    fn should_restart(&mut self, state: &mut State) -> Result<bool, libafl::Error> {
         let LastCleanupDir(last_cleanup) =
             *state.named_metadata_or_insert_with(&self.cleanup_dir, Default::default);
         Ok(*state.executions() - last_cleanup >= self.cleanup_threshold)
     }
 
-    fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
+    fn clear_progress(&mut self, _state: &mut State) -> Result<(), libafl::Error> {
         Ok(())
     }
 }
 
-impl<E, M, Z, S> Stage<E, M, S, Z> for CleanupWorkspaceDirs
+impl<E, M, Z, State> Stage<E, M, State, Z> for CleanupWorkspaceDirs
 where
-    S: HasExecutions + HasNamedMetadata,
-    M: EventFirer<LspInput, S>,
+    State: HasExecutions + HasNamedMetadata,
+    M: EventFirer<LspInput, State>,
 {
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut S,
+        state: &mut State,
         manager: &mut M,
     ) -> Result<(), libafl::Error> {
         let executions = *state.executions();
@@ -78,31 +78,31 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct StopOnReceived<S> {
+pub struct StopOnReceived<State> {
     receiver: Receiver<()>,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<State>,
 }
 
-impl<S> Restartable<S> for StopOnReceived<S> {
-    fn should_restart(&mut self, _state: &mut S) -> Result<bool, libafl::Error> {
+impl<State> Restartable<State> for StopOnReceived<State> {
+    fn should_restart(&mut self, _state: &mut State) -> Result<bool, libafl::Error> {
         Ok(true)
     }
 
-    fn clear_progress(&mut self, _state: &mut S) -> Result<(), libafl::Error> {
+    fn clear_progress(&mut self, _state: &mut State) -> Result<(), libafl::Error> {
         Ok(())
     }
 }
 
-impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
+impl<E, M, Z, State> Stage<E, M, State, Z> for StopOnReceived<State>
 where
-    S: HasExecutions,
-    M: EventFirer<LspInput, S>,
+    State: HasExecutions,
+    M: EventFirer<LspInput, State>,
 {
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut S,
+        state: &mut State,
         manager: &mut M,
     ) -> Result<(), libafl::Error> {
         if self.receiver.try_recv().is_ok() {

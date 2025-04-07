@@ -16,15 +16,15 @@ impl<F> Named for ActionStage<F> {
     }
 }
 
-impl<F, S, E, EM, Z> Stage<E, EM, S, Z> for ActionStage<F>
+impl<F, State, E, EM, Z> Stage<E, EM, State, Z> for ActionStage<F>
 where
-    F: for<'a> Fn(&'a mut S),
+    F: for<'a> Fn(&'a mut State),
 {
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut S,
+        state: &mut State,
         _manager: &mut EM,
     ) -> Result<(), libafl::Error> {
         (self.action)(state);

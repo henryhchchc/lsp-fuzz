@@ -31,11 +31,11 @@ impl Named for WorkspaceObserver {
     }
 }
 
-impl<S> Observer<LspInput, S> for WorkspaceObserver
+impl<State> Observer<LspInput, State> for WorkspaceObserver
 where
-    S: HasExecutions + HasMetadata,
+    State: HasExecutions + HasMetadata,
 {
-    fn pre_exec(&mut self, state: &mut S, input: &LspInput) -> Result<(), libafl::Error> {
+    fn pre_exec(&mut self, state: &mut State, input: &LspInput) -> Result<(), libafl::Error> {
         let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
         let workspace_metadata: &mut CurrentWorkspaceMetadata =
             state.metadata_or_insert_with(Default::default);

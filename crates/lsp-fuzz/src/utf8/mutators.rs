@@ -19,12 +19,16 @@ impl Named for CharInsertMutator {
 
 const MAX_INSERT_SIZE: usize = 16;
 
-impl<I, S> Mutator<I, S> for CharInsertMutator
+impl<I, State> Mutator<I, State> for CharInsertMutator
 where
     I: Input + DerefMut<Target = String>,
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let max_size = state.max_size();
         let rand = state.rand_mut();
 
@@ -63,12 +67,16 @@ impl Named for CharDeleteMutator {
     }
 }
 
-impl<I, S> Mutator<I, S> for CharDeleteMutator
+impl<I, State> Mutator<I, State> for CharDeleteMutator
 where
     I: Input + DerefMut<Target = String>,
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let len = input.len();
         if len == 0 {
             return Ok(MutationResult::Skipped);
@@ -93,12 +101,16 @@ impl Named for CharReplaceMutator {
     }
 }
 
-impl<I, S> Mutator<I, S> for CharReplaceMutator
+impl<I, State> Mutator<I, State> for CharReplaceMutator
 where
     I: Input + DerefMut<Target = String>,
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let len = input.len();
         if len == 0 {
             return Ok(MutationResult::Skipped);
@@ -126,12 +138,16 @@ impl Named for StringTruncationMutator {
     }
 }
 
-impl<I, S> Mutator<I, S> for StringTruncationMutator
+impl<I, State> Mutator<I, State> for StringTruncationMutator
 where
     I: Input + DerefMut<Target = String>,
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let len = input.len();
         if len == 0 {
             return Ok(MutationResult::Skipped);
@@ -173,12 +189,16 @@ impl Named for CharShiftMutator {
     }
 }
 
-impl<I, S> Mutator<I, S> for CharShiftMutator
+impl<I, State> Mutator<I, State> for CharShiftMutator
 where
     I: Input + DerefMut<Target = String>,
-    S: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let len = input.len();
         if len == 0 {
             return Ok(MutationResult::Skipped);

@@ -24,20 +24,28 @@ use crate::{
 
 use super::{Compose, HasPredefinedGenerators};
 
-pub trait LspParamsGenerator<S> {
+pub trait LspParamsGenerator<State> {
     type Output;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError>;
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError>;
 }
 
-impl<S, G, Ptr> LspParamsGenerator<S> for Ptr
+impl<State, G, Ptr> LspParamsGenerator<State> for Ptr
 where
     Ptr: Deref<Target = G>,
-    G: LspParamsGenerator<S> + ?Sized,
+    G: LspParamsGenerator<State> + ?Sized,
 {
     type Output = G::Output;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         self.deref().generate(state, input)
     }
 }
@@ -61,13 +69,17 @@ impl<T> ConstGenerator<T> {
     }
 }
 
-impl<S, T> LspParamsGenerator<S> for ConstGenerator<T>
+impl<State, T> LspParamsGenerator<State> for ConstGenerator<T>
 where
     T: Clone,
 {
     type Output = T;
 
-    fn generate(&self, _state: &mut S, _input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        _state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         Ok(self.value.clone())
     }
 }
@@ -97,13 +109,17 @@ impl<T> Clone for DefaultGenerator<T> {
     }
 }
 
-impl<S, T> LspParamsGenerator<S> for DefaultGenerator<T>
+impl<State, T> LspParamsGenerator<State> for DefaultGenerator<T>
 where
     T: Default,
 {
     type Output = T;
 
-    fn generate(&self, _state: &mut S, _input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        _state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         Ok(T::default())
     }
 }
@@ -119,13 +135,17 @@ impl<T> Clone for TextDocumentIdentifierGenerator<T> {
     }
 }
 
-impl<S, D> LspParamsGenerator<S> for TextDocumentIdentifierGenerator<D>
+impl<State, D> LspParamsGenerator<State> for TextDocumentIdentifierGenerator<D>
 where
-    D: TextDocumentSelector<S>,
+    D: TextDocumentSelector<State>,
 {
     type Output = TextDocumentIdentifier;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let (uri, _) = D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         Ok(Self::Output { uri })
     }
@@ -136,14 +156,18 @@ pub struct TextDocumentPositionParamsGenerator<D, P> {
     _phantom: PhantomData<(D, P)>,
 }
 
-impl<S, D, P> LspParamsGenerator<S> for TextDocumentPositionParamsGenerator<D, P>
+impl<State, D, P> LspParamsGenerator<State> for TextDocumentPositionParamsGenerator<D, P>
 where
-    D: TextDocumentSelector<S>,
-    P: PositionSelector<S>,
+    D: TextDocumentSelector<State>,
+    P: PositionSelector<State>,
 {
     type Output = lsp_types::TextDocumentPositionParams;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let position = P::select_position(state, doc).ok_or(GenerationError::NothingGenerated)?;
@@ -155,13 +179,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct MappingGenerator<S, G, T, U> {
+pub struct MappingGenerator<State, G, T, U> {
     generator: G,
     mapper: fn(T) -> U,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<State>,
 }
 
-impl<S, G, T, U> MappingGenerator<S, G, T, U> {
+impl<State, G, T, U> MappingGenerator<State, G, T, U> {
     pub const fn new(generator: G, mapper: fn(T) -> U) -> Self {
         Self {
             generator,
@@ -171,7 +195,7 @@ impl<S, G, T, U> MappingGenerator<S, G, T, U> {
     }
 }
 
-impl<S, G, T, U> Clone for MappingGenerator<S, G, T, U>
+impl<State, G, T, U> Clone for MappingGenerator<State, G, T, U>
 where
     G: Clone,
 {
@@ -181,21 +205,25 @@ where
     }
 }
 
-impl<S, G, T, U> LspParamsGenerator<S> for MappingGenerator<S, G, T, U>
+impl<State, G, T, U> LspParamsGenerator<State> for MappingGenerator<State, G, T, U>
 where
-    G: LspParamsGenerator<S, Output = T>,
+    G: LspParamsGenerator<State, Output = T>,
 {
     type Output = U;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         self.generator.generate(state, input).map(self.mapper)
     }
 }
 
-impl<S, T, T1, T2> HasPredefinedGenerators<S> for T
+impl<State, T, T1, T2> HasPredefinedGenerators<State> for T
 where
-    T1: HasPredefinedGenerators<S> + 'static,
-    T2: HasPredefinedGenerators<S> + 'static,
+    T1: HasPredefinedGenerators<State> + 'static,
+    T2: HasPredefinedGenerators<State> + 'static,
     T: Compose<Components = (T1, T2)> + 'static,
     T1::Generator: Clone,
     T2::Generator: Clone,
@@ -204,7 +232,7 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        S: 'static,
+        State: 'static,
     {
         let t1_generators = T1::generators();
         t1_generators.into_iter().flat_map(|g1| {
@@ -242,15 +270,19 @@ where
     }
 }
 
-impl<S, T, G1, G2> LspParamsGenerator<S> for CompositionGenerator<G1, G2, T>
+impl<State, T, G1, G2> LspParamsGenerator<State> for CompositionGenerator<G1, G2, T>
 where
-    G1: LspParamsGenerator<S>,
-    G2: LspParamsGenerator<S>,
+    G1: LspParamsGenerator<State>,
+    G2: LspParamsGenerator<State>,
     T: Compose<Components = (G1::Output, G2::Output)>,
 {
     type Output = T;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let c1 = self.generator1.generate(state, input)?;
         let c2 = self.generator2.generate(state, input)?;
         let output = T::compose((c1, c2));
@@ -271,13 +303,17 @@ impl<T> TokensGenerator<T> {
     }
 }
 
-impl<S> LspParamsGenerator<S> for TokensGenerator<String>
+impl<State> LspParamsGenerator<State> for TokensGenerator<String>
 where
-    S: HasMetadata + HasRand,
+    State: HasMetadata + HasRand,
 {
     type Output = String;
 
-    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let token_cnt = state
             .metadata()
             .map(Tokens::len)
@@ -296,24 +332,28 @@ where
 pub struct RangeInDoc(pub TextDocumentIdentifier, pub Range);
 
 #[derive(Debug, New)]
-pub struct RangeInDocGenerator<S, D> {
-    range_selector: fn(&mut S, &TextDocument) -> Range,
+pub struct RangeInDocGenerator<State, D> {
+    range_selector: fn(&mut State, &TextDocument) -> Range,
     _phantom: PhantomData<D>,
 }
 
-impl<S, D> Clone for RangeInDocGenerator<S, D> {
+impl<State, D> Clone for RangeInDocGenerator<State, D> {
     fn clone(&self) -> Self {
         Self::new(self.range_selector)
     }
 }
 
-impl<S, D> LspParamsGenerator<S> for RangeInDocGenerator<S, D>
+impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>
 where
-    D: TextDocumentSelector<S>,
+    D: TextDocumentSelector<State>,
 {
     type Output = RangeInDoc;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let range = (self.range_selector)(state, doc);
@@ -322,18 +362,18 @@ where
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for RangeInDoc
+impl<State> HasPredefinedGenerators<State> for RangeInDoc
 where
-    S: HasRand,
+    State: HasRand,
 {
-    type Generator = RangeInDocGenerator<S, RandomDoc<S>>;
+    type Generator = RangeInDocGenerator<State, RandomDoc<State>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        S: HasRand + 'static,
+        State: HasRand + 'static,
     {
-        let whole_range = |_: &mut S, doc: &TextDocument| doc.lsp_range();
-        let random_range = |state: &mut S, doc: &TextDocument| {
+        let whole_range = |_: &mut State, doc: &TextDocument| doc.lsp_range();
+        let random_range = |state: &mut State, doc: &TextDocument| {
             let rand = state.rand_mut();
             let lines: Vec<_> = doc.lines().collect();
             let start_line_idx = rand.below_or_zero(lines.len());
@@ -352,7 +392,7 @@ where
         };
         // [TODO] Put grammar context into state and add random subtree
 
-        let after_range = |_: &mut S, doc: &TextDocument| {
+        let after_range = |_: &mut State, doc: &TextDocument| {
             let Range { end, .. } = doc.lsp_range();
             let start = end;
             let end = Position {
@@ -361,7 +401,7 @@ where
             };
             Range { start, end }
         };
-        let inverted_range = |_: &mut S, doc: &TextDocument| {
+        let inverted_range = |_: &mut State, doc: &TextDocument| {
             let Range { start, end } = doc.lsp_range();
             Range {
                 start: end,
@@ -385,26 +425,30 @@ pub struct ZeroToOne32(pub f32);
 #[derive(Debug, Clone)]
 pub struct ZeroToOne32Gen;
 
-impl<S> LspParamsGenerator<S> for ZeroToOne32Gen
+impl<State> LspParamsGenerator<State> for ZeroToOne32Gen
 where
-    S: HasRand,
+    State: HasRand,
 {
     type Output = ZeroToOne32;
 
-    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<ZeroToOne32, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<ZeroToOne32, GenerationError> {
         Ok(ZeroToOne32(state.rand_mut().next_float() as f32))
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for ZeroToOne32
+impl<State> HasPredefinedGenerators<State> for ZeroToOne32
 where
-    S: HasRand,
+    State: HasRand,
 {
     type Generator = ZeroToOne32Gen;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        S: 'static,
+        State: 'static,
     {
         [ZeroToOne32Gen]
     }
@@ -416,13 +460,13 @@ pub struct TabSize(pub u32);
 #[derive(Debug, Clone)]
 pub struct TabSizeGen;
 
-impl<S> LspParamsGenerator<S> for TabSizeGen
+impl<State> LspParamsGenerator<State> for TabSizeGen
 where
-    S: HasRand,
+    State: HasRand,
 {
     type Output = TabSize;
 
-    fn generate(&self, state: &mut S, _input: &LspInput) -> Result<TabSize, GenerationError> {
+    fn generate(&self, state: &mut State, _input: &LspInput) -> Result<TabSize, GenerationError> {
         let inner = match state.rand_mut().next() % 6 {
             0 => 0,
             1 => 1,
@@ -436,15 +480,15 @@ where
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for TabSize
+impl<State> HasPredefinedGenerators<State> for TabSize
 where
-    S: HasRand,
+    State: HasRand,
 {
     type Generator = TabSizeGen;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        S: 'static,
+        State: 'static,
     {
         [TabSizeGen]
     }

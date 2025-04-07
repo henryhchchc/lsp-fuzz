@@ -30,15 +30,15 @@ impl Named for TokenNoveltyFeedback {
     }
 }
 
-impl<S> StateInitializer<S> for TokenNoveltyFeedback {}
+impl<State> StateInitializer<State> for TokenNoveltyFeedback {}
 
-impl<EM, OBS, S> Feedback<EM, LspInput, OBS, S> for TokenNoveltyFeedback
+impl<EM, OBS, State> Feedback<EM, LspInput, OBS, State> for TokenNoveltyFeedback
 where
-    S: HasMetadata,
+    State: HasMetadata,
 {
     fn is_interesting(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         _manager: &mut EM,
         input: &LspInput,
         _observers: &OBS,

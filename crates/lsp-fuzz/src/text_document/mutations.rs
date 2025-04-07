@@ -53,11 +53,14 @@ impl<TS, NF, GEN> Named for ReplaceNodeMutation<'_, TS, NF, GEN> {
     }
 }
 
-pub trait TextDocumentSelector<S> {
-    fn select_document<'i>(state: &mut S, input: &'i LspInput) -> Option<(Uri, &'i TextDocument)>;
+pub trait TextDocumentSelector<State> {
+    fn select_document<'i>(
+        state: &mut State,
+        input: &'i LspInput,
+    ) -> Option<(Uri, &'i TextDocument)>;
 
     fn select_document_mut<'i>(
-        state: &mut S,
+        state: &mut State,
         input: &'i mut LspInput,
     ) -> Option<(Uri, &'i mut TextDocument)>;
 }
@@ -78,16 +81,16 @@ pub trait NodeGenerator {
         R: Rand;
 }
 
-impl<S, TS, NF, GEN> Mutator<LspInput, S> for ReplaceNodeMutation<'_, TS, NF, GEN>
+impl<State, TS, NF, GEN> Mutator<LspInput, State> for ReplaceNodeMutation<'_, TS, NF, GEN>
 where
-    TS: TextDocumentSelector<S>,
+    TS: TextDocumentSelector<State>,
     NF: NodeFilter,
     GEN: NodeGenerator,
-    S: HasRand,
+    State: HasRand,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let Some((_, doc)) = TS::select_document_mut(state, input) else {
@@ -129,14 +132,14 @@ pub mod text_document_selectors {
     use super::TextDocumentSelector;
 
     #[derive(Debug)]
-    pub struct RandomDoc<S>(PhantomData<S>);
+    pub struct RandomDoc<State>(PhantomData<State>);
 
-    impl<S> TextDocumentSelector<S> for RandomDoc<S>
+    impl<State> TextDocumentSelector<State> for RandomDoc<State>
     where
-        S: HasRand,
+        State: HasRand,
     {
         fn select_document<'i>(
-            state: &mut S,
+            state: &mut State,
             input: &'i LspInput,
         ) -> Option<(Uri, &'i TextDocument)> {
             let iter = input.workspace.iter_files().filter_map(|(path, doc)| {
@@ -151,7 +154,7 @@ pub mod text_document_selectors {
         }
 
         fn select_document_mut<'i>(
-            state: &mut S,
+            state: &mut State,
             input: &'i mut LspInput,
         ) -> Option<(Uri, &'i mut TextDocument)> {
             let iter = input.workspace.iter_files_mut().filter_map(|(path, doc)| {
@@ -270,15 +273,16 @@ pub mod node_generators {
     }
 }
 
-pub type ReplaceSubTreeWithDerivation<'a, S> =
-    ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, ChooseFromDerivations>;
-pub type ReplaceNodeWithGenerated<'a, S> =
-    ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, ExpandGrammar>;
-pub type GenerateMissingNode<'a, S> =
-    ReplaceNodeMutation<'a, RandomDoc<S>, MissingNode, ExpandGrammar>;
+pub type ReplaceSubTreeWithDerivation<'a, State> =
+    ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, ChooseFromDerivations>;
+pub type ReplaceNodeWithGenerated<'a, State> =
+    ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, ExpandGrammar>;
+pub type GenerateMissingNode<'a, State> =
+    ReplaceNodeMutation<'a, RandomDoc<State>, MissingNode, ExpandGrammar>;
 
-pub type RemoveErrorNode<'a, S> = ReplaceNodeMutation<'a, RandomDoc<S>, ErrorNode, EmptyNode>;
-pub type DropRandomNode<'a, S> = ReplaceNodeMutation<'a, RandomDoc<S>, AnyNode, EmptyNode>;
+pub type RemoveErrorNode<'a, State> =
+    ReplaceNodeMutation<'a, RandomDoc<State>, ErrorNode, EmptyNode>;
+pub type DropRandomNode<'a, State> = ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, EmptyNode>;
 
 #[derive(Debug, New)]
 pub struct DropUncoveredArea<'a, TS> {
@@ -293,14 +297,14 @@ impl<TS> Named for DropUncoveredArea<'_, TS> {
     }
 }
 
-impl<S, TS> Mutator<LspInput, S> for DropUncoveredArea<'_, TS>
+impl<State, TS> Mutator<LspInput, State> for DropUncoveredArea<'_, TS>
 where
-    TS: TextDocumentSelector<S>,
-    S: HasRand,
+    TS: TextDocumentSelector<State>,
+    State: HasRand,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let Some((_path, doc)) = TS::select_document_mut(state, input) else {

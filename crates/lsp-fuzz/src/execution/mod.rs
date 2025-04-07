@@ -100,17 +100,17 @@ pub struct FuzzExecutionConfig<'a, SHM, A, OBS> {
 }
 
 #[derive(Debug)]
-pub struct LspExecutor<S, OBS, SHM> {
+pub struct LspExecutor<State, OBS, SHM> {
     fork_server: NeoForkServer,
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
     observers: OBS,
     asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
-    _state: PhantomData<S>,
+    _state: PhantomData<State>,
 }
 
-impl<S, OBS, A, SHM> LspExecutor<S, (A, OBS), SHM>
+impl<State, OBS, A, SHM> LspExecutor<State, (A, OBS), SHM>
 where
     SHM: ShMem,
 {
@@ -121,8 +121,8 @@ where
     ) -> Result<Self, libafl::Error>
     where
         MO: MapObserver + Truncate,
-        A: Observer<LspInput, S> + AsMut<MO> + AsRef<MO>,
-        OBS: ObserversTuple<LspInput, S> + Prepend<A>,
+        A: Observer<LspInput, State> + AsMut<MO> + AsRef<MO>,
+        OBS: ObserversTuple<LspInput, State> + Prepend<A>,
     {
         let args = target_info.args.into_iter().map(|it| it.into()).collect();
 
@@ -216,9 +216,9 @@ where
     }
 }
 
-impl<S, OBS, SHM> HasObservers for LspExecutor<S, OBS, SHM>
+impl<State, OBS, SHM> HasObservers for LspExecutor<State, OBS, SHM>
 where
-    OBS: ObserversTuple<LspInput, S>,
+    OBS: ObserversTuple<LspInput, State>,
 {
     type Observers = OBS;
 
@@ -231,16 +231,16 @@ where
     }
 }
 
-impl<EM, Z, S, OBS, SHM> Executor<EM, LspInput, S, Z> for LspExecutor<S, OBS, SHM>
+impl<EM, Z, State, OBS, SHM> Executor<EM, LspInput, State, Z> for LspExecutor<State, OBS, SHM>
 where
-    S: HasExecutions + HasMetadata,
-    OBS: ObserversTuple<LspInput, S>,
+    State: HasExecutions + HasMetadata,
+    OBS: ObserversTuple<LspInput, State>,
     SHM: ShMem,
 {
     fn run_target(
         &mut self,
         _fuzzer: &mut Z,
-        state: &mut S,
+        state: &mut State,
         _mgr: &mut EM,
         input: &LspInput,
     ) -> Result<ExitKind, libafl::Error> {
@@ -282,10 +282,10 @@ where
     }
 }
 
-impl<S, OBS, SHM> LspExecutor<S, OBS, SHM>
+impl<State, OBS, SHM> LspExecutor<State, OBS, SHM>
 where
-    S: HasExecutions,
-    OBS: ObserversTuple<LspInput, S>,
+    State: HasExecutions,
+    OBS: ObserversTuple<LspInput, State>,
     SHM: ShMem,
 {
     fn update_asan_observer(

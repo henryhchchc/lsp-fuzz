@@ -45,18 +45,18 @@ impl HasLen for LspMessages {
     }
 }
 
-pub trait PositionSelector<S> {
-    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position>;
+pub trait PositionSelector<State> {
+    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position>;
 }
 
 #[derive(Debug)]
 pub struct RandomPosition<const MAX: u32 = 1024>;
 
-impl<S, const MAX: u32> PositionSelector<S> for RandomPosition<MAX>
+impl<State, const MAX: u32> PositionSelector<State> for RandomPosition<MAX>
 where
-    S: HasRand,
+    State: HasRand,
 {
-    fn select_position(state: &mut S, _doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(state: &mut State, _doc: &TextDocument) -> Option<lsp_types::Position> {
         let rand = state.rand_mut();
         let line = rand.between(0, MAX as _) as _;
         let character = rand.between(0, MAX as _) as _;
@@ -67,11 +67,11 @@ where
 #[derive(Debug)]
 pub struct ValidPosition;
 
-impl<S> PositionSelector<S> for ValidPosition
+impl<State> PositionSelector<State> for ValidPosition
 where
-    S: HasRand,
+    State: HasRand,
 {
-    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position> {
         let (index, line) = state.rand_mut().choose(doc.lines().enumerate())?;
         let character = state.rand_mut().choose(0..line.len())?;
         Some(lsp_types::Position {
@@ -84,11 +84,11 @@ where
 #[derive(Debug)]
 pub struct TerminalStartPosition;
 
-impl<S> PositionSelector<S> for TerminalStartPosition
+impl<State> PositionSelector<State> for TerminalStartPosition
 where
-    S: HasRand,
+    State: HasRand,
 {
-    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position> {
         let range = state.rand_mut().choose(doc.terminal_ranges())?;
         let line = range.start_point.row as _;
         let character = range.start_point.column as _;
@@ -97,24 +97,24 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct DropRandomMessage<S> {
-    _state: PhantomData<S>,
+pub struct DropRandomMessage<State> {
+    _state: PhantomData<State>,
 }
 
-impl<S> Named for DropRandomMessage<S> {
+impl<State> Named for DropRandomMessage<State> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("DropRandomMessage");
         &NAME
     }
 }
 
-impl<S> Mutator<LspInput, S> for DropRandomMessage<S>
+impl<State> Mutator<LspInput, State> for DropRandomMessage<State>
 where
-    S: HasRand,
+    State: HasRand,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let rand = state.rand_mut();
@@ -129,7 +129,7 @@ where
 
 prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::ClientToServerMessage>);
 
-pub type SwapRequests<S> = MessagesMutator<SliceSwapMutator<lsp::ClientToServerMessage, S>>;
+pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::ClientToServerMessage, State>>;
 
 use lsp_types::*;
 
@@ -168,8 +168,8 @@ use lsp_types::*;
         WillSaveTextDocumentParams,
         WorkspaceSymbol,
 )]
-impl<S> HasPredefinedGenerators<S> for P {
-    type Generator = Arc<dyn LspParamsGenerator<S, Output = Self>>;
+impl<State> HasPredefinedGenerators<State> for P {
+    type Generator = Arc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         []
@@ -183,7 +183,7 @@ impl<S> HasPredefinedGenerators<S> for P {
     serde_json::Map<String, serde_json::Value>,
     serde_json::Value,
 )]
-impl<S: 'static> HasPredefinedGenerators<S> for P {
+impl<State: 'static> HasPredefinedGenerators<State> for P {
     type Generator = DefaultGenerator<Self>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
@@ -191,9 +191,9 @@ impl<S: 'static> HasPredefinedGenerators<S> for P {
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for bool
+impl<State> HasPredefinedGenerators<State> for bool
 where
-    S: HasRand + 'static,
+    State: HasRand + 'static,
 {
     type Generator = ConstGenerator<Self>;
 
@@ -202,39 +202,39 @@ where
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for TextDocumentIdentifier
+impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
 where
-    S: HasRand + 'static,
+    State: HasRand + 'static,
 {
-    type Generator = TextDocumentIdentifierGenerator<RandomDoc<S>>;
+    type Generator = TextDocumentIdentifierGenerator<RandomDoc<State>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [TextDocumentIdentifierGenerator::<RandomDoc<S>>::new()]
+        [TextDocumentIdentifierGenerator::<RandomDoc<State>>::new()]
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for TextDocumentPositionParams
+impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
 where
-    S: HasRand + 'static,
+    State: HasRand + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         let term_start: Self::Generator = Rc::new(TextDocumentPositionParamsGenerator::<
-            RandomDoc<S>,
+            RandomDoc<State>,
             TerminalStartPosition,
         >::new());
         let result: [Self::Generator; 6] = [
             Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<S>,
+                RandomDoc<State>,
                 ValidPosition,
             >::new()),
             Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<S>,
+                RandomDoc<State>,
                 RandomPosition,
             >::new()),
             Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<S>,
+                RandomDoc<State>,
                 TerminalStartPosition,
             >::new()),
             term_start.clone(),
@@ -245,13 +245,13 @@ where
     }
 }
 
-impl<S, A, B> HasPredefinedGenerators<S> for OneOf<A, B>
+impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
 where
-    S: 'static,
-    A: HasPredefinedGenerators<S> + 'static,
-    B: HasPredefinedGenerators<S> + 'static,
+    State: 'static,
+    A: HasPredefinedGenerators<State> + 'static,
+    B: HasPredefinedGenerators<State> + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Self>>;
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         let left_gen = A::generators()
@@ -265,19 +265,19 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct OptionGenerator<S, T>
+pub struct OptionGenerator<State, T>
 where
-    S: 'static,
-    T: HasPredefinedGenerators<S>,
+    State: 'static,
+    T: HasPredefinedGenerators<State>,
 {
     inner: Option<T::Generator>,
-    _state: PhantomData<S>,
+    _state: PhantomData<State>,
 }
 
-impl<S, T> Clone for OptionGenerator<S, T>
+impl<State, T> Clone for OptionGenerator<State, T>
 where
-    S: 'static,
-    T: HasPredefinedGenerators<S>,
+    State: 'static,
+    T: HasPredefinedGenerators<State>,
     T::Generator: Clone,
 {
     fn clone(&self) -> Self {
@@ -285,14 +285,18 @@ where
     }
 }
 
-impl<S, T> LspParamsGenerator<S> for OptionGenerator<S, T>
+impl<State, T> LspParamsGenerator<State> for OptionGenerator<State, T>
 where
-    S: 'static,
-    T: HasPredefinedGenerators<S> + 'static,
+    State: 'static,
+    T: HasPredefinedGenerators<State> + 'static,
 {
     type Output = Option<T>;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         if let Some(ref inner) = self.inner {
             Ok(Some(inner.generate(state, input)?))
         } else {
@@ -301,13 +305,13 @@ where
     }
 }
 
-impl<S, T> HasPredefinedGenerators<S> for Option<T>
+impl<State, T> HasPredefinedGenerators<State> for Option<T>
 where
-    S: 'static,
-    T: HasPredefinedGenerators<S> + 'static,
+    State: 'static,
+    T: HasPredefinedGenerators<State> + 'static,
     T::Generator: Clone,
 {
-    type Generator = OptionGenerator<S, T>;
+    type Generator = OptionGenerator<State, T>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         T::generators()
@@ -317,11 +321,11 @@ where
     }
 }
 
-impl<S> HasPredefinedGenerators<S> for String
+impl<State> HasPredefinedGenerators<State> for String
 where
-    S: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata + 'static,
 {
-    type Generator = &'static dyn LspParamsGenerator<S, Output = Self>;
+    type Generator = &'static dyn LspParamsGenerator<State, Output = Self>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
@@ -342,14 +346,18 @@ impl<G, const MAX_ITEMS: usize> VecGenerator<G, MAX_ITEMS> {
     }
 }
 
-impl<S, G, const MAX_ITEMS: usize> LspParamsGenerator<S> for VecGenerator<G, MAX_ITEMS>
+impl<State, G, const MAX_ITEMS: usize> LspParamsGenerator<State> for VecGenerator<G, MAX_ITEMS>
 where
-    G: LspParamsGenerator<S>,
-    S: HasRand,
+    G: LspParamsGenerator<State>,
+    State: HasRand,
 {
     type Output = Vec<G::Output>;
 
-    fn generate(&self, state: &mut S, input: &LspInput) -> Result<Self::Output, GenerationError> {
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
         let len = state.rand_mut().between(1, MAX_ITEMS);
         let mut items = Vec::with_capacity(len);
         let mut anything_generated = false;
@@ -371,12 +379,12 @@ where
     }
 }
 
-impl<S, T> HasPredefinedGenerators<S> for Vec<T>
+impl<State, T> HasPredefinedGenerators<State> for Vec<T>
 where
-    S: HasRand + 'static,
-    T: HasPredefinedGenerators<S> + 'static,
+    State: HasRand + 'static,
+    T: HasPredefinedGenerators<State> + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<S, Output = Vec<T>>>;
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = Vec<T>>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         let vec_generator: Self::Generator =
@@ -386,24 +394,24 @@ where
     }
 }
 
-pub struct AppendRandomlyGeneratedMessage<M, S>
+pub struct AppendRandomlyGeneratedMessage<M, State>
 where
     M: LspMessage,
-    M::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<State>,
 {
     name: Cow<'static, str>,
-    generators: Vec<<M::Params as HasPredefinedGenerators<S>>::Generator>,
+    generators: Vec<<M::Params as HasPredefinedGenerators<State>>::Generator>,
 }
 
-impl<M: LspMessage, S> Debug for AppendRandomlyGeneratedMessage<M, S>
+impl<M: LspMessage, State> Debug for AppendRandomlyGeneratedMessage<M, State>
 where
-    M::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<State>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let generators_desc = format!(
             "{} {}",
             self.generators.len(),
-            type_name::<<M::Params as HasPredefinedGenerators<S>>::Generator>()
+            type_name::<<M::Params as HasPredefinedGenerators<State>>::Generator>()
         );
         f.debug_struct("AppendRandomlyGeneratedMessage")
             .field("generators", &generators_desc)
@@ -411,10 +419,10 @@ where
     }
 }
 
-impl<M, S: 'static> AppendRandomlyGeneratedMessage<M, S>
+impl<M, State: 'static> AppendRandomlyGeneratedMessage<M, State>
 where
     M: LspMessage,
-    M::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<State>,
 {
     pub fn with_predefined() -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
@@ -424,26 +432,26 @@ where
     }
 }
 
-impl<M, S> Named for AppendRandomlyGeneratedMessage<M, S>
+impl<M, State> Named for AppendRandomlyGeneratedMessage<M, State>
 where
     M: LspMessage,
-    M::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<State>,
 {
     fn name(&self) -> &Cow<'static, str> {
         &self.name
     }
 }
 
-impl<M, S, P> Mutator<LspInput, S> for AppendRandomlyGeneratedMessage<M, S>
+impl<M, State, P> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
 where
-    S: HasRand,
+    State: HasRand,
     M: LspMessage<Params = P>,
-    M::Params: HasPredefinedGenerators<S>,
+    M::Params: HasPredefinedGenerators<State>,
     P: MessageParam<M>,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let Some(generator) = state.rand_mut().choose(&self.generators) else {
@@ -535,9 +543,9 @@ append_randoms! {
     }
 }
 
-pub fn message_mutations<S>() -> impl MutatorsTuple<LspInput, S> + NamedTuple
+pub fn message_mutations<State>() -> impl MutatorsTuple<LspInput, State> + NamedTuple
 where
-    S: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata + 'static,
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
     append_randomly_generated_messages()
@@ -545,9 +553,9 @@ where
         .merge(message_reductions())
 }
 
-pub fn message_reductions<S>() -> tuple_list_type![DropRandomMessage<S>]
+pub fn message_reductions<State>() -> tuple_list_type![DropRandomMessage<State>]
 where
-    S: HasRand,
+    State: HasRand,
 {
     tuple_list![DropRandomMessage::new()]
 }

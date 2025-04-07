@@ -8,4 +8,5 @@
 
 pub(crate) mod tree_sitter_generate;
 
+#[rustfmt::skip]
 mod upstream;

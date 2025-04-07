@@ -242,15 +242,15 @@ impl<TM, RM> Named for LspInputMutator<TM, RM> {
     }
 }
 
-impl<TM, RM, S> Mutator<LspInput, S> for LspInputMutator<TM, RM>
+impl<TM, RM, State> Mutator<LspInput, State> for LspInputMutator<TM, RM>
 where
-    TM: Mutator<LspInput, S>,
-    RM: Mutator<LspInput, S>,
-    S: HasMetadata + HasCorpus<LspInput> + HasMaxSize + HasRand,
+    TM: Mutator<LspInput, State>,
+    RM: Mutator<LspInput, State>,
+    State: HasMetadata + HasCorpus<LspInput> + HasMaxSize + HasRand,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let mut result = MutationResult::Skipped;
@@ -265,7 +265,7 @@ where
 
     fn post_exec(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         new_corpus_id: Option<CorpusId>,
     ) -> Result<(), libafl::Error> {
         self.text_document_mutator.post_exec(state, new_corpus_id)?;
@@ -279,11 +279,11 @@ pub struct LspInputGenerator<'a> {
     grammar_lookup: &'a GrammarContextLookup,
 }
 
-impl<S> Generator<LspInput, S> for LspInputGenerator<'_>
+impl<State> Generator<LspInput, State> for LspInputGenerator<'_>
 where
-    S: HasRand,
+    State: HasRand,
 {
-    fn generate(&mut self, state: &mut S) -> Result<LspInput, libafl::Error> {
+    fn generate(&mut self, state: &mut State) -> Result<LspInput, libafl::Error> {
         let rand = state.rand_mut();
         let (&language, grammar) = rand
             .choose(self.grammar_lookup.iter())

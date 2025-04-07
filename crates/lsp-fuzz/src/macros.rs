@@ -122,22 +122,22 @@ macro_rules! append_randoms {
     ) => {
         #[allow(unused_imports, reason = "The imports are used in the generated code.")]
         use lsp_types::{request, notification};
-        $vis type $return_ty<S> = tuple_list::tuple_list_type![
+        $vis type $return_ty<State> = tuple_list::tuple_list_type![
             $(
-                $(AppendRandomlyGeneratedMessage::<request::$req_variant, S>, )?
-                $(AppendRandomlyGeneratedMessage::<notification::$not_variant, S>, )?
+                $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>, )?
+                $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>, )?
             )*
         ];
 
         $(#[$outer])*
-        $vis fn $fn_name<S>() -> $return_ty<S>
+        $vis fn $fn_name<State>() -> $return_ty<State>
         where
-            S: libafl::state::HasRand + libafl::common::HasMetadata + 'static
+            State: libafl::state::HasRand + libafl::common::HasMetadata + 'static
         {
             tuple_list::tuple_list![
                 $(
-                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, S>::with_predefined(),)?
-                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, S>::with_predefined(),)?
+                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>::with_predefined(),)?
+                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>::with_predefined(),)?
                 )*
             ]
         }
@@ -166,12 +166,12 @@ macro_rules! const_generators {
     (for $type: ty => [
         $($val: expr),*
     ]) => {
-        impl<S> HasPredefinedGenerators<S> for $type {
+        impl<State> HasPredefinedGenerators<State> for $type {
             type Generator = &'static ConstGenerator<Self>;
 
             fn generators() -> impl IntoIterator<Item = Self::Generator>
             where
-                S: 'static,
+                State: 'static,
             {
                 const COUNT: usize = { 0 $( + const_generators!(one $val))* };
                 static GENERATORS: [ConstGenerator<$type>; COUNT] = [

@@ -341,9 +341,9 @@ impl FuzzCommand {
     }
 }
 
-fn trigger_stop_stage<S>(
+fn trigger_stop_stage<State>(
     after_duration: Option<Duration>,
-) -> Result<StopOnReceived<S>, anyhow::Error> {
+) -> Result<StopOnReceived<State>, anyhow::Error> {
     let (tx, rx) = mpsc::channel();
     let mut is_control_c_pressed = false;
     if let Some(duration) = after_duration {
@@ -371,12 +371,15 @@ fn trigger_stop_stage<S>(
     Ok(StopOnReceived::new(rx))
 }
 
-fn mutation_stage<'g, E, EM, S, Z>(
-    _state: &mut S,
+fn mutation_stage<'g, E, EM, State, Z>(
+    _state: &mut State,
     grammar_ctx: &'g GrammarContextLookup,
-) -> Result<impl Stage<E, EM, S, Z> + Restartable<S> + use<'g, E, EM, S, Z>, libafl::Error>
+) -> Result<
+    impl Stage<E, EM, State, Z> + Restartable<State> + use<'g, E, EM, State, Z>,
+    libafl::Error,
+>
 where
-    S: HasRand
+    State: HasRand
         + HasMaxSize
         + HasMetadata
         + HasCorpus<LspInput>
@@ -386,8 +389,8 @@ where
         + HasExecutions
         + MaybeHasClientPerfMonitor
         + 'static,
-    Z: Evaluator<E, EM, LspInput, S>,
-    E: Executor<EM, LspInput, S, Z> + HasObservers,
+    Z: Evaluator<E, EM, LspInput, State>,
+    E: Executor<EM, LspInput, State, Z> + HasObservers,
 {
     let text_document_mutator =
         StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);

@@ -8,19 +8,19 @@ use libafl::{
 use libafl_bolts::{Named, rands::Rand};
 
 #[derive(Debug, New)]
-pub struct ShortCurcuitMutator<I, MT, S> {
+pub struct ShortCurcuitMutator<I, MT, State> {
     mutators: MT,
-    _phantom: PhantomData<(I, S)>,
+    _phantom: PhantomData<(I, State)>,
 }
 
-impl<I, MT, S> Named for ShortCurcuitMutator<I, MT, S> {
+impl<I, MT, State> Named for ShortCurcuitMutator<I, MT, State> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("ShortCurcuitMutator");
         &NAME
     }
 }
 
-impl<I, MT, S> ComposedByMutations for ShortCurcuitMutator<I, MT, S> {
+impl<I, MT, State> ComposedByMutations for ShortCurcuitMutator<I, MT, State> {
     type Mutations = MT;
 
     fn mutations(&self) -> &Self::Mutations {
@@ -32,13 +32,17 @@ impl<I, MT, S> ComposedByMutations for ShortCurcuitMutator<I, MT, S> {
     }
 }
 
-impl<I, MT, S> Mutator<I, S> for ShortCurcuitMutator<I, MT, S>
+impl<I, MT, State> Mutator<I, State> for ShortCurcuitMutator<I, MT, State>
 where
     I: Clone,
-    MT: MutatorsTuple<I, S>,
-    S: HasRand,
+    MT: MutatorsTuple<I, State>,
+    State: HasRand,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let mut rand = state.rand_mut();
         let mut mutator_idx: BTreeSet<_> = (0..self.mutators.len()).collect();
         while let Some(&idx) = rand.choose(mutator_idx.iter()) {
@@ -53,24 +57,28 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct SliceSwapMutator<T, S> {
+pub struct SliceSwapMutator<T, State> {
     _item: PhantomData<T>,
-    _state: PhantomData<S>,
+    _state: PhantomData<State>,
 }
 
-impl<S, T> Named for SliceSwapMutator<T, S> {
+impl<State, T> Named for SliceSwapMutator<T, State> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("SliceSwapMutator");
         &NAME
     }
 }
 
-impl<I, T, S> Mutator<I, S> for SliceSwapMutator<T, S>
+impl<I, T, State> Mutator<I, State> for SliceSwapMutator<T, State>
 where
     I: AsMut<[T]>,
-    S: HasRand,
+    State: HasRand,
 {
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let input = input.as_mut();
         let len = input.len();
         if len < 2 {
@@ -104,14 +112,18 @@ impl<M, const PROP_ID: usize> Named for PropMutator<M, PROP_ID> {
     }
 }
 
-impl<I, T, M, S, const PROP_ID: usize> Mutator<I, S> for PropMutator<M, PROP_ID>
+impl<I, T, M, State, const PROP_ID: usize> Mutator<I, State> for PropMutator<M, PROP_ID>
 where
-    M: Mutator<T, S>,
-    S: HasRand,
+    M: Mutator<T, State>,
+    State: HasRand,
     I: HasMutProp<PROP_ID, PropType = T>,
 {
     #[inline]
-    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, libafl::Error> {
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
         let field_mut = I::get_field(input);
         self.mutator.mutate(state, field_mut)
     }
@@ -156,14 +168,14 @@ where
     }
 }
 
-impl<I, M, S> Mutator<Option<I>, S> for OptionMutator<M>
+impl<I, M, State> Mutator<Option<I>, State> for OptionMutator<M>
 where
-    M: Mutator<I, S>,
-    S: HasRand,
+    M: Mutator<I, State>,
+    State: HasRand,
 {
     fn mutate(
         &mut self,
-        state: &mut S,
+        state: &mut State,
         input: &mut Option<I>,
     ) -> Result<MutationResult, libafl::Error> {
         input
