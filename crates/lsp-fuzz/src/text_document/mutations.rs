@@ -96,7 +96,7 @@ where
         let Some((_, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
+        let Some(grammar_ctx) = self.grammar_lookup.get(doc.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let doc_len = doc.len();
@@ -310,7 +310,7 @@ where
         let Some((_path, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(grammar_ctx) = self.grammar_lookup.get(&doc.language()) else {
+        let Some(grammar_ctx) = self.grammar_lookup.get(doc.language()) else {
             return Ok(MutationResult::Skipped);
         };
         let parse_tree = doc.get_or_create_parse_tree(grammar_ctx);

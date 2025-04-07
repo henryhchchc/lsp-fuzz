@@ -285,9 +285,10 @@ where
 {
     fn generate(&mut self, state: &mut State) -> Result<LspInput, libafl::Error> {
         let rand = state.rand_mut();
-        let (&language, grammar) = rand
+        let grammar = rand
             .choose(self.grammar_lookup.iter())
             .afl_context("The grammar lookup context is empry")?;
+        let language = grammar.language();
         let ext = rand
             .choose(language.file_extensions())
             .afl_context("The language has no extensions")?;

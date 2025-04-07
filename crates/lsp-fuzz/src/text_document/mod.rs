@@ -21,10 +21,19 @@ pub mod token_novelty;
 
 pub const LINE_SEP: u8 = b'\n';
 
-#[derive(Debug, Serialize, Deserialize, SerdeAny, derive_more::Deref)]
+#[derive(Debug, Serialize, Deserialize, SerdeAny)]
 pub struct GrammarContextLookup {
-    #[deref]
     inner: HashMap<Language, grammars::GrammarContext>,
+}
+
+impl GrammarContextLookup {
+    pub fn get(&self, language: Language) -> Option<&GrammarContext> {
+        self.inner.get(&language)
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &GrammarContext> {
+        self.inner.values()
+    }
 }
 
 impl FromIterator<grammars::GrammarContext> for GrammarContextLookup {
