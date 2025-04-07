@@ -27,7 +27,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capabilities::fuzzer_client_capabilities},
-    text_document::{GrammarBasedMutation, GrammarContextLookup, TextDocument},
+    text_document::{
+        GrammarBasedMutation, GrammarContextLookup, TextDocument, grammars::RuleSelectionStrategy,
+    },
     utf8::Utf8Input,
     utils::AflContext,
 };
@@ -292,9 +294,10 @@ where
         let ext = rand
             .choose(language.file_extensions())
             .afl_context("The language has no extensions")?;
+        let mut selection_strategy = RuleSelectionStrategy::new(rand);
         let document_content = loop {
             let generate_node =
-                grammar.generate_node(grammar.start_symbol(), state.rand_mut(), Some(5));
+                grammar.generate_node(grammar.start_symbol(), &mut selection_strategy, Some(5));
             if let Ok(code) = generate_node {
                 break code;
             }

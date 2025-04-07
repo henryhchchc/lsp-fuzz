@@ -1,8 +1,6 @@
 //! APIs exposed from the [`tree_sitter_generate`](https://github.com/tree-sitter/tree-sitter/tree/master/cli/generate) project.
 
-use crate::text_document::grammars::{
-    CreationError, DerivationGrammar, Symbol, SymbolSequence, Terminal,
-};
+use crate::text_document::grammars::{CreationError, Grammar, Symbol, SymbolSequence, Terminal};
 use indexmap::IndexSet;
 use itertools::Itertools;
 
@@ -18,7 +16,7 @@ pub(crate) use super::upstream::tree_sitter_generate::{
     rules::{AliasMap, SymbolType},
 };
 
-impl DerivationGrammar {
+impl Grammar {
     fn convert_terminal(rule: &LexicalVariable, alias: Option<&Alias>) -> Terminal {
         match rule.kind {
             VariableType::Anonymous => {

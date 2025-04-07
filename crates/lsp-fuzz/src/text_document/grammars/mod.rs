@@ -1,4 +1,5 @@
 use core::fmt;
+use derive_new::new as New;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -9,7 +10,7 @@ use std::{
 use anyhow::bail;
 pub mod tree;
 use indexmap::{IndexMap, IndexSet};
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use libafl_bolts::rands::Rand;
 use serde::{Deserialize, Serialize};
 pub mod fragment_extraction;
@@ -65,13 +66,13 @@ impl SymbolSequence {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, derive_more::Constructor)]
-pub struct DerivationGrammar {
+pub struct Grammar {
     language: Language,
     start_symbol: String,
     derivation_rules: IndexMap<String, IndexSet<SymbolSequence>>,
 }
 
-impl Display for DerivationGrammar {
+impl Display for Grammar {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "Grammar for {}", self.language)?;
         writeln!(f, "Start symbol: <{}>", self.start_symbol)?;
@@ -89,13 +90,11 @@ impl Display for DerivationGrammar {
     }
 }
 
-impl DerivationGrammar {
-    pub fn derivation_rules(&self) -> &IndexMap<String, IndexSet<SymbolSequence>> {
+impl Grammar {
+    pub const fn derivation_rules(&self) -> &IndexMap<String, IndexSet<SymbolSequence>> {
         &self.derivation_rules
     }
-}
 
-impl DerivationGrammar {
     pub fn from_tree_sitter_grammar_json(
         language: Language,
         grammar_json: &str,
@@ -137,16 +136,39 @@ pub struct DerivationFragments {
     fragments: HashMap<Cow<'static, str>, Vec<Range<usize>>>,
 }
 
+#[derive(Debug, Default)]
+pub struct FragmentsIter<'a> {
+    code: &'a [u8],
+    ranges: <&'a Vec<Range<usize>> as IntoIterator>::IntoIter,
+}
+
 impl DerivationFragments {
-    pub fn get(&self, node_kind: &str) -> Option<impl ExactSizeIterator<Item = &[u8]>> {
+    pub fn get(&self, node_kind: &str) -> Option<FragmentsIter<'_>> {
         let ranges = self.fragments.get(node_kind)?;
-        Some(ranges.iter().cloned().map(|range| &self.code[range]))
+        Some(FragmentsIter {
+            code: &self.code,
+            ranges: ranges.iter(),
+        })
+    }
+}
+
+impl<'a> Iterator for FragmentsIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ranges.next().cloned().map(|range| &self.code[range])
+    }
+}
+
+impl ExactSizeIterator for FragmentsIter<'_> {
+    fn len(&self) -> usize {
+        self.ranges.len()
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct GrammarContext {
-    grammar: DerivationGrammar,
+    grammar: Grammar,
     node_fragments: DerivationFragments,
 }
 
@@ -172,12 +194,8 @@ impl GrammarContext {
         self.grammar.language
     }
 
-    pub fn node_fragments(&self, node_kind: &str) -> impl ExactSizeIterator<Item = &[u8]> {
-        if let Some(fragments) = self.node_fragments.get(node_kind) {
-            Either::Right(fragments)
-        } else {
-            Either::Left(std::iter::empty())
-        }
+    pub fn node_fragments(&self, node_kind: &str) -> FragmentsIter<'_> {
+        self.node_fragments.get(node_kind).unwrap_or_default()
     }
 
     pub fn start_symbol(&self) -> &str {
@@ -192,63 +210,86 @@ impl GrammarContext {
             .ok_or(DerivationError::InvalidGrammar)
     }
 
-    pub fn generate_node(
+    pub fn generate_node<R: Rand>(
         &self,
         node_kind: &str,
-        rand: &mut impl Rand,
-        max_depth: Option<usize>,
+        selection_strategy: &mut RuleSelectionStrategy<'_, R>,
+        recursion_limit: Option<usize>,
     ) -> Result<Vec<u8>, DerivationError> {
-        let derivation_fragments = self.node_fragments(node_kind);
-        let has_derivation_rule = self.grammar.derivation_rules.contains_key(node_kind);
-        let has_derivation_fragments = derivation_fragments.len() > 0;
-        let depth_limit_reached = max_depth.is_some_and(|it| it == 0);
-        let should_derive = match (
-            depth_limit_reached,
-            has_derivation_rule,
-            has_derivation_fragments,
-        ) {
-            (true, _, false) => return Err(DerivationError::DepthLimitReached),
-            (_, false, true) => false,
-            (true, _, true) => false,
-            (false, true, false) => true,
-            (false, true, true) => rand.coinflip(0.5),
-            (false, false, false) => return Err(DerivationError::InvalidGrammar),
-        };
-        if should_derive {
-            let derivation_rules = self
-                .grammar
-                .derivation_rules()
-                .get(node_kind)
-                .expect("We checked that the rule is available");
-            let rule = rand
-                .choose(derivation_rules)
-                .ok_or(DerivationError::InvalidGrammar)?;
+        if recursion_limit.is_some_and(|it| it == 0) {
+            return self.generate_from_fragments(node_kind, |choices| {
+                selection_strategy.select_fragment(choices)
+            });
+        }
+        if let Some(derivation_rules) = self.grammar.derivation_rules().get(node_kind) {
+            let rule = selection_strategy
+                .select_rule(derivation_rules)
+                .ok_or(DerivationError::NoRuleAvailable)?;
             rule.into_iter()
                 .map(|symbol| match symbol {
                     Symbol::NonTerminal(name) => {
-                        self.generate_node(name, rand, max_depth.map(|it| it - 1))
+                        let max_depth = recursion_limit.map(|it| it - 1);
+                        self.generate_node(name, selection_strategy, max_depth)
                     }
-                    Symbol::Terminal(term) => match term {
-                        Terminal::Immediate(content) => Ok(content.to_vec()),
-                        Terminal::Named(name) | Terminal::Auxiliary(name) => {
-                            let fragments = self.node_fragments(name);
-                            let fragment = rand
-                                .choose(fragments)
-                                .ok_or(DerivationError::InvalidGrammar)?;
-                            Ok(fragment.to_vec())
-                        }
-                    },
-                    Symbol::Eof => Ok(Vec::default()),
+                    Symbol::Terminal(term) => self.generate_terminal(term, |choices| {
+                        selection_strategy.select_fragment(choices)
+                    }),
+                    Symbol::Eof => Ok(Vec::new()),
                 })
                 .flatten_ok()
                 .collect::<Result<Vec<_>, _>>()
         } else {
-            let fragments = self.node_fragments(node_kind);
-            let fragment = rand
-                .choose(fragments)
-                .ok_or(DerivationError::InvalidGrammar)?;
-            Ok(fragment.to_vec())
+            // We do not need to worry about unnamed terminals since they do not have a name.
+            // They will never be passed in via `node_kind`.
+            self.generate_from_fragments(node_kind, |choices| {
+                selection_strategy.select_fragment(choices)
+            })
         }
+    }
+
+    fn generate_from_fragments(
+        &self,
+        node_kind: &str,
+        mut fragment_selector: impl FnMut(FragmentsIter<'_>) -> Option<&[u8]>,
+    ) -> Result<Vec<u8>, DerivationError> {
+        let fragments = self.node_fragments(node_kind);
+
+        let fragment = fragment_selector(fragments).ok_or(DerivationError::NoFragmentAvailable)?;
+        Ok(fragment.to_vec())
+    }
+
+    fn generate_terminal(
+        &self,
+        term: &Terminal,
+        fragment_selector: impl FnMut(FragmentsIter<'_>) -> Option<&[u8]>,
+    ) -> Result<Vec<u8>, DerivationError> {
+        match term {
+            Terminal::Immediate(content) => Ok(content.to_vec()),
+            Terminal::Named(name) | Terminal::Auxiliary(name) => self
+                .generate_from_fragments(name, fragment_selector)
+                .map(|it| it.to_vec()),
+        }
+    }
+}
+
+#[derive(Debug, New)]
+pub struct RuleSelectionStrategy<'a, R> {
+    rand: &'a mut R,
+}
+
+impl<R> RuleSelectionStrategy<'_, R>
+where
+    R: Rand,
+{
+    fn select_fragment<'a>(&mut self, fragments: FragmentsIter<'a>) -> Option<&'a [u8]> {
+        self.rand.choose(fragments)
+    }
+
+    fn select_rule<'a>(
+        &mut self,
+        rules: &'a IndexSet<SymbolSequence>,
+    ) -> Option<&'a SymbolSequence> {
+        self.rand.choose(rules)
     }
 }
 
@@ -258,6 +299,10 @@ pub enum DerivationError {
     DepthLimitReached,
     #[error("The grammar is invalid")]
     InvalidGrammar,
+    #[error("No rule available for the given node kind")]
+    NoRuleAvailable,
+    #[error("No fragment available for the given node kind")]
+    NoFragmentAvailable,
 }
 
 #[cfg(test)]
@@ -267,18 +312,16 @@ mod tests {
 
     #[test]
     fn load_derivation_grammar_c() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
-            Language::C,
-            Language::C.grammar_json(),
-        )
-        .unwrap();
+        let grammar =
+            Grammar::from_tree_sitter_grammar_json(Language::C, Language::C.grammar_json())
+                .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_cpp() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+        let grammar = Grammar::from_tree_sitter_grammar_json(
             Language::CPlusPlus,
             Language::CPlusPlus.grammar_json(),
         )
@@ -289,7 +332,7 @@ mod tests {
 
     #[test]
     fn load_derivation_grammar_javascript() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+        let grammar = Grammar::from_tree_sitter_grammar_json(
             Language::JavaScript,
             Language::JavaScript.grammar_json(),
         )
@@ -300,40 +343,34 @@ mod tests {
 
     #[test]
     fn load_derivation_grammar_rust() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
-            Language::Rust,
-            Language::Rust.grammar_json(),
-        )
-        .unwrap();
+        let grammar =
+            Grammar::from_tree_sitter_grammar_json(Language::Rust, Language::Rust.grammar_json())
+                .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_toml() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
-            Language::Toml,
-            Language::Toml.grammar_json(),
-        )
-        .unwrap();
+        let grammar =
+            Grammar::from_tree_sitter_grammar_json(Language::Toml, Language::Toml.grammar_json())
+                .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_latex() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
-            Language::LaTeX,
-            Language::LaTeX.grammar_json(),
-        )
-        .unwrap();
+        let grammar =
+            Grammar::from_tree_sitter_grammar_json(Language::LaTeX, Language::LaTeX.grammar_json())
+                .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_bibtex() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+        let grammar = Grammar::from_tree_sitter_grammar_json(
             Language::BibTeX,
             Language::BibTeX.grammar_json(),
         )
@@ -344,7 +381,7 @@ mod tests {
 
     #[test]
     fn load_derivation_grammar_solidity() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+        let grammar = Grammar::from_tree_sitter_grammar_json(
             Language::Solidity,
             Language::Solidity.grammar_json(),
         )

@@ -213,7 +213,7 @@ pub mod node_generators {
 
     use libafl_bolts::rands::Rand;
 
-    use crate::text_document::grammars::GrammarContext;
+    use crate::text_document::grammars::{GrammarContext, RuleSelectionStrategy};
 
     use super::NodeGenerator;
 
@@ -265,8 +265,9 @@ pub mod node_generators {
         where
             R: Rand,
         {
+            let mut selection_strategy = RuleSelectionStrategy::new(rand);
             let fragment = grammar_context
-                .generate_node(node.kind(), rand, Some(5))
+                .generate_node(node.kind(), &mut selection_strategy, Some(5))
                 .ok()?;
             Some(fragment)
         }
