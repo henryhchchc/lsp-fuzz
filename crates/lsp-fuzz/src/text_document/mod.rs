@@ -67,7 +67,7 @@ impl Hash for TextDocument {
 }
 
 impl TextDocument {
-    pub fn new(content: Vec<u8>, language: Language) -> Self {
+    pub const fn new(content: Vec<u8>, language: Language) -> Self {
         Self {
             content,
             language,
@@ -145,10 +145,10 @@ pub trait GrammarBasedMutation {
     ) {
         self.edit(grammar_context, |content| {
             let byte_range = range.start_byte..range.end_byte;
-            let replacement_range = range.start_byte..(range.start_byte + new_content.len());
+            let new_content_len = new_content.len();
             // Update the content
             let _ = content.splice(byte_range, new_content);
-            let replacement = &content[replacement_range];
+            let replacement = &content[range.start_byte..][..new_content_len];
 
             edit_for_node_replacement(range, replacement)
         });
@@ -184,7 +184,7 @@ fn edit_for_node_replacement(
     range: tree_sitter::Range,
     replacement: &[u8],
 ) -> tree_sitter::InputEdit {
-    let (delta_rows, delta_cols) = measure_fragment::<b'\n'>(replacement);
+    let (delta_rows, delta_cols) = measure_fragment::<LINE_SEP>(replacement);
     let (start_position, old_end_position) = (range.start_point, range.end_point);
     let new_end_position = tree_sitter::Point {
         row: old_end_position.row + delta_rows,
@@ -270,7 +270,7 @@ mod tests {
     fn test_measure_fragment_single_line() {
         // Test case 1: Single line, no separators
         let fragment = b"hello";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 0);
         assert_eq!(cols, 5);
     }
@@ -279,7 +279,7 @@ mod tests {
     fn test_measure_fragment_two_lines() {
         // Test case 2: Two lines
         let fragment = b"hello\nworld";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 1);
         assert_eq!(cols, 5);
     }
@@ -288,7 +288,7 @@ mod tests {
     fn test_measure_fragment_ends_with_separator() {
         // Test case 3: Ends with separator
         let fragment = b"hello\nworld\n";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 2);
         assert_eq!(cols, 0);
     }
@@ -297,7 +297,7 @@ mod tests {
     fn test_measure_fragment_empty_fragment() {
         // Test case 4: Empty fragment
         let fragment = b"";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 0);
         assert_eq!(cols, 0);
     }
@@ -306,7 +306,7 @@ mod tests {
     fn test_measure_fragment_three_lines() {
         // Test case 5: Three lines
         let fragment = b"hello\nworld\nrust";
-        let (rows, cols) = measure_fragment::<b'\n'>(fragment);
+        let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 2);
         assert_eq!(cols, 4);
     }
