@@ -82,35 +82,6 @@ where
 }
 
 #[derive(Debug)]
-pub struct HotspotPosition;
-
-impl<S> PositionSelector<S> for HotspotPosition
-where
-    S: HasRand,
-{
-    fn select_position(state: &mut S, doc: &TextDocument) -> Option<lsp_types::Position> {
-        let hotspot = doc.hotspot()?;
-        let line = state
-            .rand_mut()
-            .choose(hotspot.start_point.row..=hotspot.end_point.row)?;
-        let col = match line {
-            l if l == hotspot.start_point.row => state
-                .rand_mut()
-                .choose(hotspot.start_point.column..=hotspot.end_point.column)?,
-            l if l == hotspot.end_point.row => {
-                state.rand_mut().choose(0..=hotspot.end_point.column)?
-            }
-            _ => state.rand_mut().choose(0..=doc.lines().nth(line)?.len())?,
-        };
-
-        Some(lsp_types::Position {
-            line: line as _,
-            character: col as _,
-        })
-    }
-}
-
-#[derive(Debug)]
 pub struct TerminalStartPosition;
 
 impl<S> PositionSelector<S> for TerminalStartPosition
@@ -254,7 +225,7 @@ where
             RandomDoc<S>,
             TerminalStartPosition,
         >::new());
-        let result: [Self::Generator; 7] = [
+        let result: [Self::Generator; 6] = [
             Rc::new(TextDocumentPositionParamsGenerator::<
                 RandomDoc<S>,
                 ValidPosition,
@@ -270,10 +241,6 @@ where
             term_start.clone(),
             term_start.clone(),
             term_start.clone(),
-            Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<S>,
-                HotspotPosition,
-            >::new()),
         ];
         result
     }

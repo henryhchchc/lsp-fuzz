@@ -40,8 +40,6 @@ pub struct TextDocument {
     content: Vec<u8>,
     #[serde(skip)]
     parse_tree: Option<tree_sitter::Tree>,
-    #[serde(skip)]
-    hotspot: Option<tree_sitter::Range>,
 }
 
 impl PartialEq for TextDocument {
@@ -65,7 +63,6 @@ impl TextDocument {
             content,
             language,
             parse_tree: None,
-            hotspot: None,
         }
     }
 
@@ -118,10 +115,6 @@ impl TextDocument {
         self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
     }
 
-    pub const fn hotspot(&self) -> Option<&tree_sitter::Range> {
-        self.hotspot.as_ref()
-    }
-
     const fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
         self.parse_tree.as_ref()
     }
@@ -159,12 +152,6 @@ impl GrammarBasedMutation for TextDocument {
         E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit,
     {
         let input_edit = edit(&mut self.content);
-        self.hotspot = Some(tree_sitter::Range {
-            start_byte: input_edit.start_byte,
-            end_byte: input_edit.new_end_byte,
-            start_point: input_edit.start_position,
-            end_point: input_edit.new_end_position,
-        });
         self.update_parse_tree(input_edit, grammar_context);
     }
 

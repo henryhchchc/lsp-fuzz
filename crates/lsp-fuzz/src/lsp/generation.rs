@@ -338,7 +338,7 @@ where
             let lines: Vec<_> = doc.lines().collect();
             let start_line_idx = rand.below_or_zero(lines.len());
             let start_line = lines[start_line_idx];
-            let end_line_idx = rand.between(start_line_idx, lines.len());
+            let end_line_idx = rand.between(start_line_idx, lines.len() - 1);
             let end_line = lines[end_line_idx];
             let start = Position {
                 line: start_line_idx as u32,
