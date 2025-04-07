@@ -3,7 +3,7 @@ use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread};
 use derive_new::new as New;
 use libafl::{
     HasNamedMetadata, SerdeAny,
-    events::{Event, EventFirer, LogSeverity},
+    events::{Event, EventFirer, EventWithStats, LogSeverity},
     stages::{Restartable, Stage},
     state::HasExecutions,
 };
@@ -95,6 +95,7 @@ impl<S> Restartable<S> for StopOnReceived<S> {
 
 impl<E, M, Z, S> Stage<E, M, S, Z> for StopOnReceived<S>
 where
+    S: HasExecutions,
     M: EventFirer<LspInput, S>,
 {
     fn perform(
@@ -105,7 +106,9 @@ where
         manager: &mut M,
     ) -> Result<(), libafl::Error> {
         if self.receiver.try_recv().is_ok() {
-            manager.fire(state, Event::Stop)?;
+            let executions = state.executions();
+            let event = EventWithStats::with_current_time(Event::Stop, *executions);
+            manager.fire(state, event)?;
         }
         Ok(())
     }
