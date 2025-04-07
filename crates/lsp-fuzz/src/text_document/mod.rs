@@ -38,7 +38,7 @@ impl GrammarContextLookup {
 
 impl FromIterator<grammars::GrammarContext> for GrammarContextLookup {
     fn from_iter<T: IntoIterator<Item = grammars::GrammarContext>>(iter: T) -> Self {
-        let inner = iter.into_iter().map(|gc| (gc.language(), gc)).collect();
+        let inner = iter.into_iter().map(|it| (it.language(), it)).collect();
         Self { inner }
     }
 }

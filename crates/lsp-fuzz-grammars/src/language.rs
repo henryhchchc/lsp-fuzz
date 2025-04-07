@@ -1,26 +1,45 @@
-use crate::data::{GrammarHighLights, GrammarJson};
+use tree_sitter_language::LanguageFn;
+
+use crate::language_data;
 
 use super::Language;
 use std::collections::BTreeSet;
 
+pub(super) struct LanguageInfo {
+    pub extensions: &'static [&'static str],
+    pub highlight_query: &'static str,
+    pub grammar_json: &'static str,
+    pub lsp_language_id: &'static str,
+    pub ts_language_fn: LanguageFn,
+}
+
+// [TODO] Use `variant_count::<Language>()` when stablized.
+const LANGUAGES_COUNT: usize = 12;
+
+// # Important: The order of this array must be identical to the order of variants in the Language enum.
+const LANGUAGES: [LanguageInfo; LANGUAGES_COUNT] = [
+    language_data::C,
+    language_data::CPP,
+    language_data::JAVASCRIPT,
+    language_data::RUBY,
+    language_data::RUST,
+    language_data::TOML,
+    language_data::LATEX,
+    language_data::BIBTEX,
+    language_data::VERILOG,
+    language_data::SOLIDITY,
+    language_data::MLIR,
+    language_data::QML,
+];
+
 impl Language {
+    const fn info(&self) -> &'static LanguageInfo {
+        let index = *self as u8 as usize;
+        &LANGUAGES[index]
+    }
+
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
-        let extensions: &[&str] = match self {
-            Self::C => &["c", "cc", "h"],
-            Self::CPlusPlus => &["cpp", "cxx", "hpp"],
-            Self::JavaScript => &["js"],
-            Self::Ruby => &["rb"],
-            Self::Rust => &["rs"],
-            Self::Toml => &["toml"],
-            Self::LaTeX => &["tex", "dtx"],
-            Self::BibTeX => &["bib"],
-            Self::Verilog => &["v", "sv", "svh"],
-            Self::Solidity => &["sol"],
-            Self::ShaderLang => &["slang"],
-            Self::MLIR => &["mlir"],
-            Self::QML => &["qml"],
-        };
-        extensions.iter().copied().collect()
+        self.info().extensions.iter().copied().collect()
     }
 
     pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
@@ -37,79 +56,22 @@ impl Language {
     /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
     /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
     pub fn ts_highlight_query(&self) -> tree_sitter::Query {
-        let query_src = match self {
-            Self::C => GrammarHighLights::C,
-            Self::CPlusPlus => GrammarHighLights::CPP,
-            Self::JavaScript => GrammarHighLights::JAVASCRIPT,
-            Self::Ruby => GrammarHighLights::RUBY,
-            Self::Rust => GrammarHighLights::RUST,
-            Self::Toml => GrammarHighLights::TOML,
-            Self::LaTeX => GrammarHighLights::LATEX,
-            Self::BibTeX => GrammarHighLights::BIBTEX,
-            Self::Verilog => GrammarHighLights::VERILOG,
-            Self::Solidity => GrammarHighLights::SOLIDITY,
-            Self::ShaderLang => GrammarHighLights::SHADERLANG,
-            Self::MLIR => GrammarHighLights::MLIR,
-            Self::QML => GrammarHighLights::QML,
-        };
+        let query_src = self.info().highlight_query;
         tree_sitter::Query::new(&self.ts_language(), query_src)
             .expect("The query provided by tree-sitter should be correct")
     }
 
     pub fn ts_language(&self) -> tree_sitter::Language {
-        let lang_fn = match self {
-            Self::C => tree_sitter_c::LANGUAGE,
-            Self::CPlusPlus => tree_sitter_cpp::LANGUAGE,
-            Self::JavaScript => tree_sitter_javascript::LANGUAGE,
-            Self::Ruby => tree_sitter_ruby::LANGUAGE,
-            Self::Rust => tree_sitter_rust::LANGUAGE,
-            Self::Toml => tree_sitter_toml_ng::LANGUAGE,
-            Self::LaTeX => tree_sitter_latex::LANGUAGE,
-            Self::BibTeX => tree_sitter_bibtex::LANGUAGE,
-            Self::Verilog => tree_sitter_verilog::LANGUAGE,
-            Self::Solidity => tree_sitter_solidity::LANGUAGE,
-            Self::ShaderLang => tree_sitter_slang::LANGUAGE,
-            Self::MLIR => tree_sitter_mlir::LANGUAGE,
-            Self::QML => tree_sitter_qmljs::LANGUAGE,
-        };
-        tree_sitter::Language::new(lang_fn)
+        tree_sitter::Language::new(self.info().ts_language_fn)
     }
 
     pub const fn grammar_json<'a>(&self) -> &'a str {
-        match self {
-            Self::C => GrammarJson::C,
-            Self::CPlusPlus => GrammarJson::CPP,
-            Self::JavaScript => GrammarJson::JAVASCRIPT,
-            Self::Ruby => GrammarJson::RUBY,
-            Self::Rust => GrammarJson::RUST,
-            Self::Toml => GrammarJson::TOML,
-            Self::LaTeX => GrammarJson::LATEX,
-            Self::BibTeX => GrammarJson::BIBTEX,
-            Self::Verilog => GrammarJson::VERILOG,
-            Self::Solidity => GrammarJson::SOLIDITY,
-            Self::ShaderLang => GrammarJson::SLANG,
-            Self::MLIR => GrammarJson::MLIR,
-            Self::QML => GrammarJson::QML,
-        }
+        self.info().grammar_json
     }
 
     /// The language identifier used by the Language Server Protocol
     /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
     pub const fn lsp_language_id<'a>(&self) -> &'a str {
-        match self {
-            Self::C => "c",
-            Self::CPlusPlus => "cpp",
-            Self::JavaScript => "javascript",
-            Self::Ruby => "ruby",
-            Self::Rust => "rust",
-            Self::Toml => "toml",
-            Self::LaTeX => "latex",
-            Self::BibTeX => "bibtex",
-            Self::Verilog => "verilog",
-            Self::Solidity => "solidity",
-            Self::ShaderLang => "slang",
-            Self::MLIR => "mlir",
-            Self::QML => "qml",
-        }
+        self.info().lsp_language_id
     }
 }

@@ -38,13 +38,13 @@ pub enum Symbol {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize, derive_more::IntoIterator)]
-pub struct Derivation {
+pub struct SymbolSequence {
     #[serde(flatten)]
     #[into_iterator(owned, ref, ref_mut)]
     symbols: Vec<Symbol>,
 }
 
-impl Display for Derivation {
+impl Display for SymbolSequence {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.symbols.is_empty() {
             write!(f, "ε")
@@ -54,7 +54,7 @@ impl Display for Derivation {
     }
 }
 
-impl Derivation {
+impl SymbolSequence {
     pub fn new(symbols: Vec<Symbol>) -> Self {
         Self { symbols }
     }
@@ -68,7 +68,7 @@ impl Derivation {
 pub struct DerivationGrammar {
     language: Language,
     start_symbol: String,
-    derivation_rules: IndexMap<String, IndexSet<Derivation>>,
+    derivation_rules: IndexMap<String, IndexSet<SymbolSequence>>,
 }
 
 impl Display for DerivationGrammar {
@@ -90,7 +90,7 @@ impl Display for DerivationGrammar {
 }
 
 impl DerivationGrammar {
-    pub fn derivation_rules(&self) -> &IndexMap<String, IndexSet<Derivation>> {
+    pub fn derivation_rules(&self) -> &IndexMap<String, IndexSet<SymbolSequence>> {
         &self.derivation_rules
     }
 }
@@ -262,23 +262,27 @@ pub enum DerivationError {
 
 #[cfg(test)]
 mod tests {
-    use lsp_fuzz_grammars::data::GrammarJson;
 
     use super::*;
 
     #[test]
     fn load_derivation_grammar_c() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::C, GrammarJson::C).unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::C,
+            Language::C.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_cpp() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::CPlusPlus, GrammarJson::CPP)
-                .unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::CPlusPlus,
+            Language::CPlusPlus.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
@@ -287,7 +291,7 @@ mod tests {
     fn load_derivation_grammar_javascript() {
         let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
             Language::JavaScript,
-            GrammarJson::JAVASCRIPT,
+            Language::JavaScript.grammar_json(),
         )
         .unwrap();
         eprintln!("{}", grammar);
@@ -296,36 +300,44 @@ mod tests {
 
     #[test]
     fn load_derivation_grammar_rust() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::Rust, GrammarJson::RUST)
-                .unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::Rust,
+            Language::Rust.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_toml() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::Toml, GrammarJson::TOML)
-                .unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::Toml,
+            Language::Toml.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_latex() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::Toml, GrammarJson::LATEX)
-                .unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::LaTeX,
+            Language::LaTeX.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
 
     #[test]
     fn load_derivation_grammar_bibtex() {
-        let grammar =
-            DerivationGrammar::from_tree_sitter_grammar_json(Language::BibTeX, GrammarJson::BIBTEX)
-                .unwrap();
+        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
+            Language::BibTeX,
+            Language::BibTeX.grammar_json(),
+        )
+        .unwrap();
         eprintln!("{}", grammar);
         grammar.validate().unwrap();
     }
@@ -334,18 +346,7 @@ mod tests {
     fn load_derivation_grammar_solidity() {
         let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
             Language::Solidity,
-            GrammarJson::SOLIDITY,
-        )
-        .unwrap();
-        eprintln!("{}", grammar);
-        grammar.validate().unwrap();
-    }
-
-    #[test]
-    fn load_derivation_grammar_slang() {
-        let grammar = DerivationGrammar::from_tree_sitter_grammar_json(
-            Language::ShaderLang,
-            GrammarJson::SLANG,
+            Language::Solidity.grammar_json(),
         )
         .unwrap();
         eprintln!("{}", grammar);

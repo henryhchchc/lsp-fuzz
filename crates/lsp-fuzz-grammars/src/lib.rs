@@ -1,11 +1,12 @@
 use derive_more::{Display, FromStr};
 use serde::{Deserialize, Serialize};
 
-pub mod data;
 mod language;
+mod language_data;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Display, FromStr)]
 #[non_exhaustive]
+#[repr(u8)]
 pub enum Language {
     C,
     CPlusPlus,
@@ -17,7 +18,6 @@ pub enum Language {
     BibTeX,
     Verilog,
     Solidity,
-    ShaderLang,
     MLIR,
     QML,
 }
