@@ -213,6 +213,14 @@ impl NeoForkServer {
         };
         unsafe { command.pre_exec(bind_pipes) };
 
+        // Increase stack size to avoid stack overflows due to address sanitizer
+        let increase_stack_size = || {
+            use nix::sys::resource::{Resource, setrlimit};
+            const STACK_SIZE: libc::rlim_t = 0x1E00000;
+            setrlimit(Resource::RLIMIT_STACK, STACK_SIZE, STACK_SIZE).map_err(io::Error::from)
+        };
+        unsafe { command.pre_exec(increase_stack_size) };
+
         input_setup.setup_child_cmd(&mut command);
         let fork_server_child = command.spawn().map_err(|err| {
             libafl::Error::illegal_state(format!("Could not spawn the forkserver: {err:#?}"))
