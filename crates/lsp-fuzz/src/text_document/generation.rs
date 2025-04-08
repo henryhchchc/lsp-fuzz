@@ -1,9 +1,12 @@
 use indexmap::IndexSet;
 use itertools::Itertools;
+use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_fuzz_grammars::Language;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashMap, ops::Range};
+use std::{
+    borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, num::NonZero, ops::Range,
+};
 
 use super::grammar::{DerivationSequence, Grammar, Symbol, Terminal};
 
@@ -31,8 +34,8 @@ impl FromIterator<GrammarContext> for GrammarContextLookup {
 
 #[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct GrammarContext {
-    grammar: Grammar,
-    node_fragments: DerivationFragments,
+    pub grammar: Grammar,
+    pub node_fragments: DerivationFragments,
 }
 
 impl GrammarContext {
@@ -64,30 +67,77 @@ impl GrammarContext {
     pub fn start_symbol(&self) -> &str {
         self.grammar.start_symbol()
     }
+}
 
-    pub fn generate_node<S: RuleSelectionStrategy>(
+#[derive(Debug)]
+pub struct NamedNodeGenerator<'a, State, Sel> {
+    grammar_context: &'a GrammarContext,
+    selection_strategy: Sel,
+    _state: PhantomData<State>,
+}
+
+impl<'a, State, Sel> NamedNodeGenerator<'a, State, Sel> {
+    pub const fn new(grammar_context: &'a GrammarContext, selection_strategy: Sel) -> Self {
+        Self {
+            grammar_context,
+            selection_strategy,
+            _state: PhantomData,
+        }
+    }
+}
+
+impl<State, Sel> NamedNodeGenerator<'_, State, Sel>
+where
+    Sel: RuleSelectionStrategy<State>,
+{
+    const DEFAULT_REDURSION_LIMIT: usize = 5;
+
+    pub fn generate(&self, node_kind: &str, state: &mut State) -> Result<Vec<u8>, DerivationError> {
+        self.generate_recursively(node_kind, state, Some(Self::DEFAULT_REDURSION_LIMIT))
+    }
+
+    fn generate_recursively(
         &self,
         node_kind: &str,
-        selection_strategy: &mut S,
+        state: &mut State,
         recursion_limit: Option<usize>,
     ) -> Result<Vec<u8>, DerivationError> {
         if recursion_limit.is_some_and(|it| it == 0) {
             return self.generate_from_fragments(node_kind, |choices| {
-                selection_strategy.select_fragment(choices)
+                self.selection_strategy.select_fragment(
+                    state,
+                    choices,
+                    self.grammar_context.language(),
+                )
             });
         }
-        if let Some(derivation_rules) = self.grammar.derivation_rules().get(node_kind) {
-            let rule = selection_strategy
-                .select_rule(derivation_rules)
+        if let Some(derivation_rules) = self
+            .grammar_context
+            .grammar
+            .derivation_rules()
+            .get(node_kind)
+        {
+            let rule = self
+                .selection_strategy
+                .select_rule(
+                    state,
+                    node_kind,
+                    derivation_rules,
+                    self.grammar_context.language(),
+                )
                 .ok_or(DerivationError::NoRuleAvailable)?;
             rule.into_iter()
                 .map(|symbol| match symbol {
                     Symbol::NonTerminal(name) => {
-                        let max_depth = recursion_limit.map(|it| it - 1);
-                        self.generate_node(name, selection_strategy, max_depth)
+                        let recursion_limit = recursion_limit.map(|it| it - 1);
+                        self.generate_recursively(name, state, recursion_limit)
                     }
                     Symbol::Terminal(term) => self.generate_terminal(term, |choices| {
-                        selection_strategy.select_fragment(choices)
+                        self.selection_strategy.select_fragment(
+                            state,
+                            choices,
+                            self.grammar_context.language(),
+                        )
                     }),
                     Symbol::Eof => Ok(Vec::new()),
                 })
@@ -97,7 +147,11 @@ impl GrammarContext {
             // We do not need to worry about unnamed terminals since they do not have a name.
             // They will never be passed in via `node_kind`.
             self.generate_from_fragments(node_kind, |choices| {
-                selection_strategy.select_fragment(choices)
+                self.selection_strategy.select_fragment(
+                    state,
+                    choices,
+                    self.grammar_context.language(),
+                )
             })
         }
     }
@@ -107,7 +161,7 @@ impl GrammarContext {
         node_kind: &str,
         mut fragment_selector: impl FnMut(FragmentsIter<'_>) -> Option<&[u8]>,
     ) -> Result<Vec<u8>, DerivationError> {
-        let fragments = self.node_fragments(node_kind);
+        let fragments = self.grammar_context.node_fragments(node_kind);
 
         let fragment = fragment_selector(fragments).ok_or(DerivationError::NoFragmentAvailable)?;
         Ok(fragment.to_vec())
@@ -127,39 +181,107 @@ impl GrammarContext {
     }
 }
 
-pub trait RuleSelectionStrategy {
-    fn select_fragment<'a>(&mut self, fragments: FragmentsIter<'a>) -> Option<&'a [u8]>;
+pub trait RuleSelectionStrategy<State> {
+    fn select_fragment<'a>(
+        &self,
+        state: &mut State,
+        fragments: FragmentsIter<'a>,
+        language: Language,
+    ) -> Option<&'a [u8]>;
 
     fn select_rule<'a>(
-        &mut self,
+        &self,
+        state: &mut State,
+        node_kind: &str,
         rules: &'a IndexSet<DerivationSequence>,
+        language: Language,
     ) -> Option<&'a DerivationSequence>;
 }
 
 #[derive(Debug)]
-pub struct RandomRuleSelectionStrategy<'a, R> {
-    rand: &'a mut R,
-}
+pub struct RandomRuleSelectionStrategy;
 
-impl<'a, R> RandomRuleSelectionStrategy<'a, R> {
-    pub fn new(rand: &'a mut R) -> Self {
-        Self { rand }
-    }
-}
-
-impl<R> RuleSelectionStrategy for RandomRuleSelectionStrategy<'_, R>
+impl<State> RuleSelectionStrategy<State> for RandomRuleSelectionStrategy
 where
-    R: Rand,
+    State: HasRand,
 {
-    fn select_fragment<'a>(&mut self, fragments: FragmentsIter<'a>) -> Option<&'a [u8]> {
-        self.rand.choose(fragments)
+    fn select_fragment<'a>(
+        &self,
+        state: &mut State,
+        fragments: FragmentsIter<'a>,
+        _language: Language,
+    ) -> Option<&'a [u8]> {
+        state.rand_mut().choose(fragments)
     }
 
     fn select_rule<'a>(
-        &mut self,
+        &self,
+        state: &mut State,
+        _node_kind: &str,
         rules: &'a IndexSet<DerivationSequence>,
+        _language: Language,
     ) -> Option<&'a DerivationSequence> {
-        self.rand.choose(rules)
+        state.rand_mut().choose(rules)
+    }
+}
+
+#[derive(Debug)]
+pub struct RuleUsageSteer;
+
+#[derive(Debug, Serialize, Deserialize, Default, libafl_bolts::SerdeAny)]
+pub struct RuleUsageStats {
+    inner: ahash::HashMap<(Language, String), Vec<usize>>,
+}
+
+impl<State> RuleSelectionStrategy<State> for RuleUsageSteer
+where
+    State: HasRand + HasMetadata,
+{
+    fn select_fragment<'a>(
+        &self,
+        state: &mut State,
+        fragments: FragmentsIter<'a>,
+        _language: Language,
+    ) -> Option<&'a [u8]> {
+        state.rand_mut().choose(fragments)
+    }
+
+    fn select_rule<'a>(
+        &self,
+        state: &mut State,
+        node_kind: &str,
+        rules: &'a IndexSet<DerivationSequence>,
+        language: Language,
+    ) -> Option<&'a DerivationSequence> {
+        let stats = state.metadata_or_insert_with::<RuleUsageStats>(Default::default);
+        let stats = stats
+            .inner
+            .entry((language, node_kind.to_owned()))
+            .or_insert(vec![0; rules.len()]);
+        let usage_bounds = max(1, *stats.iter().max()?);
+        let weights = stats.iter().map(|it| usage_bounds - it);
+        let (range_lookup, max) = weights.enumerate().fold(
+            (Vec::with_capacity(rules.len()), 0),
+            |(mut map, start), (idx, weight)| {
+                let end = start + weight;
+                map.push((start..end, idx));
+                (map, end)
+            },
+        );
+        let chosen_point = state.rand_mut().below(NonZero::new(max)?);
+        let chosen_idx = range_lookup
+            .into_iter()
+            .find_map(|(range, idx)| range.contains(&chosen_point).then_some(idx))?;
+        // Have to reborrow which is a PITA.
+        let stats = state
+            .metadata_mut::<RuleUsageStats>()
+            .expect("We inserted it before");
+        let stats = stats
+            .inner
+            .get_mut(&(language, node_kind.to_owned()))
+            .expect("We inserted it before");
+        stats[chosen_idx] += 1;
+        rules.get_index(chosen_idx)
     }
 }
 

@@ -72,13 +72,13 @@ pub trait NodeFilter {
 
 pub trait NodeGenerator {
     const NAME: &'static str;
-    fn generate_node<R>(
+    fn generate_node<State>(
         node: tree_sitter::Node<'_>,
         grammar_context: &GrammarContext,
-        rand: &mut R,
+        rand: &mut State,
     ) -> Option<Vec<u8>>
     where
-        R: Rand;
+        State: HasRand;
 }
 
 impl<State, TS, NF, GEN> Mutator<LspInput, State> for ReplaceNodeMutation<'_, TS, NF, GEN>
@@ -107,8 +107,7 @@ where
         let Some(selected_node) = state.rand_mut().choose(nodes) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(new_fragment) = GEN::generate_node(selected_node, grammar_ctx, state.rand_mut())
-        else {
+        let Some(new_fragment) = GEN::generate_node(selected_node, grammar_ctx, state) else {
             return Ok(MutationResult::Skipped);
         };
         let node_len = selected_node.end_byte() - selected_node.start_byte();
@@ -211,9 +210,12 @@ pub mod node_generators {
 
     use std::{option::Option, vec::Vec};
 
+    use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
 
-    use crate::text_document::generation::{GrammarContext, RandomRuleSelectionStrategy};
+    use crate::text_document::generation::{
+        GrammarContext, NamedNodeGenerator, RandomRuleSelectionStrategy,
+    };
 
     use super::NodeGenerator;
 
@@ -222,13 +224,13 @@ pub mod node_generators {
 
     impl NodeGenerator for EmptyNode {
         const NAME: &'static str = "AnEmptyNode";
-        fn generate_node<R>(
+        fn generate_node<State>(
             _node: tree_sitter::Node<'_>,
             _grammar_context: &GrammarContext,
-            _rand: &mut R,
+            _state: &mut State,
         ) -> Option<Vec<u8>>
         where
-            R: Rand,
+            State: HasRand,
         {
             Some(Vec::new())
         }
@@ -239,16 +241,16 @@ pub mod node_generators {
 
     impl NodeGenerator for ChooseFromDerivations {
         const NAME: &'static str = "RandomDerivation";
-        fn generate_node<R>(
+        fn generate_node<State>(
             node: tree_sitter::Node<'_>,
             grammar_context: &GrammarContext,
-            rand: &mut R,
+            state: &mut State,
         ) -> Option<Vec<u8>>
         where
-            R: Rand,
+            State: HasRand,
         {
             let fragments = grammar_context.node_fragments(node.kind());
-            rand.choose(fragments).map(|it| it.to_vec())
+            state.rand_mut().choose(fragments).map(|it| it.to_vec())
         }
     }
 
@@ -257,18 +259,17 @@ pub mod node_generators {
 
     impl NodeGenerator for ExpandGrammar {
         const NAME: &'static str = "RandomGeneration";
-        fn generate_node<R>(
+        fn generate_node<State>(
             node: tree_sitter::Node<'_>,
             grammar_context: &GrammarContext,
-            rand: &mut R,
+            state: &mut State,
         ) -> Option<Vec<u8>>
         where
-            R: Rand,
+            State: HasRand,
         {
-            let mut selection_strategy = RandomRuleSelectionStrategy::new(rand);
-            let fragment = grammar_context
-                .generate_node(node.kind(), &mut selection_strategy, Some(5))
-                .ok()?;
+            let selection_strategy = RandomRuleSelectionStrategy;
+            let generator = NamedNodeGenerator::new(grammar_context, selection_strategy);
+            let fragment = generator.generate(node.kind(), state).ok()?;
             Some(fragment)
         }
     }
