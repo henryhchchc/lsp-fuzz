@@ -1,12 +1,10 @@
-use std::{
-    collections::VecDeque,
-    ops::{Deref, DerefMut, Index},
-};
+use std::ops::{Deref, DerefMut, Index};
 
 use derive_more::{
     Debug,
     derive::{From, Into},
 };
+use indexmap::IndexSet;
 use libafl::{
     corpus::CorpusId,
     inputs::{HasTargetBytes, Input},
@@ -91,18 +89,18 @@ pub fn file_name_mutations() -> impl TupleList {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, libafl_bolts::SerdeAny)]
 pub struct UTF8Tokens {
-    content: Vec<String>,
+    content: IndexSet<String>,
 }
 
 impl UTF8Tokens {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            content: Vec::new(),
+            content: IndexSet::new(),
         }
     }
 
     pub fn add_token(&mut self, token: String) {
-        self.content.push(token);
+        self.content.insert(token);
     }
 
     pub fn len(&self) -> usize {
@@ -117,15 +115,15 @@ impl UTF8Tokens {
         self.content.iter()
     }
 
-    pub fn load_from_bytes(&mut self, payload: Vec<u8>) {
-        let mut payload = VecDeque::from(payload);
-        loop {
-            let Some(size) = payload.pop_front().map(|it| it as usize) else {
-                break;
-            };
+    pub fn parse_auto_dict<B>(&mut self, payload: B)
+    where
+        B: IntoIterator<Item = u8>,
+    {
+        let mut payload = payload.into_iter();
+        while let Some(size) = payload.next().map(usize::from) {
             if size > 0 {
-                if let Ok(token) = String::from_utf8(payload.drain(..size).collect()) {
-                    self.content.push(token);
+                if let Ok(token) = String::from_utf8(payload.by_ref().take(size).collect()) {
+                    self.content.insert(token);
                 }
             }
         }

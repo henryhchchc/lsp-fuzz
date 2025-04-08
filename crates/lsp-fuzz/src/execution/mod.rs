@@ -195,8 +195,8 @@ where
             ))?;
         }
 
-        if let (Some(auto_dict), Some(auto_dict_content)) = (config.auto_tokens, options.autodict) {
-            auto_dict.load_from_bytes(auto_dict_content);
+        if let (Some(auto_dict), Some(auto_dict_payload)) = (config.auto_tokens, options.autodict) {
+            auto_dict.parse_auto_dict(auto_dict_payload);
         }
 
         let observers = (config.map_observer, config.other_observers);
