@@ -162,7 +162,7 @@ impl NeoForkServer {
             kill_signal,
         } = options;
 
-        let (rx, child_writer) = os_pipe::pipe().afl_context("Fal to create ex pipe.")?;
+        let (rx, child_writer) = os_pipe::pipe().afl_context("Fail to create ex pipe.")?;
         let (child_reader, tx) = os_pipe::pipe().afl_context("Fail to create tx pipe.")?;
 
         let (stdout, stderr) = if debug_output {
@@ -197,19 +197,24 @@ impl NeoForkServer {
             .set_coredump(afl_debug)
             .setsid();
 
-        let child_reader_fd = child_reader.as_raw_fd();
-        let child_writer_fd = child_writer.as_raw_fd();
-        let host_reader_fd = rx.as_raw_fd();
-        let host_writer_fd = tx.as_raw_fd();
-        let bind_pipes = move || {
-            use nix::unistd::{close, dup2};
-            dup2(child_reader_fd, FORKSRV_CTL_FD).map_err(io::Error::from)?;
-            dup2(child_writer_fd, FORKSRV_ST_FD).map_err(io::Error::from)?;
-            close(child_reader_fd).map_err(io::Error::from)?;
-            close(child_writer_fd).map_err(io::Error::from)?;
-            close(host_reader_fd).map_err(io::Error::from)?;
-            close(host_writer_fd).map_err(io::Error::from)?;
-            Ok(())
+        let bind_pipes = {
+            let child_reader_fd = child_reader.as_raw_fd();
+            let child_writer_fd = child_writer.as_raw_fd();
+            let communication_fds = [
+                rx.as_raw_fd(),
+                tx.as_raw_fd(),
+                child_writer_fd,
+                child_reader_fd,
+            ];
+            move || {
+                use nix::unistd::{close, dup2};
+                dup2(child_reader_fd, FORKSRV_CTL_FD).map_err(io::Error::from)?;
+                dup2(child_writer_fd, FORKSRV_ST_FD).map_err(io::Error::from)?;
+                for fd in communication_fds {
+                    close(fd).map_err(io::Error::from)?;
+                }
+                Ok(())
+            }
         };
         unsafe { command.pre_exec(bind_pipes) };
 
@@ -223,7 +228,7 @@ impl NeoForkServer {
 
         input_setup.setup_child_cmd(&mut command);
         let fork_server_child = command.spawn().map_err(|err| {
-            libafl::Error::illegal_state(format!("Could not spawn the forkserver: {err:#?}"))
+            libafl::Error::illegal_state(format!("Could not spawn the fork server: {err:#?}"))
         })?;
 
         Ok(Self {
