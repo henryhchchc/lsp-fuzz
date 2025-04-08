@@ -18,34 +18,58 @@ pub mod fragment_extraction;
 use crate::stolen::tree_sitter_generate;
 
 use super::Language;
-
+/// Represents a terminal symbol in a grammar.
+///
+/// A terminal symbol is a basic building block in a grammar that cannot be broken
+/// down further. These represent the actual tokens or literals in the language.
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 pub enum Terminal {
+    /// An immediate terminal with literal bytes.
     #[display("\"{}\"", String::from_utf8_lossy(_0).escape_default())]
     Immediate(Vec<u8>),
+
+    /// A named terminal that refers to a specific token type.
     #[display("[{_0}]")]
     Named(String),
+
+    /// An auxiliary terminal used for special cases or helper tokens.
     #[display("({_0})")]
     Auxiliary(String),
 }
 
+/// Represents a symbol in a grammar, which can be either a terminal or non-terminal.
+///
+/// Symbols are the building blocks of production rules in a grammar. They can be
+/// either terminals (which represent actual tokens) or non-terminals (which represent
+/// abstractions that can be expanded using production rules).
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 pub enum Symbol {
+    /// A terminal symbol that cannot be expanded further
     Terminal(Terminal),
+
+    /// A non-terminal symbol with a name, which can be expanded using production rules
     #[display("<{_0}>")]
     NonTerminal(String),
+
+    /// The end of file symbol, marking the end of input
     #[display("<EOF>")]
     Eof,
 }
 
+/// Represents a sequence of symbols in a derivation rule.
+///
+/// A derivation sequence is the right-hand side of a production rule in a grammar.
+/// It consists of a sequence of symbols (terminals and non-terminals) that a
+/// non-terminal on the left-hand side can be expanded into.
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize, derive_more::IntoIterator)]
-pub struct SymbolSequence {
+pub struct DerivationSequence {
+    /// The sequence of symbols that make up this derivation
     #[serde(flatten)]
     #[into_iterator(owned, ref, ref_mut)]
     symbols: Vec<Symbol>,
 }
 
-impl Display for SymbolSequence {
+impl Display for DerivationSequence {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.symbols.is_empty() {
             write!(f, "ε")
@@ -55,7 +79,7 @@ impl Display for SymbolSequence {
     }
 }
 
-impl SymbolSequence {
+impl DerivationSequence {
     pub fn new(symbols: Vec<Symbol>) -> Self {
         Self { symbols }
     }
@@ -65,11 +89,18 @@ impl SymbolSequence {
     }
 }
 
+/// Represents a formal grammar for a programming language.
+///
+/// A grammar consists of a language identifier, a start symbol, and a collection of
+/// derivation rules that define how to generate valid programs in the language.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, derive_more::Constructor)]
 pub struct Grammar {
+    /// The programming language this grammar represents
     language: Language,
+    /// The name of the starting non-terminal symbol for the grammar
     start_symbol: String,
-    derivation_rules: IndexMap<String, IndexSet<SymbolSequence>>,
+    /// The production rules of the grammar, mapping non-terminal names to their possible derivation sequences
+    derivation_rules: IndexMap<String, IndexSet<DerivationSequence>>,
 }
 
 impl Display for Grammar {
@@ -91,7 +122,7 @@ impl Display for Grammar {
 }
 
 impl Grammar {
-    pub const fn derivation_rules(&self) -> &IndexMap<String, IndexSet<SymbolSequence>> {
+    pub const fn derivation_rules(&self) -> &IndexMap<String, IndexSet<DerivationSequence>> {
         &self.derivation_rules
     }
 
@@ -287,8 +318,8 @@ where
 
     fn select_rule<'a>(
         &mut self,
-        rules: &'a IndexSet<SymbolSequence>,
-    ) -> Option<&'a SymbolSequence> {
+        rules: &'a IndexSet<DerivationSequence>,
+    ) -> Option<&'a DerivationSequence> {
         self.rand.choose(rules)
     }
 }

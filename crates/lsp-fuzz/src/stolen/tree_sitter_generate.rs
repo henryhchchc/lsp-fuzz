@@ -1,6 +1,8 @@
 //! APIs exposed from the [`tree_sitter_generate`](https://github.com/tree-sitter/tree-sitter/tree/master/cli/generate) project.
 
-use crate::text_document::grammars::{CreationError, Grammar, Symbol, SymbolSequence, Terminal};
+use crate::text_document::grammars::{
+    CreationError, DerivationSequence, Grammar, Symbol, Terminal,
+};
 use indexmap::IndexSet;
 use itertools::Itertools;
 
@@ -94,7 +96,7 @@ impl Grammar {
         syntax_grammar: &SyntaxGrammar,
         lexical_grammar: &LexicalGrammar,
         alias_map: &AliasMap,
-    ) -> Result<(String, IndexSet<SymbolSequence>), CreationError> {
+    ) -> Result<(String, IndexSet<DerivationSequence>), CreationError> {
         let derivations = syntax_variable
             .productions
             .iter()
@@ -106,7 +108,7 @@ impl Grammar {
                         Self::convert_symbol(step, syntax_grammar, lexical_grammar, alias_map)
                     })
                     .try_collect()?;
-                Ok(SymbolSequence::new(symbols))
+                Ok(DerivationSequence::new(symbols))
             })
             .try_collect()?;
         Ok((syntax_variable.name.clone(), derivations))
