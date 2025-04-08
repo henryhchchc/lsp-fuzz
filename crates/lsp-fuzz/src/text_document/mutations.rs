@@ -15,8 +15,8 @@ use text_document_selectors::RandomDoc;
 use crate::lsp_input::LspInput;
 
 use super::{
-    GrammarBasedMutation, GrammarContextLookup, TextDocument,
-    grammars::{GrammarContext, tree::TreeIter},
+    GrammarBasedMutation, GrammarContextLookup, TextDocument, generation::GrammarContext,
+    grammar::tree_sitter::TreeIter,
 };
 
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
@@ -171,7 +171,7 @@ pub mod text_document_selectors {
 }
 
 pub mod node_filters {
-    use crate::text_document::grammars::GrammarContext;
+    use crate::text_document::GrammarContext;
 
     use super::NodeFilter;
 
@@ -213,7 +213,7 @@ pub mod node_generators {
 
     use libafl_bolts::rands::Rand;
 
-    use crate::text_document::grammars::{GrammarContext, RuleSelectionStrategy};
+    use crate::text_document::generation::{GrammarContext, RuleSelectionStrategy};
 
     use super::NodeGenerator;
 

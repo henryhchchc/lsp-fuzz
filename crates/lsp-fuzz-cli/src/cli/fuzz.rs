@@ -45,7 +45,8 @@ use lsp_fuzz::{
     lsp_input::{LspInput, LspInputGenerator, LspInputMutator, messages::message_mutations},
     stages::{CleanupWorkspaceDirs, StopOnReceived},
     text_document::{
-        GrammarContextLookup, text_document_mutations, token_novelty::TokenNoveltyFeedback,
+        generation::GrammarContextLookup, text_document_mutations,
+        token_novelty::TokenNoveltyFeedback,
     },
     utf8::UTF8Tokens,
 };

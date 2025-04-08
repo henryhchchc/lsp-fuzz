@@ -28,7 +28,8 @@ use crate::{
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capabilities::fuzzer_client_capabilities},
     text_document::{
-        GrammarBasedMutation, GrammarContextLookup, TextDocument, grammars::RuleSelectionStrategy,
+        GrammarBasedMutation, TextDocument,
+        generation::{GrammarContextLookup, RuleSelectionStrategy},
     },
     utf8::Utf8Input,
     utils::AflContext,

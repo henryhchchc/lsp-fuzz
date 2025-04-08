@@ -6,7 +6,7 @@
 //! The sub-module `upstream` contains the original code that was copied.
 //! Other sub-modules contain the APIs that need to be exposed to the rest of the project.
 
-pub(crate) mod tree_sitter_generate;
+mod tree_sitter_generate;
 
 #[rustfmt::skip]
 mod upstream;

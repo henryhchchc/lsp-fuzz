@@ -1,8 +1,8 @@
-use std::{borrow::Cow, collections::HashMap, hash::Hash, ops::Range};
+use std::{borrow::Cow, hash::Hash, ops::Range};
 
-use grammars::{GrammarContext, tree::TreeIter};
+use generation::{GrammarContext, GrammarContextLookup};
+use grammar::tree_sitter::TreeIter;
 use libafl::{
-    SerdeAny,
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
     state::{HasMaxSize, HasRand},
@@ -15,33 +15,12 @@ use tuple_list::tuple_list;
 
 use crate::lsp_input::LspInput;
 
-pub mod grammars;
+pub mod generation;
+pub mod grammar;
 pub mod mutations;
 pub mod token_novelty;
 
 pub const LINE_SEP: u8 = b'\n';
-
-#[derive(Debug, Serialize, Deserialize, SerdeAny)]
-pub struct GrammarContextLookup {
-    inner: HashMap<Language, grammars::GrammarContext>,
-}
-
-impl GrammarContextLookup {
-    pub fn get(&self, language: Language) -> Option<&GrammarContext> {
-        self.inner.get(&language)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &GrammarContext> {
-        self.inner.values()
-    }
-}
-
-impl FromIterator<grammars::GrammarContext> for GrammarContextLookup {
-    fn from_iter<T: IntoIterator<Item = grammars::GrammarContext>>(iter: T) -> Self {
-        let inner = iter.into_iter().map(|it| (it.language(), it)).collect();
-        Self { inner }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TextDocument {

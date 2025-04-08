@@ -10,7 +10,7 @@ use std::{
 use dot_structures::{Attribute, Edge, EdgeTy, Graph, Id, Node, NodeId, Stmt, Vertex};
 use itertools::{Either, Itertools};
 
-use super::tree::TreeIter;
+use super::tree_sitter::TreeIter;
 
 /// Extracts derivation fragments from the given source code using the provided parser.
 ///
