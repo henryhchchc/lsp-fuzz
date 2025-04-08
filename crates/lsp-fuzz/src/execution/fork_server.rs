@@ -118,7 +118,7 @@ mod fd {
 }
 
 /// The [`NeoForkServer`] is a communication channel with a child process that forks on request of the fuzzer.
-/// 
+///
 /// This implementation uses pipes for bidirectional communication with the forked process.
 /// It handles spawning the initial fork server process, setting up the communication channels,
 /// and managing the lifecycle of child processes during fuzzing.
@@ -245,15 +245,15 @@ impl NeoForkServer {
         if debug_output {
             command.env("AFL_DEBUG_CHILD", "1");
         }
-        
+
         if afl_debug {
             command.env("AFL_DEBUG", "1");
         }
-        
+
         if persistent_fuzzing {
             command.env("__AFL_PERSISTENT", "1");
         }
-        
+
         if deferred {
             command.env("__AFL_DEFER_FORKSRV", "1");
         }
@@ -298,7 +298,7 @@ impl NeoForkServer {
 
         // Set up input method (stdin, file, or shared memory)
         input_setup.setup_child_cmd(&mut command);
-        
+
         // Spawn the fork server process
         let fork_server_child = command.spawn().map_err(|err| {
             libafl::Error::illegal_state(format!("Could not spawn the fork server: {err:#?}"))
@@ -321,16 +321,16 @@ impl NeoForkServer {
         let handshake_msg = self
             .read_i32()
             .afl_context("Fork server handshake failed")?;
-        
+
         // Check for errors and verify protocol version
         check_handshake_error_bits(handshake_msg)?;
         check_version(handshake_msg)?;
-        
+
         // Compute and send the handshake response (inverted message)
         let handshake_response = handshake_msg as u32 ^ 0xffffffff;
         self.write_u32(handshake_response)
             .afl_context("Failed to write handshake response to fork server")?;
-            
+
         Ok(handshake_msg)
     }
 
@@ -343,7 +343,7 @@ impl NeoForkServer {
     pub fn initialize(&mut self) -> Result<ForkServerTargetInfo, libafl::Error> {
         // Perform initial handshake
         let handshake_msg = self.handshake().afl_context("Handshake failed")?;
-        
+
         // Read and parse capability flags
         let flags = self
             .read_i32()
@@ -356,7 +356,7 @@ impl NeoForkServer {
             .transpose()
             .afl_context("Fail to read map size from fork server.")?;
         let shmem_fuzz = flags.contains(ForkServerFlags::SHMEM_FUZZ);
-        
+
         // Read optional dictionary if supported
         let autodict = if flags.contains(ForkServerFlags::AUTODICT) {
             // Read dictionary size
@@ -373,28 +373,30 @@ impl NeoForkServer {
                 );
                 return Err(libafl::Error::illegal_state(message));
             }
-            
+
             info!(size = autotokens_size, "AUTODICT detected");
-            
+
             // Read the dictionary data
             let autotokens = self
                 .read_vec(autotokens_size as usize)
                 .afl_context("Failed to read autodict data from fork server")?;
-                
+
             Some(autotokens)
         } else {
             None
         };
-        
+
         // Verify final handshake message matches initial one
         let final_handshake_msg = self
             .read_i32()
             .afl_context("Failed to read final handshake message from fork server")?;
-            
+
         if final_handshake_msg != handshake_msg {
-            return Err(libafl::Error::unknown("Final handshake message does not match initial message"));
+            return Err(libafl::Error::unknown(
+                "Final handshake message does not match initial message",
+            ));
         }
-        
+
         // Return the target information
         Ok(ForkServerTargetInfo {
             map_size,
@@ -416,11 +418,13 @@ impl NeoForkServer {
         let child_pid = self
             .read_i32()
             .afl_context("Failed to get child PID from fork server")?;
-            
+
         if child_pid <= 0 {
-            return Err(libafl::Error::unknown("Invalid PID received from fork server"));
+            return Err(libafl::Error::unknown(
+                "Invalid PID received from fork server",
+            ));
         }
-        
+
         let pid = Pid::from_raw(child_pid);
         self.child_pid = Some(pid);
 
@@ -436,11 +440,12 @@ impl NeoForkServer {
                     // It's OK if the child already terminated
                 }
                 Err(errno) => {
-                    let message = format!("Failed to kill timed-out child process: {}", errno.desc());
+                    let message =
+                        format!("Failed to kill timed-out child process: {}", errno.desc());
                     return Err(libafl::Error::unknown(message));
                 }
             }
-            
+
             // Read acknowledgment from fork server
             self.read_u32()
                 .afl_context("Failed to get kill acknowledgment from fork server")?;
@@ -499,11 +504,11 @@ impl NeoForkServer {
         // Set up the file descriptor set for select
         let mut readfds = FdSet::new();
         readfds.insert(st_read);
-        
+
         // Set up signal mask to allow interruption by SIGINT
         let mut sigset = SigSet::empty();
         sigset.add(Signal::SIGINT);
-        
+
         // Wait for data with timeout
         let sret = nix::sys::select::pselect(
             None,
@@ -513,7 +518,7 @@ impl NeoForkServer {
             Some(timeout),
             Some(&sigset),
         )?;
-        
+
         if sret > 0 {
             // Data is available, read it
             let mut buf: [u8; 4] = [0_u8; 4];
@@ -545,7 +550,7 @@ mod fs_error {
     /// Error flag in handshake message
     #[allow(clippy::cast_possible_wrap)]
     pub const ERROR_FLAG: i32 = 0xeffe0000_u32 as i32;
-    
+
     // Specific error codes
     pub const MAP_SIZE: i32 = 1 << 0;
     pub const MAP_ADDR: i32 = 1 << 1;
@@ -557,14 +562,15 @@ mod fs_error {
 }
 
 /// Checks if the fork server version is supported.
-/// 
+///
 /// This verifies:
 /// 1. The message contains a valid AFL magic number
 /// 2. The protocol version is within supported range
 pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
     // Check for valid AFL magic number range
-    if !(version::AFL_MAGIC_BASE as i32 <= handshake_msg && 
-         handshake_msg <= (version::AFL_MAGIC_BASE + 0xff) as i32) {
+    if !(version::AFL_MAGIC_BASE as i32 <= handshake_msg
+        && handshake_msg <= (version::AFL_MAGIC_BASE + 0xff) as i32)
+    {
         return Err(libafl::Error::unknown(
             "Old fork server model is used by the target, it is no longer supported",
         ));
@@ -572,7 +578,7 @@ pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
 
     // Extract version from the handshake message
     let version = (handshake_msg as u32) - version::AFL_MAGIC_BASE;
-    
+
     match version {
         0 => Err(libafl::Error::unknown(
             "Fork server version is not assigned. This should not happen. Recompile target.",
@@ -585,7 +591,7 @@ pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
 }
 
 /// Checks if the handshake message contains error flags.
-/// 
+///
 /// If errors are detected, returns a user-friendly error message
 /// with guidance on how to fix the issue.
 pub(super) fn check_handshake_error_bits(handshake_msg: i32) -> Result<(), libafl::Error> {
@@ -593,40 +599,42 @@ pub(super) fn check_handshake_error_bits(handshake_msg: i32) -> Result<(), libaf
     if (handshake_msg & fs_error::ERROR_FLAG) == fs_error::ERROR_FLAG {
         // Extract the specific error code
         let error_code = handshake_msg & 0x0000ffff;
-        
+
         // Map error code to a specific error message
         let error_message = match error_code {
             fs_error::MAP_SIZE => {
                 "AFL_MAP_SIZE is not set and the target reports that the required size is very large. \
                 Solution: Run the target with AFL_DEBUG=1 and set the value for __afl_final_loc \
                 in the AFL_MAP_SIZE environment variable for afl-fuzz."
-            },
-            
+            }
+
             fs_error::MAP_ADDR => {
                 "The target reports that a hardcoded map address might be causing the shared memory \
                 mapping to fail. Solution: Recompile with afl-clang-lto without setting \
                 AFL_LLVM_MAP_ADDR, or use afl-clang-fast instead."
-            },
-            
+            }
+
             fs_error::SHM_OPEN => "The target reports that the shm_open() call failed.",
-            
+
             fs_error::SHMAT => "The target reports that the shmat() call failed.",
-            
-            fs_error::MMAP => "The target reports that the mmap() call to the shared memory failed.",
-            
+
+            fs_error::MMAP => {
+                "The target reports that the mmap() call to the shared memory failed."
+            }
+
             fs_error::OLD_CMPLOG => {
                 "The -c cmplog target was instrumented with an outdated AFL++ version. \
                 You need to recompile it with a newer version."
-            },
-            
+            }
+
             fs_error::OLD_CMPLOG_QEMU => {
                 "The AFL++ QEMU/FRIDA loaders are from an older version. \
                 For -c support you need to recompile them."
-            },
-            
-            code => &*format!("Unknown error code {code} from fuzzing target!")
+            }
+
+            code => &*format!("Unknown error code {code} from fuzzing target!"),
         };
-        
+
         Err(libafl::Error::unknown(error_message))
     } else {
         Ok(())

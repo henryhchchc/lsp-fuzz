@@ -21,7 +21,7 @@ impl TreeIter for tree_sitter::Tree {
         let node_count = self.root_node().descendant_count();
         let available_descendants = 0..node_count;
         let cursor = self.walk();
-        
+
         TreeIterator {
             descendant_indices: available_descendants.into_iter(),
             cursor,

@@ -1,4 +1,3 @@
-use derive_new::new as New;
 use indexmap::IndexSet;
 use itertools::Itertools;
 use libafl_bolts::rands::Rand;
@@ -66,10 +65,10 @@ impl GrammarContext {
         self.grammar.start_symbol()
     }
 
-    pub fn generate_node<R: Rand>(
+    pub fn generate_node<S: RuleSelectionStrategy>(
         &self,
         node_kind: &str,
-        selection_strategy: &mut RuleSelectionStrategy<'_, R>,
+        selection_strategy: &mut S,
         recursion_limit: Option<usize>,
     ) -> Result<Vec<u8>, DerivationError> {
         if recursion_limit.is_some_and(|it| it == 0) {
@@ -128,12 +127,27 @@ impl GrammarContext {
     }
 }
 
-#[derive(Debug, New)]
-pub struct RuleSelectionStrategy<'a, R> {
+pub trait RuleSelectionStrategy {
+    fn select_fragment<'a>(&mut self, fragments: FragmentsIter<'a>) -> Option<&'a [u8]>;
+
+    fn select_rule<'a>(
+        &mut self,
+        rules: &'a IndexSet<DerivationSequence>,
+    ) -> Option<&'a DerivationSequence>;
+}
+
+#[derive(Debug)]
+pub struct RandomRuleSelectionStrategy<'a, R> {
     rand: &'a mut R,
 }
 
-impl<R> RuleSelectionStrategy<'_, R>
+impl<'a, R> RandomRuleSelectionStrategy<'a, R> {
+    pub fn new(rand: &'a mut R) -> Self {
+        Self { rand }
+    }
+}
+
+impl<R> RuleSelectionStrategy for RandomRuleSelectionStrategy<'_, R>
 where
     R: Rand,
 {
