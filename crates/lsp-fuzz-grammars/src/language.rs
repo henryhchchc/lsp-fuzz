@@ -33,6 +33,7 @@ const LANGUAGES: [LanguageInfo; LANGUAGES_COUNT] = [
 ];
 
 impl Language {
+    #[inline]
     const fn info(&self) -> &'static LanguageInfo {
         let index = *self as u8 as usize;
         &LANGUAGES[index]
