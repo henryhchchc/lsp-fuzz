@@ -128,10 +128,10 @@ impl<'doc> Iterator for CapturesIterator<'doc, '_> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((query_match, index)) = self.captures.get() {
             let capture = query_match.captures[*index];
+            self.captures.advance();
             if capture.index == self.capture_index {
                 return Some(capture.node);
             }
-            self.captures.advance();
         }
         None
     }
