@@ -112,8 +112,7 @@ impl<'doc, 'cursor> CapturesIterator<'doc, 'cursor> {
         let parse_tree = doc.parse_tree();
         let query = doc.language().ts_highlight_query();
         let capture_index = query.capture_index_for_name(group_name)?;
-        let mut captures = cursor.captures(query, parse_tree.root_node(), doc);
-        captures.advance();
+        let captures = cursor.captures(query, parse_tree.root_node(), doc);
 
         Some(Self {
             captures,
@@ -126,9 +125,8 @@ impl<'doc> Iterator for CapturesIterator<'doc, '_> {
     type Item = tree_sitter::Node<'doc>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((query_match, index)) = self.captures.get() {
+        while let Some((query_match, index)) = self.captures.next() {
             let capture = query_match.captures[*index];
-            self.captures.advance();
             if capture.index == self.capture_index {
                 return Some(capture.node);
             }
