@@ -303,8 +303,8 @@ where
                 break code;
             }
         };
-        let mut text_document = TextDocument::new(document_content.to_vec(), language);
-        text_document.generate_parse_tree(grammar);
+        let mut text_document = TextDocument::new(language, document_content.to_vec());
+        text_document.update_metadata();
 
         let workspace = match language {
             Language::Rust => rust_workspace(text_document, ext),

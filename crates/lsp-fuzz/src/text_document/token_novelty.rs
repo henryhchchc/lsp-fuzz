@@ -16,7 +16,7 @@ use libafl_bolts::Named;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
-use super::Language;
+use super::{GrammarBasedMutation, Language};
 
 #[derive(Debug, New)]
 pub struct TokenNoveltyFeedback {
@@ -50,13 +50,8 @@ where
             .filter_map(|it| it.1.as_source_file())
             .next()
             .afl_context("No text document found")?;
-        let parse_tree = text_document
-            .parse_tree()
-            .ok_or(libafl::Error::illegal_state(
-                "Assumption violated: parse tree should be available upon token novelty evaluation",
-            ))?;
         let seen_hashes = state.metadata_or_insert_with(SeenTokenHashes::default);
-        if let Some(token_hashes) = hash_paths(parse_tree, self.max_depth) {
+        if let Some(token_hashes) = hash_paths(text_document.parse_tree(), self.max_depth) {
             let is_interesting = seen_hashes.update(text_document.language, token_hashes);
             Ok(is_interesting)
         } else {

@@ -26,21 +26,26 @@ pub mod token_novelty;
 pub const LINE_SEP: u8 = b'\n';
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "_TextDocumentSerialized", into = "_TextDocumentSerialized")]
 pub struct TextDocument {
     language: Language,
     content: Vec<u8>,
-    #[serde(skip)]
+    // Skipped for serialization
     metadata: Metadata,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Metadata {
-    pub parse_tree: Option<tree_sitter::Tree>,
+    pub parse_tree: tree_sitter::Tree,
 }
 
 impl Metadata {
-    pub const fn empty() -> Self {
-        Self { parse_tree: None }
+    pub fn generate(language: Language, content: &[u8]) -> Self {
+        let mut parser = language.tree_sitter_parser();
+        let tree = parser
+            .parse(content, None)
+            .expect("Cannot parse input content");
+        Self { parse_tree: tree }
     }
 }
 
@@ -60,11 +65,12 @@ impl Hash for TextDocument {
 }
 
 impl TextDocument {
-    pub const fn new(content: Vec<u8>, language: Language) -> Self {
+    pub fn new(language: Language, content: Vec<u8>) -> Self {
+        let metadata = Metadata::generate(language, &content);
         Self {
             content,
             language,
-            metadata: Metadata::empty(),
+            metadata,
         }
     }
 
@@ -72,8 +78,11 @@ impl TextDocument {
         &self.metadata
     }
 
-    pub const fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.metadata
+    pub fn update_metadata(&mut self) {
+        let mut parser = self.language.tree_sitter_parser();
+        self.metadata.parse_tree = parser
+            .parse(&self.content, Some(&self.metadata.parse_tree))
+            .expect("Parsing should not fail");
     }
 
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
@@ -83,48 +92,18 @@ impl TextDocument {
     pub fn lines(&self) -> impl DoubleEndedIterator<Item = &[u8]> {
         self.content.as_slice().split(|&it| it == LINE_SEP)
     }
-
-    pub fn generate_parse_tree(&mut self, grammar_context: &GrammarContext) {
-        let mut parser = grammar_context.create_parser();
-        self.metadata.parse_tree = Some(
-            parser
-                .parse(&self.content, None)
-                .expect("Parsing should not fail"),
-        );
-    }
-
-    fn update_parse_tree(
-        &mut self,
-        input_edit: tree_sitter::InputEdit,
-        grammar_context: &GrammarContext,
-    ) {
-        let mut parser = grammar_context.create_parser();
-        if let Some(ref mut parse_tree) = self.metadata.parse_tree {
-            parse_tree.edit(&input_edit);
-        }
-        self.metadata.parse_tree = parser.parse(&self.content, self.metadata.parse_tree.as_ref());
-    }
-
-    const fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
-        self.metadata.parse_tree.as_ref()
-    }
 }
 
 pub trait GrammarBasedMutation {
     fn language(&self) -> Language;
-    fn get_or_create_parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree;
+    fn parse_tree(&self) -> &tree_sitter::Tree;
     fn fragment(&self, range: Range<usize>) -> &[u8];
-    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
+    fn edit<E>(&mut self, edit: E)
     where
         E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit;
 
-    fn splice(
-        &mut self,
-        range: tree_sitter::Range,
-        new_content: Vec<u8>,
-        grammar_context: &GrammarContext,
-    ) {
-        self.edit(grammar_context, |content| {
+    fn splice(&mut self, range: tree_sitter::Range, new_content: Vec<u8>) {
+        self.edit(|content| {
             let byte_range = range.start_byte..range.end_byte;
             let new_content_len = new_content.len();
             // Update the content
@@ -137,12 +116,13 @@ pub trait GrammarBasedMutation {
 }
 
 impl GrammarBasedMutation for TextDocument {
-    fn edit<E>(&mut self, grammar_context: &GrammarContext, edit: E)
+    fn edit<E>(&mut self, edit: E)
     where
         E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit,
     {
         let input_edit = edit(&mut self.content);
-        self.update_parse_tree(input_edit, grammar_context);
+        self.metadata.parse_tree.edit(&input_edit);
+        self.update_metadata();
     }
 
     fn language(&self) -> Language {
@@ -153,11 +133,8 @@ impl GrammarBasedMutation for TextDocument {
         &self.content[range]
     }
 
-    fn get_or_create_parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
-        self.metadata.parse_tree.get_or_insert_with(|| {
-            let mut parser = grammar_context.create_parser();
-            parser.parse(&self.content, None).unwrap()
-        })
+    fn parse_tree(&self) -> &tree_sitter::Tree {
+        &self.metadata.parse_tree
     }
 }
 
@@ -236,7 +213,7 @@ where
         ),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
-        DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
+        DropUncoveredArea::<RandomDoc<State>>::new(),
     ]
 }
 
@@ -255,8 +232,30 @@ where
             EmptyNode
         ),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
-        DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
+        DropUncoveredArea::<RandomDoc<State>>::new(),
     ]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename = "TextDocument")]
+struct _TextDocumentSerialized {
+    language: Language,
+    content: Vec<u8>,
+}
+
+impl From<TextDocument> for _TextDocumentSerialized {
+    fn from(document: TextDocument) -> Self {
+        _TextDocumentSerialized {
+            language: document.language,
+            content: document.content,
+        }
+    }
+}
+
+impl From<_TextDocumentSerialized> for TextDocument {
+    fn from(serialized: _TextDocumentSerialized) -> Self {
+        Self::new(serialized.language, serialized.content)
+    }
 }
 
 #[cfg(test)]
@@ -312,7 +311,7 @@ mod tests {
     #[test]
     fn text_doc_lines() {
         let content = b"hello\nworld\nrust";
-        let doc = TextDocument::new(content.to_vec(), Language::Rust);
+        let doc = TextDocument::new(Language::Rust, content.to_vec());
         let mut lines = doc.lines();
         assert_eq!(lines.next(), Some(b"hello".as_slice()));
         assert_eq!(lines.next(), Some(b"world".as_slice()));
@@ -323,7 +322,7 @@ mod tests {
     #[test]
     fn text_doc_lines_tailing_empty() {
         let content = b"hello\nworld\nrust\n";
-        let doc = TextDocument::new(content.to_vec(), Language::Rust);
+        let doc = TextDocument::new(Language::Rust, content.to_vec());
         let mut lines = doc.lines();
         assert_eq!(lines.next(), Some(b"hello".as_slice()));
         assert_eq!(lines.next(), Some(b"world".as_slice()));

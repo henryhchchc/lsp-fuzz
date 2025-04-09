@@ -114,7 +114,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        doc.splice(node_range, replacement.to_vec(), grammar_ctx);
+        doc.splice(node_range, replacement.to_vec());
         Ok(MutationResult::Mutated)
     }
 }
@@ -194,10 +194,10 @@ pub mod node_filters {
         fn select_node<'t>(
             &self,
             doc: &'t mut TextDocument,
-            grammar_context: &GrammarContext,
+            _grammar_context: &GrammarContext,
             state: &mut State,
         ) -> Option<tree_sitter::Node<'t>> {
-            let parse_tree = doc.get_or_create_parse_tree(grammar_context);
+            let parse_tree = doc.parse_tree();
             let candidate_nodes = parse_tree.iter().filter(&self.predicate);
             state.rand_mut().choose(candidate_nodes)
         }
@@ -274,19 +274,18 @@ pub mod node_generators {
 }
 
 #[derive(Debug, New)]
-pub struct DropUncoveredArea<'a, TS> {
-    grammar_lookup: &'a GrammarContextLookup,
+pub struct DropUncoveredArea<TS> {
     _doc_selector: PhantomData<TS>,
 }
 
-impl<TS> Named for DropUncoveredArea<'_, TS> {
+impl<TS> Named for DropUncoveredArea<TS> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("DropUncoveredArea");
         &NAME
     }
 }
 
-impl<State, TS> Mutator<LspInput, State> for DropUncoveredArea<'_, TS>
+impl<State, TS> Mutator<LspInput, State> for DropUncoveredArea<TS>
 where
     TS: TextDocumentSelector<State>,
     State: HasRand,
@@ -299,11 +298,8 @@ where
         let Some((_path, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(grammar_ctx) = self.grammar_lookup.get(doc.language()) else {
-            return Ok(MutationResult::Skipped);
-        };
-        let parse_tree = doc.get_or_create_parse_tree(grammar_ctx);
-        let covered_areas = parse_tree
+        let covered_areas = doc
+            .parse_tree()
             .iter()
             .filter(|it| it.child_count() > 0)
             .map(|it| it.range())
@@ -315,7 +311,7 @@ where
             return Ok(MutationResult::Skipped);
         };
 
-        doc.edit(grammar_ctx, |content| {
+        doc.edit(|content| {
             let remove_range = prev.end_byte..curr.start_byte;
             let _ = content.drain(remove_range);
             tree_sitter::InputEdit {

@@ -95,7 +95,7 @@ where
             .metadata()
             .parse_tree
             .iter()
-            .flat_map(|parse_tree| parse_tree.iter().filter(|it| it.child_count() == 0));
+            .filter(|it| it.child_count() == 0);
         let range = state.rand_mut().choose(terminals).map(|it| it.range())?;
         let line = range.start_point.row as _;
         let character = range.start_point.column as _;
