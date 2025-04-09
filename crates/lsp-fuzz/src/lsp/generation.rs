@@ -373,7 +373,17 @@ where
     where
         State: HasRand + 'static,
     {
-        let whole_range = |_: &mut State, doc: &TextDocument| doc.lsp_range();
+        fn lsp_whole_range(doc: &TextDocument) -> Range {
+            let start = lsp_types::Position::default();
+            let end = doc
+                .lines()
+                .enumerate()
+                .last()
+                .map(|(line_idx, line)| lsp_types::Position::new(line_idx as _, line.len() as _))
+                .unwrap_or_default();
+            lsp_types::Range::new(start, end)
+        }
+        let whole_range = |_: &mut State, doc: &TextDocument| lsp_whole_range(doc);
         let random_range = |state: &mut State, doc: &TextDocument| {
             let rand = state.rand_mut();
             let lines: Vec<_> = doc.lines().collect();
@@ -394,7 +404,7 @@ where
         // [TODO] Put grammar context into state and add random subtree
 
         let after_range = |_: &mut State, doc: &TextDocument| {
-            let Range { end, .. } = doc.lsp_range();
+            let Range { end, .. } = lsp_whole_range(doc);
             let start = end;
             let end = Position {
                 line: 65536,
@@ -403,7 +413,7 @@ where
             Range { start, end }
         };
         let inverted_range = |_: &mut State, doc: &TextDocument| {
-            let Range { start, end } = doc.lsp_range();
+            let Range { start, end } = lsp_whole_range(doc);
             Range {
                 start: end,
                 end: start,

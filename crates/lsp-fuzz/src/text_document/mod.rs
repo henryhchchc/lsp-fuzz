@@ -1,7 +1,6 @@
 use std::{borrow::Cow, hash::Hash, ops::Range};
 
 use generation::{GrammarContext, GrammarContextLookup};
-use grammar::tree_sitter::TreeIter;
 use libafl::{
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
@@ -9,7 +8,11 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, ownedref::OwnedSlice, tuples::NamedTuple};
 use lsp_fuzz_grammars::Language;
-use mutations::text_document_selectors::RandomDoc;
+use mutations::{
+    ReplaceNodeMutation,
+    node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar},
+    text_document_selectors::RandomDoc,
+};
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
@@ -27,7 +30,18 @@ pub struct TextDocument {
     language: Language,
     content: Vec<u8>,
     #[serde(skip)]
-    parse_tree: Option<tree_sitter::Tree>,
+    metadata: Metadata,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Metadata {
+    pub parse_tree: Option<tree_sitter::Tree>,
+}
+
+impl Metadata {
+    pub const fn empty() -> Self {
+        Self { parse_tree: None }
+    }
 }
 
 impl PartialEq for TextDocument {
@@ -50,8 +64,16 @@ impl TextDocument {
         Self {
             content,
             language,
-            parse_tree: None,
+            metadata: Metadata::empty(),
         }
+    }
+
+    pub const fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    pub const fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
     }
 
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
@@ -62,29 +84,9 @@ impl TextDocument {
         self.content.as_slice().split(|&it| it == LINE_SEP)
     }
 
-    pub fn lsp_range(&self) -> lsp_types::Range {
-        let start = lsp_types::Position::default();
-        let end = self
-            .lines()
-            .enumerate()
-            .last()
-            .map(|(line_idx, line)| lsp_types::Position::new(line_idx as _, line.len() as _))
-            .unwrap_or_default();
-        lsp_types::Range::new(start, end)
-    }
-
-    pub fn terminal_ranges(&self) -> impl Iterator<Item = tree_sitter::Range> + '_ {
-        self.parse_tree.iter().flat_map(|parse_tree| {
-            parse_tree
-                .iter()
-                .filter(|it| it.child_count() == 0)
-                .map(|it| it.range())
-        })
-    }
-
     pub fn generate_parse_tree(&mut self, grammar_context: &GrammarContext) {
         let mut parser = grammar_context.create_parser();
-        self.parse_tree = Some(
+        self.metadata.parse_tree = Some(
             parser
                 .parse(&self.content, None)
                 .expect("Parsing should not fail"),
@@ -97,14 +99,14 @@ impl TextDocument {
         grammar_context: &GrammarContext,
     ) {
         let mut parser = grammar_context.create_parser();
-        if let Some(ref mut parse_tree) = self.parse_tree {
+        if let Some(ref mut parse_tree) = self.metadata.parse_tree {
             parse_tree.edit(&input_edit);
         }
-        self.parse_tree = parser.parse(&self.content, self.parse_tree.as_ref());
+        self.metadata.parse_tree = parser.parse(&self.content, self.metadata.parse_tree.as_ref());
     }
 
     const fn parse_tree(&self) -> Option<&tree_sitter::Tree> {
-        self.parse_tree.as_ref()
+        self.metadata.parse_tree.as_ref()
     }
 }
 
@@ -152,7 +154,7 @@ impl GrammarBasedMutation for TextDocument {
     }
 
     fn get_or_create_parse_tree(&mut self, grammar_context: &GrammarContext) -> &tree_sitter::Tree {
-        self.parse_tree.get_or_insert_with(|| {
+        self.metadata.parse_tree.get_or_insert_with(|| {
             let mut parser = grammar_context.create_parser();
             parser.parse(&self.content, None).unwrap()
         })
@@ -209,19 +211,31 @@ impl HasLen for TextDocument {
     }
 }
 
+type ReplaceNodeInRandomRoc<'a, State, NodeSel, NodeGen> =
+    ReplaceNodeMutation<'a, RandomDoc<State>, NodeSel, NodeGen, State>;
+
 pub fn text_document_mutations<State>(
     grammar_lookup: &GrammarContextLookup,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
 where
     State: HasRand + HasMaxSize,
 {
-    use mutations::*;
+    use mutations::{node_filters::NodesThat, *};
+    let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
     tuple_list![
-        ReplaceSubTreeWithDerivation::new(grammar_lookup),
-        RemoveErrorNode::new(grammar_lookup),
-        GenerateMissingNode::new(grammar_lookup),
-        ReplaceNodeWithGenerated::new(grammar_lookup),
-        DropRandomNode::new(grammar_lookup),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
+        ReplaceNodeInRandomRoc::new(
+            grammar_lookup,
+            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
+            EmptyNode
+        ),
+        ReplaceNodeInRandomRoc::new(
+            grammar_lookup,
+            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_missing()),
+            ChooseFromDerivations
+        ),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
         DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
     ]
 }
@@ -232,10 +246,15 @@ pub fn text_document_reductions<State>(
 where
     State: HasRand + HasMaxSize,
 {
-    use mutations::*;
+    use mutations::{node_filters::NodesThat, *};
+    let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
     tuple_list![
-        RemoveErrorNode::new(grammar_lookup),
-        DropRandomNode::new(grammar_lookup),
+        ReplaceNodeInRandomRoc::new(
+            grammar_lookup,
+            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
+            EmptyNode
+        ),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
         DropUncoveredArea::<'_, RandomDoc<State>>::new(grammar_lookup),
     ]
 }

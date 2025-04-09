@@ -29,7 +29,9 @@ use crate::{
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
-    text_document::{TextDocument, mutations::text_document_selectors::RandomDoc},
+    text_document::{
+        TextDocument, grammar::tree_sitter::TreeIter, mutations::text_document_selectors::RandomDoc,
+    },
 };
 
 use super::LspInput;
@@ -89,7 +91,12 @@ where
     State: HasRand,
 {
     fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position> {
-        let range = state.rand_mut().choose(doc.terminal_ranges())?;
+        let terminals = doc
+            .metadata()
+            .parse_tree
+            .iter()
+            .flat_map(|parse_tree| parse_tree.iter().filter(|it| it.child_count() == 0));
+        let range = state.rand_mut().choose(terminals).map(|it| it.range())?;
         let line = range.start_point.row as _;
         let character = range.start_point.column as _;
         Some(lsp_types::Position { line, character })

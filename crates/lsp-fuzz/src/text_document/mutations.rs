@@ -8,9 +8,6 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, Named, rands::Rand};
 use lsp_types::Uri;
-use node_filters::{AnyNode, ErrorNode, MissingNode};
-use node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar};
-use text_document_selectors::RandomDoc;
 
 use crate::lsp_input::LspInput;
 
@@ -22,32 +19,32 @@ use super::{
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
 
 #[derive(Debug)]
-pub struct ReplaceNodeMutation<'a, TS, NF, GEN> {
+pub struct ReplaceNodeMutation<'a, TS, NodeSel, NodeGen, State> {
     grammar_lookup: &'a GrammarContextLookup,
     name: Cow<'static, str>,
-    _text_doc_selector: PhantomData<TS>,
-    _node_filter: PhantomData<NF>,
-    _generator: PhantomData<GEN>,
+    node_selector: NodeSel,
+    node_generator: NodeGen,
+    _phantom: PhantomData<(TS, State)>,
 }
 
-impl<'a, TS, NF, GEN> ReplaceNodeMutation<'a, TS, NF, GEN>
-where
-    NF: NodeFilter,
-    GEN: NodeGenerator,
-{
-    pub fn new(grammar_lookup: &'a GrammarContextLookup) -> Self {
-        let name = Cow::Owned("Replace".to_owned() + NF::NAME + "With" + GEN::NAME);
+impl<'a, TS, NF, NodeGen, State> ReplaceNodeMutation<'a, TS, NF, NodeGen, State> {
+    pub fn new(
+        grammar_lookup: &'a GrammarContextLookup,
+        node_selector: NF,
+        node_generator: NodeGen,
+    ) -> Self {
+        let name = Cow::Owned("ReplaceNode".to_owned());
         Self {
             grammar_lookup,
             name,
-            _text_doc_selector: PhantomData,
-            _node_filter: PhantomData,
-            _generator: PhantomData,
+            node_selector,
+            node_generator,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<TS, NF, GEN> Named for ReplaceNodeMutation<'_, TS, NF, GEN> {
+impl<TS, NF, GEN, State> Named for ReplaceNodeMutation<'_, TS, NF, GEN, State> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         &self.name
     }
@@ -65,28 +62,31 @@ pub trait TextDocumentSelector<State> {
     ) -> Option<(Uri, &'i mut TextDocument)>;
 }
 
-pub trait NodeFilter {
+pub trait NodeSelector<State> {
     const NAME: &'static str;
-    fn filter_node(node: tree_sitter::Node<'_>, grammar_context: &GrammarContext) -> bool;
+    fn select_node<'t>(
+        &self,
+        doc: &'t mut TextDocument,
+        grammar_context: &GrammarContext,
+        state: &mut State,
+    ) -> Option<tree_sitter::Node<'t>>;
 }
 
-pub trait NodeGenerator {
+pub trait NodeGenerator<State> {
     const NAME: &'static str;
-    fn generate_node<State>(
+    fn generate_node(
+        &self,
         node: tree_sitter::Node<'_>,
         grammar_context: &GrammarContext,
-        rand: &mut State,
-    ) -> Option<Vec<u8>>
-    where
-        State: HasRand;
+        state: &mut State,
+    ) -> Option<Vec<u8>>;
 }
 
-impl<State, TS, NF, GEN> Mutator<LspInput, State> for ReplaceNodeMutation<'_, TS, NF, GEN>
+impl<State, TS, Sel, Gen> Mutator<LspInput, State> for ReplaceNodeMutation<'_, TS, Sel, Gen, State>
 where
     TS: TextDocumentSelector<State>,
-    NF: NodeFilter,
-    GEN: NodeGenerator,
-    State: HasRand,
+    Sel: NodeSelector<State>,
+    Gen: NodeGenerator<State>,
 {
     fn mutate(
         &mut self,
@@ -100,22 +100,21 @@ where
             return Ok(MutationResult::Skipped);
         };
         let doc_len = doc.len();
-        let parse_tree = doc.get_or_create_parse_tree(grammar_ctx);
-        let nodes = parse_tree
-            .iter()
-            .filter(|&it| NF::filter_node(it, grammar_ctx));
-        let Some(selected_node) = state.rand_mut().choose(nodes) else {
+        let Some(selected_node) = self.node_selector.select_node(doc, grammar_ctx, state) else {
             return Ok(MutationResult::Skipped);
         };
-        let Some(new_fragment) = GEN::generate_node(selected_node, grammar_ctx, state) else {
+        let Some(replacement) =
+            self.node_generator
+                .generate_node(selected_node, grammar_ctx, state)
+        else {
             return Ok(MutationResult::Skipped);
         };
         let node_len = selected_node.end_byte() - selected_node.start_byte();
-        if doc_len - node_len + new_fragment.len() > MAX_DOCUMENT_SIZE {
+        if doc_len - node_len + replacement.len() > MAX_DOCUMENT_SIZE {
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        doc.splice(node_range, new_fragment.to_vec(), grammar_ctx);
+        doc.splice(node_range, replacement.to_vec(), grammar_ctx);
         Ok(MutationResult::Mutated)
     }
 }
@@ -170,38 +169,37 @@ pub mod text_document_selectors {
 }
 
 pub mod node_filters {
-    use crate::text_document::GrammarContext;
+    use derive_new::new as New;
+    use libafl::state::HasRand;
+    use libafl_bolts::rands::Rand;
 
-    use super::NodeFilter;
+    use crate::text_document::{
+        GrammarBasedMutation, GrammarContext, TextDocument, grammar::tree_sitter::TreeIter,
+    };
 
-    #[derive(Debug)]
-    pub struct ErrorNode;
+    use super::NodeSelector;
 
-    impl NodeFilter for ErrorNode {
-        const NAME: &'static str = "ErrorNode";
-
-        fn filter_node(node: tree_sitter::Node<'_>, _grammar_context: &GrammarContext) -> bool {
-            node.is_error()
-        }
+    #[derive(Debug, Clone, Copy, New)]
+    pub struct NodesThat<Predicate> {
+        predicate: Predicate,
     }
 
-    #[derive(Debug)]
-    pub struct AnyNode;
+    impl<State, Predicate> NodeSelector<State> for NodesThat<Predicate>
+    where
+        State: HasRand,
+        Predicate: Fn(&tree_sitter::Node<'_>) -> bool,
+    {
+        const NAME: &'static str = "NotesThat<Pred>";
 
-    impl NodeFilter for AnyNode {
-        const NAME: &'static str = "AnyNode";
-        fn filter_node(_node: tree_sitter::Node<'_>, _grammar_context: &GrammarContext) -> bool {
-            true
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct MissingNode;
-
-    impl NodeFilter for MissingNode {
-        const NAME: &'static str = "MissingNode";
-        fn filter_node(node: tree_sitter::Node<'_>, _grammar_context: &GrammarContext) -> bool {
-            node.is_missing()
+        fn select_node<'t>(
+            &self,
+            doc: &'t mut TextDocument,
+            grammar_context: &GrammarContext,
+            state: &mut State,
+        ) -> Option<tree_sitter::Node<'t>> {
+            let parse_tree = doc.get_or_create_parse_tree(grammar_context);
+            let candidate_nodes = parse_tree.iter().filter(&self.predicate);
+            state.rand_mut().choose(candidate_nodes)
         }
     }
 }
@@ -222,16 +220,14 @@ pub mod node_generators {
     #[derive(Debug)]
     pub struct EmptyNode;
 
-    impl NodeGenerator for EmptyNode {
+    impl<State> NodeGenerator<State> for EmptyNode {
         const NAME: &'static str = "AnEmptyNode";
-        fn generate_node<State>(
+        fn generate_node(
+            &self,
             _node: tree_sitter::Node<'_>,
             _grammar_context: &GrammarContext,
             _state: &mut State,
-        ) -> Option<Vec<u8>>
-        where
-            State: HasRand,
-        {
+        ) -> Option<Vec<u8>> {
             Some(Vec::new())
         }
     }
@@ -239,16 +235,17 @@ pub mod node_generators {
     #[derive(Debug)]
     pub struct ChooseFromDerivations;
 
-    impl NodeGenerator for ChooseFromDerivations {
+    impl<State> NodeGenerator<State> for ChooseFromDerivations
+    where
+        State: HasRand,
+    {
         const NAME: &'static str = "RandomDerivation";
-        fn generate_node<State>(
+        fn generate_node(
+            &self,
             node: tree_sitter::Node<'_>,
             grammar_context: &GrammarContext,
             state: &mut State,
-        ) -> Option<Vec<u8>>
-        where
-            State: HasRand,
-        {
+        ) -> Option<Vec<u8>> {
             let fragments = grammar_context.node_fragments(node.kind());
             state.rand_mut().choose(fragments).map(|it| it.to_vec())
         }
@@ -257,16 +254,17 @@ pub mod node_generators {
     #[derive(Debug)]
     pub struct ExpandGrammar;
 
-    impl NodeGenerator for ExpandGrammar {
+    impl<State> NodeGenerator<State> for ExpandGrammar
+    where
+        State: HasRand,
+    {
         const NAME: &'static str = "RandomGeneration";
-        fn generate_node<State>(
+        fn generate_node(
+            &self,
             node: tree_sitter::Node<'_>,
             grammar_context: &GrammarContext,
             state: &mut State,
-        ) -> Option<Vec<u8>>
-        where
-            State: HasRand,
-        {
+        ) -> Option<Vec<u8>> {
             let selection_strategy = RandomRuleSelectionStrategy;
             let generator = NamedNodeGenerator::new(grammar_context, selection_strategy);
             let fragment = generator.generate(node.kind(), state).ok()?;
@@ -274,17 +272,6 @@ pub mod node_generators {
         }
     }
 }
-
-pub type ReplaceSubTreeWithDerivation<'a, State> =
-    ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, ChooseFromDerivations>;
-pub type ReplaceNodeWithGenerated<'a, State> =
-    ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, ExpandGrammar>;
-pub type GenerateMissingNode<'a, State> =
-    ReplaceNodeMutation<'a, RandomDoc<State>, MissingNode, ExpandGrammar>;
-
-pub type RemoveErrorNode<'a, State> =
-    ReplaceNodeMutation<'a, RandomDoc<State>, ErrorNode, EmptyNode>;
-pub type DropRandomNode<'a, State> = ReplaceNodeMutation<'a, RandomDoc<State>, AnyNode, EmptyNode>;
 
 #[derive(Debug, New)]
 pub struct DropUncoveredArea<'a, TS> {
