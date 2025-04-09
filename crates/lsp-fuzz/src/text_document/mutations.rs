@@ -172,9 +172,11 @@ pub mod node_filters {
     use derive_new::new as New;
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
+    use tree_sitter::QueryCursor;
 
     use crate::text_document::{
-        GrammarBasedMutation, GrammarContext, TextDocument, grammar::tree_sitter::TreeIter,
+        GrammarBasedMutation, GrammarContext, TextDocument,
+        grammar::tree_sitter::{CapturesIterator, TreeIter},
     };
 
     use super::NodeSelector;
@@ -202,18 +204,40 @@ pub mod node_filters {
             state.rand_mut().choose(candidate_nodes)
         }
     }
+
+    #[derive(Debug, Clone, New)]
+    pub struct HighlightedNodes {
+        capture_group_name: String,
+    }
+
+    impl<State> NodeSelector<State> for HighlightedNodes
+    where
+        State: HasRand,
+    {
+        const NAME: &'static str = "Highlighted";
+
+        fn select_node<'t>(
+            &self,
+            doc: &'t mut TextDocument,
+            _grammar_context: &GrammarContext,
+            state: &mut State,
+        ) -> Option<tree_sitter::Node<'t>> {
+            let mut query_cursor = QueryCursor::new();
+            let captured_nodes =
+                CapturesIterator::new(doc, &self.capture_group_name, &mut query_cursor)?;
+            state.rand_mut().choose(captured_nodes)
+        }
+    }
 }
 
 pub mod node_generators {
 
     use std::{option::Option, vec::Vec};
 
-    use libafl::state::HasRand;
+    use libafl::{HasMetadata, state::HasRand};
     use libafl_bolts::rands::Rand;
 
-    use crate::text_document::generation::{
-        GrammarContext, NamedNodeGenerator, RandomRuleSelectionStrategy,
-    };
+    use crate::text_document::generation::{GrammarContext, NamedNodeGenerator, RuleUsageSteer};
 
     use super::NodeGenerator;
 
@@ -256,7 +280,7 @@ pub mod node_generators {
 
     impl<State> NodeGenerator<State> for ExpandGrammar
     where
-        State: HasRand,
+        State: HasRand + HasMetadata,
     {
         const NAME: &'static str = "RandomGeneration";
         fn generate_node(
@@ -265,7 +289,7 @@ pub mod node_generators {
             grammar_context: &GrammarContext,
             state: &mut State,
         ) -> Option<Vec<u8>> {
-            let selection_strategy = RandomRuleSelectionStrategy;
+            let selection_strategy = RuleUsageSteer;
             let generator = NamedNodeGenerator::new(grammar_context, selection_strategy);
             let fragment = generator.generate(node.kind(), state).ok()?;
             Some(fragment)

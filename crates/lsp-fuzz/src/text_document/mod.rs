@@ -2,6 +2,7 @@ use std::{borrow::Cow, hash::Hash, ops::Range};
 
 use generation::{GrammarContext, GrammarContextLookup};
 use libafl::{
+    HasMetadata,
     inputs::HasTargetBytes,
     mutators::MutatorsTuple,
     state::{HasMaxSize, HasRand},
@@ -10,6 +11,7 @@ use libafl_bolts::{HasLen, ownedref::OwnedSlice, tuples::NamedTuple};
 use lsp_fuzz_grammars::Language;
 use mutations::{
     ReplaceNodeMutation,
+    node_filters::HighlightedNodes,
     node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar},
     text_document_selectors::RandomDoc,
 };
@@ -195,7 +197,7 @@ pub fn text_document_mutations<State>(
     grammar_lookup: &GrammarContextLookup,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
 where
-    State: HasRand + HasMaxSize,
+    State: HasRand + HasMaxSize + HasMetadata,
 {
     use mutations::{node_filters::NodesThat, *};
     let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
@@ -213,6 +215,11 @@ where
         ),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
+        ReplaceNodeInRandomRoc::new(
+            grammar_lookup,
+            HighlightedNodes::new("comment".to_owned()),
+            EmptyNode
+        ),
         DropUncoveredArea::<RandomDoc<State>>::new(),
     ]
 }
@@ -264,43 +271,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_measure_fragment_single_line() {
+    fn test_measure_fragment() {
         // Test case 1: Single line, no separators
         let fragment = b"hello";
         let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 0);
         assert_eq!(cols, 5);
-    }
 
-    #[test]
-    fn test_measure_fragment_two_lines() {
         // Test case 2: Two lines
         let fragment = b"hello\nworld";
         let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 1);
         assert_eq!(cols, 5);
-    }
 
-    #[test]
-    fn test_measure_fragment_ends_with_separator() {
         // Test case 3: Ends with separator
         let fragment = b"hello\nworld\n";
         let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 2);
         assert_eq!(cols, 0);
-    }
 
-    #[test]
-    fn test_measure_fragment_empty_fragment() {
         // Test case 4: Empty fragment
         let fragment = b"";
         let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
         assert_eq!(rows, 0);
         assert_eq!(cols, 0);
-    }
 
-    #[test]
-    fn test_measure_fragment_three_lines() {
         // Test case 5: Three lines
         let fragment = b"hello\nworld\nrust";
         let (rows, cols) = measure_fragment::<LINE_SEP>(fragment);
