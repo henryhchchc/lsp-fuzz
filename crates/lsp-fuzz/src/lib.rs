@@ -1,5 +1,8 @@
 #![warn(missing_debug_implementations, rust_2018_idioms)]
 
+// Nightly features
+#![feature(let_chains)]
+
 pub(crate) mod stolen;
 
 pub mod execution;

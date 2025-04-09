@@ -1,6 +1,8 @@
 #![allow(dead_code, reason = "This is an utility module.")]
 
-use std::fmt::Display;
+use std::{fmt::Display, num::NonZero};
+
+use libafl_bolts::rands::Rand;
 
 pub(crate) trait OptionExt<T> {
     fn get_or_try_insert_with<F, E>(&mut self, generator: F) -> Result<&mut T, E>
@@ -77,5 +79,35 @@ impl<T, U, E> MapInner<T, U> for Result<Option<T>, E> {
         F: FnOnce(T) -> U,
     {
         self.map(|inner| inner.map(f))
+    }
+}
+
+pub(crate) trait RandExt {
+    fn weighted_choose<I, T>(&mut self, weighted_choices: I) -> Option<T>
+    where
+        I: IntoIterator<Item = (T, usize)>;
+}
+
+impl<R> RandExt for R
+where
+    R: Rand,
+{
+    fn weighted_choose<I, T>(&mut self, weighted_choices: I) -> Option<T>
+    where
+        I: IntoIterator<Item = (T, usize)>,
+    {
+        // Weighted selection
+        let (range_lookup, max) = weighted_choices.into_iter().fold(
+            (Vec::with_capacity(0), 0),
+            |(mut map, start), (item, weight)| {
+                let end = start + weight;
+                map.push((start..end, item));
+                (map, end)
+            },
+        );
+        let chosen_point = self.below(NonZero::new(max)?);
+        range_lookup
+            .into_iter()
+            .find_map(|(range, item)| range.contains(&chosen_point).then_some(item))
     }
 }

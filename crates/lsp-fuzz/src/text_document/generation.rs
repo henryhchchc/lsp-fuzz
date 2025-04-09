@@ -1,12 +1,11 @@
-use indexmap::IndexSet;
 use itertools::Itertools;
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_fuzz_grammars::Language;
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, num::NonZero, ops::Range,
-};
+use std::{borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, ops::Range};
+
+use crate::utils::RandExt;
 
 use super::grammar::{DerivationSequence, Grammar, Symbol, Terminal};
 
@@ -102,81 +101,41 @@ where
         state: &mut State,
         recursion_limit: Option<usize>,
     ) -> Result<Vec<u8>, DerivationError> {
-        if recursion_limit.is_some_and(|it| it == 0) {
-            return self.generate_from_fragments(node_kind, |choices| {
-                self.selection_strategy.select_fragment(
-                    state,
-                    choices,
-                    self.grammar_context.language(),
-                )
-            });
-        }
-        if let Some(derivation_rules) = self
-            .grammar_context
-            .grammar
-            .derivation_rules()
-            .get(node_kind)
+        if let Some(rule) =
+            self.selection_strategy
+                .select_rule(state, node_kind, self.grammar_context)
+            && recursion_limit.is_none_or(|it| it > 0)
         {
-            let rule = self
-                .selection_strategy
-                .select_rule(
-                    state,
-                    node_kind,
-                    derivation_rules,
-                    self.grammar_context.language(),
-                )
-                .ok_or(DerivationError::NoRuleAvailable)?;
             rule.into_iter()
                 .map(|symbol| match symbol {
                     Symbol::NonTerminal(name) => {
-                        let recursion_limit = recursion_limit.map(|it| it - 1);
-                        self.generate_recursively(name, state, recursion_limit)
+                        self.generate_recursively(name, state, recursion_limit.map(|it| it - 1))
                     }
-                    Symbol::Terminal(term) => self.generate_terminal(term, |choices| {
-                        self.selection_strategy.select_fragment(
-                            state,
-                            choices,
-                            self.grammar_context.language(),
-                        )
-                    }),
+                    Symbol::Terminal(term) => self.generate_terminal(state, term),
                     Symbol::Eof => Ok(Vec::new()),
                 })
                 .flatten_ok()
                 .collect::<Result<Vec<_>, _>>()
         } else {
-            // We do not need to worry about unnamed terminals since they do not have a name.
-            // They will never be passed in via `node_kind`.
-            self.generate_from_fragments(node_kind, |choices| {
-                self.selection_strategy.select_fragment(
-                    state,
-                    choices,
-                    self.grammar_context.language(),
-                )
-            })
+            self.selection_strategy
+                .select_fragment(state, node_kind, self.grammar_context)
+                .map(|it| it.to_vec())
+                .ok_or(DerivationError::NoFragmentAvailable)
         }
-    }
-
-    fn generate_from_fragments(
-        &self,
-        node_kind: &str,
-        mut fragment_selector: impl FnMut(FragmentsIter<'_>) -> Option<&[u8]>,
-    ) -> Result<Vec<u8>, DerivationError> {
-        let fragments = self.grammar_context.node_fragments(node_kind);
-
-        let fragment = fragment_selector(fragments).ok_or(DerivationError::NoFragmentAvailable)?;
-        Ok(fragment.to_vec())
     }
 
     fn generate_terminal(
         &self,
+        state: &mut State,
         term: &Terminal,
-        fragment_selector: impl FnMut(FragmentsIter<'_>) -> Option<&[u8]>,
     ) -> Result<Vec<u8>, DerivationError> {
         match term {
             Terminal::Immediate(content) => Ok(content.to_vec()),
             Terminal::Named(name) | Terminal::Auxiliary(name) => self
-                .generate_from_fragments(name, fragment_selector)
-                .map(|it| it.to_vec()),
+                .selection_strategy
+                .select_fragment(state, name, self.grammar_context)
+                .map(|it| it.to_vec())
+                .ok_or(DerivationError::NoFragmentAvailable),
         }
     }
 }
@@ -185,16 +144,15 @@ pub trait RuleSelectionStrategy<State> {
     fn select_fragment<'a>(
         &self,
         state: &mut State,
-        fragments: FragmentsIter<'a>,
-        language: Language,
+        node_kind: &str,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a [u8]>;
 
     fn select_rule<'a>(
         &self,
         state: &mut State,
         node_kind: &str,
-        rules: &'a IndexSet<DerivationSequence>,
-        language: Language,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a DerivationSequence>;
 }
 
@@ -208,19 +166,20 @@ where
     fn select_fragment<'a>(
         &self,
         state: &mut State,
-        fragments: FragmentsIter<'a>,
-        _language: Language,
+        node_kind: &str,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a [u8]> {
+        let fragments = grammar_context.node_fragments(node_kind);
         state.rand_mut().choose(fragments)
     }
 
     fn select_rule<'a>(
         &self,
         state: &mut State,
-        _node_kind: &str,
-        rules: &'a IndexSet<DerivationSequence>,
-        _language: Language,
+        node_kind: &str,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a DerivationSequence> {
+        let rules = grammar_context.grammar.derivation_rules().get(node_kind)?;
         state.rand_mut().choose(rules)
     }
 }
@@ -240,9 +199,10 @@ where
     fn select_fragment<'a>(
         &self,
         state: &mut State,
-        fragments: FragmentsIter<'a>,
-        _language: Language,
+        node_kind: &str,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a [u8]> {
+        let fragments = grammar_context.node_fragments(node_kind);
         state.rand_mut().choose(fragments)
     }
 
@@ -250,28 +210,23 @@ where
         &self,
         state: &mut State,
         node_kind: &str,
-        rules: &'a IndexSet<DerivationSequence>,
-        language: Language,
+        grammar_context: &'a GrammarContext,
     ) -> Option<&'a DerivationSequence> {
+        let language = grammar_context.language();
+        let rules = grammar_context.grammar.derivation_rules().get(node_kind)?;
         let stats = state.metadata_or_insert_with::<RuleUsageStats>(Default::default);
         let stats = stats
             .inner
             .entry((language, node_kind.to_owned()))
             .or_insert(vec![0; rules.len()]);
         let usage_bounds = max(1, *stats.iter().max()?);
-        let weights = stats.iter().map(|it| usage_bounds - it);
-        let (range_lookup, max) = weights.enumerate().fold(
-            (Vec::with_capacity(rules.len()), 0),
-            |(mut map, start), (idx, weight)| {
-                let end = start + weight;
-                map.push((start..end, idx));
-                (map, end)
-            },
-        );
-        let chosen_point = state.rand_mut().below(NonZero::new(max)?);
-        let chosen_idx = range_lookup
-            .into_iter()
-            .find_map(|(range, idx)| range.contains(&chosen_point).then_some(idx))?;
+        let weights: Vec<_> = stats.iter().map(|it| usage_bounds - it).collect();
+
+        // Weighted selection
+        let chosen_idx = state
+            .rand_mut()
+            .weighted_choose(weights.into_iter().enumerate())?;
+
         // Have to reborrow which is a PITA.
         let stats = state
             .metadata_mut::<RuleUsageStats>()
