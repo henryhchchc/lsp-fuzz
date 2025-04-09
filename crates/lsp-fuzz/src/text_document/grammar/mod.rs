@@ -150,6 +150,11 @@ pub enum CreationError {
 
 #[cfg(test)]
 mod tests {
+
+    use ::tree_sitter::QueryCursor;
+
+    use crate::text_document::{TextDocument, grammar::tree_sitter::CapturesIterator};
+
     use super::*;
 
     #[test]
@@ -172,5 +177,26 @@ mod tests {
                 .validate()
                 .unwrap_or_else(|_| panic!("Fail to validate grammar for language: {language}"));
         }
+    }
+
+    #[test]
+    fn capture_rust() {
+        const RUST_CODE: &str = r#"
+            // Hello
+            fn main() {
+                println!("Hello, world!");
+            }
+        "#;
+        let doc = TextDocument::new(Language::Rust, RUST_CODE.as_bytes().to_vec());
+        let mut cursor = QueryCursor::new();
+        let mut capture_iter = CapturesIterator::new(&doc, "comment", &mut cursor).unwrap();
+        let node = capture_iter.next().expect("There is one comment node");
+        let text = &doc.content[node.byte_range()];
+        assert_eq!(text, b"// Hello");
+
+        let mut capture_iter = CapturesIterator::new(&doc, "keyword", &mut cursor).unwrap();
+        let node = capture_iter.next().expect("There is one keyword node");
+        let text = &doc.content[node.byte_range()];
+        assert_eq!(text, b"fn");
     }
 }

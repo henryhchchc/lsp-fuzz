@@ -4,6 +4,10 @@ use std::{
     ops::Range,
 };
 
+use tree_sitter::{QueryCaptures, QueryCursor, StreamingIterator, TextProvider};
+
+use crate::text_document::{GrammarBasedMutation, TextDocument};
+
 /// A trait for iterating over nodes in a [`tree_sitter::Tree`].
 ///
 /// This allows easy traversal of all nodes in a tree-sitter syntax tree.
@@ -76,3 +80,64 @@ impl ExactSizeIterator for TreeIterator<'_> {
 }
 
 impl FusedIterator for TreeIterator<'_> {}
+
+impl<'a> TextProvider<&'a [u8]> for &'a TextDocument {
+    type I = std::iter::Once<&'a [u8]>;
+
+    fn text(&mut self, node: tree_sitter::Node<'_>) -> Self::I {
+        std::iter::once(&self.content[node.byte_range()])
+    }
+}
+
+pub struct CapturesIterator<'doc, 'cursor> {
+    captures: QueryCaptures<'cursor, 'doc, &'doc TextDocument, &'doc [u8]>,
+    capture_index: u32,
+}
+
+impl Debug for CapturesIterator<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapturesIterator")
+            .field("captures", &(&self.captures as *const _))
+            .field("capture_index", &self.capture_index)
+            .finish()
+    }
+}
+
+impl<'doc, 'cursor> CapturesIterator<'doc, 'cursor> {
+    pub fn new(
+        doc: &'doc TextDocument,
+        group_name: &str,
+        cursor: &'cursor mut QueryCursor,
+    ) -> Option<Self> {
+        let parse_tree = doc.parse_tree();
+        let query = doc.language().ts_highlight_query();
+        let capture_index = query.capture_index_for_name(group_name)?;
+        let mut captures = cursor.captures(query, parse_tree.root_node(), doc);
+        captures.advance();
+
+        Some(Self {
+            captures,
+            capture_index,
+        })
+    }
+}
+
+impl<'doc> Iterator for CapturesIterator<'doc, '_> {
+    type Item = tree_sitter::Node<'doc>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((query_match, index)) = self.captures.get() {
+            let capture = query_match.captures[*index];
+            if capture.index == self.capture_index {
+                return Some(capture.node);
+            }
+            self.captures.advance();
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_lower, upper) = self.captures.size_hint();
+        (0, upper)
+    }
+}
