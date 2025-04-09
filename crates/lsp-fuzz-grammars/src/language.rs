@@ -3,7 +3,7 @@ use tree_sitter_language::LanguageFn;
 use crate::language_data;
 
 use super::Language;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::OnceLock};
 
 pub(super) struct LanguageInfo {
     pub extensions: &'static [&'static str],
@@ -56,10 +56,16 @@ impl Language {
     /// See the following two links for common highlight groups
     /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
     /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
-    pub fn ts_highlight_query(&self) -> tree_sitter::Query {
-        let query_src = self.info().highlight_query;
-        tree_sitter::Query::new(&self.ts_language(), query_src)
-            .expect("The query provided by tree-sitter should be correct")
+    pub fn ts_highlight_query(&self) -> &'static tree_sitter::Query {
+        static QUERIES: [OnceLock<tree_sitter::Query>; LANGUAGES_COUNT] =
+            [const { OnceLock::new() }; LANGUAGES_COUNT];
+
+        let query_idx = (*self as u8) as usize;
+        QUERIES[query_idx].get_or_init(|| {
+            let query_src = self.info().highlight_query;
+            tree_sitter::Query::new(&self.ts_language(), query_src)
+                .expect("The query provided by tree-sitter should be correct")
+        })
     }
 
     pub fn ts_language(&self) -> tree_sitter::Language {
