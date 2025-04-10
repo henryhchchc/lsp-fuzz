@@ -13,11 +13,11 @@ tree-sitter-c = "0"
 tree-sitter-cpp = "0"
 tree-sitter-latex = { git = "https://github.com/henryhchchc/tree-sitter-latex.git", branch = "self-use" }
 tree-sitter-bibtex = { git = "https://github.com/henryhchchc/tree-sitter-bibtex.git", branch = "master" }
-tree-sitter-mlir = {git = "https://github.com/henryhchchc/tree-sitter-mlir.git", branch = "master"}
+tree-sitter-mlir = { git = "https://github.com/henryhchchc/tree-sitter-mlir.git", branch = "master" }
 tree-sitter-javascript = "0"
 tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
 tree-sitter-solidity = "1"
 tree-sitter-toml-ng = "0"
-tree-sitter-systemverilog = {git = "https://github.com/gmlarumbe/tree-sitter-systemverilog", branch = "master"}
-tree-sitter-qmljs = {git = "https://github.com/henryhchchc/tree-sitter-qmljs.git", branch = "master"}
+tree-sitter-verilog = { git = "https://github.com/gmlarumbe/tree-sitter-systemverilog.git", branch = "dev" }
+tree-sitter-qmljs = { git = "https://github.com/henryhchchc/tree-sitter-qmljs.git", branch = "master" }
