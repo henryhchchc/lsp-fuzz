@@ -88,14 +88,15 @@ pub const BIBTEX: LanguageInfo = LanguageInfo {
 
 /// The Verilog language information
 pub const VERILOG: LanguageInfo = LanguageInfo {
-    grammar_json: include_grammar_json!("verilog"),
+    grammar_json: include_grammar_json!("system_verilog"),
     extensions: &["v", "sv", "svh"],
+    // Stolen from zed verilog extension
     highlight_query: include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/res/highlights/verilog.scm"
     )),
     lsp_language_id: "verilog",
-    ts_language_fn: tree_sitter_verilog::LANGUAGE,
+    ts_language_fn: tree_sitter_systemverilog::LANGUAGE,
 };
 
 /// The Solidity language information
