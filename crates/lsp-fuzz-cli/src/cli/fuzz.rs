@@ -374,11 +374,13 @@ fn trigger_stop_stage<State>(
     Ok(StopOnReceived::new(rx))
 }
 
-fn mutation_stage<'g, E, EM, State, Z>(
+fn mutation_stage<'g, Exec, EventMgr, State, Fuzzer>(
     _state: &mut State,
     grammar_ctx: &'g GrammarContextLookup,
 ) -> Result<
-    impl Stage<E, EM, State, Z> + Restartable<State> + use<'g, E, EM, State, Z>,
+    impl Stage<Exec, EventMgr, State, Fuzzer>
+    + Restartable<State>
+    + use<'g, Exec, EventMgr, State, Fuzzer>,
     libafl::Error,
 >
 where
@@ -392,12 +394,12 @@ where
         + HasExecutions
         + MaybeHasClientPerfMonitor
         + 'static,
-    Z: Evaluator<E, EM, LspInput, State>,
-    E: Executor<EM, LspInput, State, Z> + HasObservers,
+    Fuzzer: Evaluator<Exec, EventMgr, LspInput, State>,
+    Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
 {
     let text_document_mutator =
         StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
-    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 4);
+    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 6);
     let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
     Ok(StdPowerMutationalStage::new(mutator))
 }

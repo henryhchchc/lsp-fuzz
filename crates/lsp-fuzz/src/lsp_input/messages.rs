@@ -1,5 +1,11 @@
 use std::{
-    any::type_name, borrow::Cow, fmt::Debug, iter::once, marker::PhantomData, rc::Rc, sync::Arc,
+    any::type_name,
+    borrow::Cow,
+    fmt::Debug,
+    iter::{once, repeat},
+    marker::PhantomData,
+    rc::Rc,
+    sync::Arc,
 };
 
 use derive_more::derive::{Deref, DerefMut};
@@ -14,6 +20,7 @@ use libafl_bolts::{
     rands::Rand,
     tuples::{Merge, NamedTuple},
 };
+use lsp_fuzz_grammars::WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES;
 use serde::{Deserialize, Serialize};
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list, tuple_list_type};
@@ -30,8 +37,11 @@ use crate::{
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
     text_document::{
-        TextDocument, grammar::tree_sitter::TreeIter, mutations::text_document_selectors::RandomDoc,
+        TextDocument,
+        grammar::tree_sitter::{CapturesIterator, TSNodeExt, TreeIter},
+        mutations::text_document_selectors::RandomDoc,
     },
+    utils::RandExt,
 };
 
 use super::LspInput;
@@ -48,32 +58,43 @@ impl HasLen for LspMessages {
 }
 
 pub trait PositionSelector<State> {
-    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position>;
+    fn select_position(&self, state: &mut State, doc: &TextDocument)
+    -> Option<lsp_types::Position>;
 }
 
-#[derive(Debug)]
-pub struct RandomPosition<const MAX: u32 = 1024>;
+#[derive(Debug, New)]
+pub struct RandomPosition {
+    rand_max: usize,
+}
 
-impl<State, const MAX: u32> PositionSelector<State> for RandomPosition<MAX>
+impl<State> PositionSelector<State> for RandomPosition
 where
     State: HasRand,
 {
-    fn select_position(state: &mut State, _doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(
+        &self,
+        state: &mut State,
+        _doc: &TextDocument,
+    ) -> Option<lsp_types::Position> {
         let rand = state.rand_mut();
-        let line = rand.between(0, MAX as _) as _;
-        let character = rand.between(0, MAX as _) as _;
+        let line = rand.between(0, self.rand_max) as _;
+        let character = rand.between(0, self.rand_max) as _;
         Some(lsp_types::Position { line, character })
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct ValidPosition;
 
 impl<State> PositionSelector<State> for ValidPosition
 where
     State: HasRand,
 {
-    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(
+        &self,
+        state: &mut State,
+        doc: &TextDocument,
+    ) -> Option<lsp_types::Position> {
         let (index, line) = state.rand_mut().choose(doc.lines().enumerate())?;
         let character = state.rand_mut().choose(0..line.len())?;
         Some(lsp_types::Position {
@@ -83,23 +104,83 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, New)]
 pub struct TerminalStartPosition;
 
 impl<State> PositionSelector<State> for TerminalStartPosition
 where
     State: HasRand,
 {
-    fn select_position(state: &mut State, doc: &TextDocument) -> Option<lsp_types::Position> {
+    fn select_position(
+        &self,
+        state: &mut State,
+        doc: &TextDocument,
+    ) -> Option<lsp_types::Position> {
         let terminals = doc
             .metadata()
             .parse_tree
             .iter()
             .filter(|it| it.child_count() == 0);
-        let range = state.rand_mut().choose(terminals).map(|it| it.range())?;
-        let line = range.start_point.row as _;
-        let character = range.start_point.column as _;
-        Some(lsp_types::Position { line, character })
+        let range = state.rand_mut().choose(terminals)?;
+        Some(range.lsp_start_position())
+    }
+}
+
+#[derive(Debug, Clone, Copy, New)]
+pub struct HighlightSteer;
+
+#[derive(Debug, Serialize, Deserialize, Deref, DerefMut, libafl_bolts::SerdeAny)]
+pub struct HighlightGroupUsageMetadata {
+    #[deref]
+    #[deref_mut]
+    inner: ahash::HashMap<String, usize>,
+}
+
+impl HighlightGroupUsageMetadata {
+    pub fn new<Names, Name>(highlight_group_names: Names) -> Self
+    where
+        Names: IntoIterator<Item = Name>,
+        Name: Into<String>,
+    {
+        let inner = highlight_group_names
+            .into_iter()
+            .map(Into::into)
+            .zip(repeat(0))
+            .collect();
+        Self { inner }
+    }
+}
+
+impl<State> PositionSelector<State> for HighlightSteer
+where
+    State: HasRand + HasMetadata,
+{
+    fn select_position(
+        &self,
+        state: &mut State,
+        doc: &TextDocument,
+    ) -> Option<lsp_types::Position> {
+        let usage_stats = state.metadata_or_insert_with(|| {
+            HighlightGroupUsageMetadata::new(WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES)
+        });
+        let max_usage = usage_stats.values().copied().max().unwrap_or_default();
+        let weights: Vec<_> = usage_stats
+            .iter()
+            .map(|(name, &usage)| (name.clone(), max_usage - usage))
+            .collect();
+        let chosen = state.rand_mut().weighted_choose(weights)?;
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let captures = CapturesIterator::new(doc, &chosen, &mut cursor)?;
+        let node = state.rand_mut().choose(captures)?;
+        let pos = node.lsp_start_position();
+        let usage_stats = state
+            .metadata_mut::<HighlightGroupUsageMetadata>()
+            .expect("We ensured it is inserted");
+        let usage = usage_stats
+            .get_mut(&chosen)
+            .expect("The entry is in the map");
+        *usage += 1;
+        Some(pos)
     }
 }
 
@@ -222,31 +303,25 @@ where
 
 impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
 where
-    State: HasRand + 'static,
+    State: HasRand + HasMetadata + 'static,
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let term_start: Self::Generator = Rc::new(TextDocumentPositionParamsGenerator::<
-            RandomDoc<State>,
-            TerminalStartPosition,
-        >::new());
-        let result: [Self::Generator; 6] = [
-            Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<State>,
-                ValidPosition,
-            >::new()),
-            Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<State>,
-                RandomPosition,
-            >::new()),
-            Rc::new(TextDocumentPositionParamsGenerator::<
-                RandomDoc<State>,
-                TerminalStartPosition,
-            >::new()),
+        type SelectInRandomDoc<State, PosSel> =
+            TextDocumentPositionParamsGenerator<RandomDoc<State>, PosSel>;
+        let term_start_pos = TerminalStartPosition::new();
+        let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
+        let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
+        let result: [Self::Generator; 8] = [
+            Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
+            Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024))),
             term_start.clone(),
             term_start.clone(),
             term_start.clone(),
+            steer.clone(),
+            steer.clone(),
+            steer.clone(),
         ];
         result
     }

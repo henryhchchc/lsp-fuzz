@@ -21,3 +21,22 @@ pub enum Language {
     MLIR,
     QML,
 }
+
+/// Well-known highlight capture names.
+///
+/// This list is based on the well-known highlight capture names used by popular editors and IDEs.
+///
+/// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
+/// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
+pub const WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES: [&str; 10] = [
+    "comment",
+    "string",
+    "number",
+    "keyword",
+    "operator",
+    "identifier",
+    "type",
+    "function",
+    "constant",
+    "variable",
+];

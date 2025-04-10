@@ -154,14 +154,15 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct TextDocumentPositionParamsGenerator<D, P> {
-    _phantom: PhantomData<(D, P)>,
+pub struct TextDocumentPositionParamsGenerator<D, PosSel> {
+    position_selector: PosSel,
+    _phantom: PhantomData<D>,
 }
 
-impl<State, D, P> LspParamsGenerator<State> for TextDocumentPositionParamsGenerator<D, P>
+impl<State, D, PosSel> LspParamsGenerator<State> for TextDocumentPositionParamsGenerator<D, PosSel>
 where
     D: TextDocumentSelector<State>,
-    P: PositionSelector<State>,
+    PosSel: PositionSelector<State>,
 {
     type Output = lsp_types::TextDocumentPositionParams;
 
@@ -172,7 +173,10 @@ where
     ) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
-        let position = P::select_position(state, doc).ok_or(GenerationError::NothingGenerated)?;
+        let position = self
+            .position_selector
+            .select_position(state, doc)
+            .ok_or(GenerationError::NothingGenerated)?;
         Ok(Self::Output {
             text_document: TextDocumentIdentifier { uri },
             position,

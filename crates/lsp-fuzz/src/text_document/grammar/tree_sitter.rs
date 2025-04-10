@@ -139,3 +139,24 @@ impl<'doc> Iterator for CapturesIterator<'doc, '_> {
         (0, upper)
     }
 }
+
+pub trait TSNodeExt {
+    fn lsp_start_position(&self) -> lsp_types::Position;
+    fn lsp_end_position(&self) -> lsp_types::Position;
+}
+
+impl TSNodeExt for tree_sitter::Node<'_> {
+    fn lsp_start_position(&self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.start_position().row as u32,
+            character: self.start_position().column as u32,
+        }
+    }
+
+    fn lsp_end_position(&self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.end_position().row as u32,
+            character: self.end_position().column as u32,
+        }
+    }
+}
