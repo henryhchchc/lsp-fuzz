@@ -6795,10 +6795,6 @@
         {
           "type": "STRING",
           "value": "const"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "hierarchical_identifier"
         }
       ]
     },
@@ -9108,17 +9104,8 @@
                   "type": "FIELD",
                   "name": "value",
                   "content": {
-                    "type": "CHOICE",
-                    "members": [
-                      {
-                        "type": "SYMBOL",
-                        "name": "_data_type_or_incomplete_class_scoped_type"
-                      },
-                      {
-                        "type": "SYMBOL",
-                        "name": "text_macro_usage"
-                      }
-                    ]
+                    "type": "SYMBOL",
+                    "name": "_data_type_or_incomplete_class_scoped_type"
                   }
                 }
               ]
@@ -13781,18 +13768,6 @@
                   "value": ";"
                 }
               ]
-            },
-            {
-              "type": "SYMBOL",
-              "name": "include_compiler_directive"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "conditional_compilation_directive"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "text_macro_usage"
             }
           ]
         }
@@ -32754,10 +32729,6 @@
           {
             "type": "SYMBOL",
             "name": "streaming_concatenation"
-          },
-          {
-            "type": "SYMBOL",
-            "name": "text_macro_usage"
           }
         ]
       }
@@ -34762,26 +34733,12 @@
       ]
     },
     "default_text": {
-      "type": "TOKEN",
-      "content": {
-        "type": "PREC",
-        "value": -1,
-        "content": {
-          "type": "PATTERN",
-          "value": "[^,\\\\\\n\\)]+"
-        }
-      }
+      "type": "PATTERN",
+      "value": "\\w+"
     },
     "macro_text": {
-      "type": "TOKEN",
-      "content": {
-        "type": "PREC",
-        "value": -1,
-        "content": {
-          "type": "PATTERN",
-          "value": "(\\\\(.|\\r?\\n)|[^\\\\\\n])*"
-        }
-      }
+      "type": "PATTERN",
+      "value": "(\\\\(.|\\r?\\n)|[^\\\\\\n])*"
     },
     "text_macro_definition": {
       "type": "SEQ",
@@ -34834,11 +34791,8 @@
               "type": "SEQ",
               "members": [
                 {
-                  "type": "IMMEDIATE_TOKEN",
-                  "content": {
-                    "type": "STRING",
-                    "value": "("
-                  }
+                  "type": "STRING",
+                  "value": "("
                 },
                 {
                   "type": "SYMBOL",
@@ -34886,12 +34840,8 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "RESERVED",
-          "content": {
-            "type": "SYMBOL",
-            "name": "simple_identifier"
-          },
-          "context_name": "macros"
+          "type": "SYMBOL",
+          "name": "simple_identifier"
         },
         {
           "type": "CHOICE",
@@ -34904,41 +34854,8 @@
                   "value": "="
                 },
                 {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "CHOICE",
-                      "members": [
-                        {
-                          "type": "SYMBOL",
-                          "name": "default_text"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "string_literal"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "tf_call"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "text_macro_usage"
-                        },
-                        {
-                          "type": "RESERVED",
-                          "content": {
-                            "type": "SYMBOL",
-                            "name": "simple_identifier"
-                          },
-                          "context_name": "macros"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "BLANK"
-                    }
-                  ]
+                  "type": "SYMBOL",
+                  "name": "default_text"
                 }
               ]
             },
@@ -35340,34 +35257,6 @@
         {
           "type": "SYMBOL",
           "name": "constraint_block"
-        },
-        {
-          "type": "REPEAT1",
-          "content": {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "constraint_block_item"
-              },
-              {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": ";"
-                  },
-                  {
-                    "type": "BLANK"
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "type": "STRING",
-          "value": ";"
         }
       ]
     },
@@ -36930,23 +36819,6 @@
     [
       "constraint_block",
       "empty_unpacked_array_concatenation"
-    ],
-    [
-      "variable_lvalue",
-      "_directives"
-    ],
-    [
-      "expression",
-      "variable_lvalue"
-    ],
-    [
-      "constant_expression",
-      "expression",
-      "variable_lvalue"
-    ],
-    [
-      "_identifier",
-      "formal_argument"
     ]
   ],
   "precedences": [
@@ -37846,16 +37718,6 @@
       {
         "type": "STRING",
         "value": "tf_call"
-      }
-    ],
-    [
-      {
-        "type": "STRING",
-        "value": "_simple_type"
-      },
-      {
-        "type": "STRING",
-        "value": "hierarchical_identifier"
       }
     ],
     [
@@ -38976,7 +38838,6 @@
         "type": "STRING",
         "value": "xor"
       }
-    ],
-    "macros": []
+    ]
   }
 }
