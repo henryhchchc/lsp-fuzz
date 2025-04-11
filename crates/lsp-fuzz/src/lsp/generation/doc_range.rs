@@ -17,12 +17,12 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct RangeInDoc(pub TextDocumentIdentifier, pub Range);
+pub struct Selection(pub TextDocumentIdentifier, pub Range);
 
 #[derive(Debug, New)]
 pub struct RangeInDocGenerator<State, D> {
-    pub(crate) range_selector: fn(&mut State, &TextDocument) -> Range,
-    pub(crate) _phantom: PhantomData<D>,
+    range_selector: fn(&mut State, &TextDocument) -> Range,
+    _phantom: PhantomData<D>,
 }
 
 impl<State, D> Clone for RangeInDocGenerator<State, D> {
@@ -35,7 +35,7 @@ impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>
 where
     D: TextDocumentSelector<State>,
 {
-    type Output = RangeInDoc;
+    type Output = Selection;
 
     fn generate(
         &self,
@@ -46,11 +46,11 @@ where
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let range = (self.range_selector)(state, doc);
         let doc = TextDocumentIdentifier { uri };
-        Ok(RangeInDoc(doc, range))
+        Ok(Selection(doc, range))
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for RangeInDoc
+impl<State> HasPredefinedGenerators<State> for Selection
 where
     State: HasRand,
 {

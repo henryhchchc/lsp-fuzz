@@ -17,7 +17,7 @@ use tuple_list::{TupleList, tuple_list_type};
 use super::{
     Compose,
     generation::{
-        doc_range::RangeInDoc,
+        doc_range::Selection,
         numeric::{TabSize, ZeroToOne32},
     },
 };
@@ -241,11 +241,11 @@ impl Compose for T {
     InlayHintParams,
 )]
 impl Compose for T {
-    type Components = tuple_list_type![RangeInDoc, WorkDoneProgressParams,];
+    type Components = tuple_list_type![Selection, WorkDoneProgressParams,];
 
     #[inline]
     fn compose(components: Self::Components) -> Self {
-        let (RangeInDoc(text_document, range), work_done_progress_params) = components.into_tuple();
+        let (Selection(text_document, range), work_done_progress_params) = components.into_tuple();
         Self {
             text_document,
             work_done_progress_params,
@@ -288,11 +288,11 @@ impl Compose for CompletionContext {
 }
 
 impl Compose for SemanticTokensRangeParams {
-    type Components = tuple_list_type![RangeInDoc, WorkDoneProgressParams, PartialResultParams];
+    type Components = tuple_list_type![Selection, WorkDoneProgressParams, PartialResultParams];
 
     #[inline]
     fn compose(components: Self::Components) -> Self {
-        let (RangeInDoc(text_document, range), work_done_progress_params, partial_result_params) =
+        let (Selection(text_document, range), work_done_progress_params, partial_result_params) =
             components.into_tuple();
         Self {
             work_done_progress_params,
@@ -305,7 +305,7 @@ impl Compose for SemanticTokensRangeParams {
 
 impl Compose for CodeActionParams {
     type Components = tuple_list_type![
-        RangeInDoc,
+        Selection,
         WorkDoneProgressParams,
         PartialResultParams,
         CodeActionContext
@@ -314,7 +314,7 @@ impl Compose for CodeActionParams {
     #[inline]
     fn compose(components: Self::Components) -> Self {
         let (
-            RangeInDoc(text_document, range),
+            Selection(text_document, range),
             work_done_progress_params,
             partial_result_params,
             context,
@@ -404,7 +404,7 @@ impl Compose for RenameParams {
 
 impl Compose for ColorPresentationParams {
     type Components = tuple_list_type![
-        RangeInDoc,
+        Selection,
         Color,
         WorkDoneProgressParams,
         PartialResultParams
@@ -412,7 +412,7 @@ impl Compose for ColorPresentationParams {
 
     fn compose(components: Self::Components) -> Self {
         let (
-            RangeInDoc(text_document, range),
+            Selection(text_document, range),
             color,
             work_done_progress_params,
             partial_result_params,
@@ -481,11 +481,11 @@ impl Compose for DocumentOnTypeFormattingParams {
 }
 
 impl Compose for DocumentRangeFormattingParams {
-    type Components = tuple_list_type![RangeInDoc, FormattingOptions, WorkDoneProgressParams];
+    type Components = tuple_list_type![Selection, FormattingOptions, WorkDoneProgressParams];
 
     #[inline]
     fn compose(components: Self::Components) -> Self {
-        let (RangeInDoc(text_document, range), options, work_done_progress_params) =
+        let (Selection(text_document, range), options, work_done_progress_params) =
             components.into_tuple();
         Self {
             text_document,
