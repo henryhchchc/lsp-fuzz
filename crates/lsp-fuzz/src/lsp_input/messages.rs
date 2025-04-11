@@ -28,9 +28,7 @@ use tuple_list::{tuple_list, tuple_list_type};
 use crate::{
     lsp::{
         self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
-        generation::{
-            ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator, MappingGenerator,
-        },
+        generation::{DefaultGenerator, GenerationError, LspParamsGenerator, MappingGenerator},
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
@@ -275,16 +273,6 @@ impl<State: 'static> HasPredefinedGenerators<State> for P {
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for bool
-where
-    State: HasRand + 'static,
-{
-    type Generator = ConstGenerator<Self>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [ConstGenerator::new(false), ConstGenerator::new(true)]
-    }
-}
 
 impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
 where

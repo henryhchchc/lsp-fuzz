@@ -161,28 +161,6 @@ macro_rules! prop_mutator {
     };
 }
 
-macro_rules! const_generators {
-    (one $val: expr) => {1};
-    (for $type: ty => [
-        $($val: expr),*
-    ]) => {
-        impl<State> HasPredefinedGenerators<State> for $type {
-            type Generator = &'static ConstGenerator<Self>;
-
-            fn generators() -> impl IntoIterator<Item = Self::Generator>
-            where
-                State: 'static,
-            {
-                const COUNT: usize = { 0 $( + const_generators!(one $val))* };
-                static GENERATORS: [ConstGenerator<$type>; COUNT] = [
-                    $(ConstGenerator::new($val)),*
-                ];
-                &GENERATORS
-            }
-        }
-    };
-}
-
 #[allow(unused_macros)]
 macro_rules! afl_oops {
     ($msg:literal $(,)?) => {
@@ -197,4 +175,4 @@ macro_rules! afl_oops {
 }
 
 #[allow(unused_imports)]
-pub(crate) use {afl_oops, append_randoms, const_generators, lsp_messages, prop_mutator};
+pub(crate) use {afl_oops, append_randoms, lsp_messages, prop_mutator};
