@@ -23,32 +23,22 @@ use super::{
 };
 use crate::lsp_input::LspInput;
 
-impl<Head, Tail> Compose for (Head, Tail) {
-    type Components = (Head, Tail);
+macro_rules! compose {
+    ($output: ty {
+        $( $field: ident: $field_type: ty ),*
+    }) => {
+        impl Compose for $output {
+            type Components = tuple_list_type![
+                $( $field_type ),*
+            ];
 
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        components
-    }
-}
-
-impl Compose for FoldingRangeParams {
-    type Components = tuple_list_type![
-        TextDocumentIdentifier,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            text_document,
-            work_done_progress_params,
-            partial_result_params,
+            #[inline]
+            fn compose(components: Self::Components) -> Self {
+                let ( $( $field, )* ) = components.into_tuple();
+                Self { $( $field ),* }
+            }
         }
-    }
+    };
 }
 
 #[trait_gen(T ->
@@ -98,55 +88,34 @@ impl Compose for SignatureHelpContext {
         }
     }
 }
-
-impl Compose for SignatureHelpParams {
-    type Components = tuple_list_type![
-        Option<SignatureHelpContext>,
-        TextDocumentPositionParams,
-        WorkDoneProgressParams
-    ];
-
-    fn compose(components: Self::Components) -> Self {
-        let (context, text_document_position_params, work_done_progress_params) =
-            components.into_tuple();
-        Self {
-            context,
-            text_document_position_params,
-            work_done_progress_params,
-        }
+compose! {
+    FoldingRangeParams {
+        text_document: TextDocumentIdentifier,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
     }
 }
 
-impl Compose for ReferenceParams {
-    type Components = tuple_list_type![
-        TextDocumentPositionParams,
-        WorkDoneProgressParams,
-        PartialResultParams,
-        ReferenceContext
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position, work_done_progress_params, partial_result_params, context) =
-            components.into_tuple();
-        Self {
-            text_document_position,
-            work_done_progress_params,
-            partial_result_params,
-            context,
-        }
+compose! {
+    SignatureHelpParams {
+        context: Option<SignatureHelpContext>,
+        text_document_position_params: TextDocumentPositionParams,
+        work_done_progress_params: WorkDoneProgressParams
     }
 }
 
-impl Compose for ReferenceContext {
-    type Components = tuple_list_type![bool];
+compose! {
+    ReferenceParams {
+        text_document_position: TextDocumentPositionParams,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams,
+        context: ReferenceContext
+    }
+}
 
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (include_declaration,) = components.into_tuple();
-        Self {
-            include_declaration,
-        }
+compose! {
+    ReferenceContext {
+        include_declaration: bool
     }
 }
 
@@ -169,45 +138,21 @@ impl Compose for T {
     }
 }
 
-impl Compose for DocumentDiagnosticParams {
-    type Components = tuple_list_type![
-        TextDocumentIdentifier,
-        Option<String>,
-        Option<String>,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (
-            text_document,
-            identifier,
-            previous_result_id,
-            work_done_progress_params,
-            partial_result_params,
-        ) = components.into_tuple();
-        Self {
-            text_document,
-            identifier,
-            previous_result_id,
-            work_done_progress_params,
-            partial_result_params,
-        }
+compose! {
+    DocumentDiagnosticParams {
+        text_document: TextDocumentIdentifier,
+        identifier: Option<String>,
+        previous_result_id: Option<String>,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
     }
 }
 
-impl Compose for WorkspaceSymbolParams {
-    type Components = tuple_list_type![String, WorkDoneProgressParams, PartialResultParams];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (query, work_done_progress_params, partial_result_params) = components.into_tuple();
-        Self {
-            query,
-            work_done_progress_params,
-            partial_result_params,
-        }
+compose! {
+    WorkspaceSymbolParams {
+        query: String,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
     }
 }
 
@@ -254,36 +199,19 @@ impl Compose for T {
     }
 }
 
-impl Compose for CompletionParams {
-    type Components = tuple_list_type![
-        TextDocumentPositionParams,
-        WorkDoneProgressParams,
-        PartialResultParams,
-        Option<CompletionContext>
-    ];
-
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position, work_done_progress_params, partial_result_params, context) =
-            components.into_tuple();
-        Self {
-            text_document_position,
-            work_done_progress_params,
-            partial_result_params,
-            context,
-        }
+compose! {
+    CompletionParams {
+        text_document_position: TextDocumentPositionParams,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams,
+        context: Option<CompletionContext>
     }
 }
 
-impl Compose for CompletionContext {
-    type Components = tuple_list_type![CompletionTriggerKind, Option<String>];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (trigger_kind, trigger_character) = components.into_tuple();
-        Self {
-            trigger_kind,
-            trigger_character,
-        }
+compose! {
+    CompletionContext {
+        trigger_kind: CompletionTriggerKind,
+        trigger_character: Option<String>
     }
 }
 
@@ -344,34 +272,20 @@ impl Compose for CodeActionContext {
     }
 }
 
-impl Compose for LogTraceParams {
-    type Components = tuple_list_type![String, Option<String>];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (message, verbose) = components.into_tuple();
-        Self { message, verbose }
+compose! {
+    LogTraceParams {
+        message: String,
+        verbose: Option<String>
     }
 }
 
-impl Compose for WorkspaceDiagnosticParams {
-    type Components = tuple_list_type![
-        Option<String>,
-        Vec<PreviousResultId>,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
 
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (identifier, previous_result_ids, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            identifier,
-            previous_result_ids,
-            work_done_progress_params,
-            partial_result_params,
-        }
+compose! {
+    WorkspaceDiagnosticParams {
+        identifier: Option<String>,
+        previous_result_ids: Vec<PreviousResultId>,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
     }
 }
 
@@ -388,17 +302,11 @@ impl Compose for PreviousResultId {
     }
 }
 
-impl Compose for RenameParams {
-    type Components = tuple_list_type![TextDocumentPositionParams, String, WorkDoneProgressParams,];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position, new_name, work_done_progress_params) = components.into_tuple();
-        Self {
-            text_document_position,
-            new_name,
-            work_done_progress_params,
-        }
+compose! {
+    RenameParams {
+        text_document_position: TextDocumentPositionParams,
+        new_name: String,
+        work_done_progress_params: WorkDoneProgressParams
     }
 }
 
@@ -466,17 +374,11 @@ impl Compose for FormattingOptions {
     }
 }
 
-impl Compose for DocumentOnTypeFormattingParams {
-    type Components = tuple_list_type![TextDocumentPositionParams, String, FormattingOptions];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position, ch, options) = components.into_tuple();
-        Self {
-            text_document_position,
-            ch,
-            options,
-        }
+compose! {
+    DocumentOnTypeFormattingParams {
+        text_document_position: TextDocumentPositionParams,
+        ch: String,
+        options: FormattingOptions
     }
 }
 

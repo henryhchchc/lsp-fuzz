@@ -33,3 +33,12 @@ pub trait Compose {
 
     fn compose(components: Self::Components) -> Self;
 }
+
+impl<Head, Tail> Compose for (Head, Tail) {
+    type Components = (Head, Tail);
+
+    #[inline]
+    fn compose(components: Self::Components) -> Self {
+        components
+    }
+}
