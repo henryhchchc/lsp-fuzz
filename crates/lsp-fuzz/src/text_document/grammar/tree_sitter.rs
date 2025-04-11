@@ -2,6 +2,7 @@ use std::{
     fmt::{self, Debug},
     iter::FusedIterator,
     ops::Range,
+    ptr::NonNull,
 };
 
 use tree_sitter::{QueryCaptures, QueryCursor, StreamingIterator, TextProvider};
@@ -89,12 +90,13 @@ impl<'a> TextProvider<&'a [u8]> for &'a TextDocument {
     }
 }
 
-pub struct CapturesIterator<'doc, 'cursor> {
-    captures: QueryCaptures<'cursor, 'doc, &'doc TextDocument, &'doc [u8]>,
+pub struct CapturesIterator<'doc> {
+    cursor_ptr: NonNull<tree_sitter::ffi::TSQueryCursor>,
+    captures: QueryCaptures<'doc, 'doc, &'doc TextDocument, &'doc [u8]>,
     capture_index: u32,
 }
 
-impl Debug for CapturesIterator<'_, '_> {
+impl Debug for CapturesIterator<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CapturesIterator")
             .field("captures", &(&self.captures as *const _))
@@ -103,25 +105,39 @@ impl Debug for CapturesIterator<'_, '_> {
     }
 }
 
-impl<'doc, 'cursor> CapturesIterator<'doc, 'cursor> {
-    pub fn new(
-        doc: &'doc TextDocument,
-        group_name: &str,
-        cursor: &'cursor mut QueryCursor,
-    ) -> Option<Self> {
+impl<'doc> CapturesIterator<'doc> {
+    pub fn new<Name>(doc: &'doc TextDocument, group_name: Name) -> Option<Self>
+    where
+        Name: AsRef<str>,
+    {
         let parse_tree = doc.parse_tree();
         let query = doc.language().ts_highlight_query();
-        let capture_index = query.capture_index_for_name(group_name)?;
-        let captures = cursor.captures(query, parse_tree.root_node(), doc);
+        let capture_index = query.capture_index_for_name(group_name.as_ref())?;
+        let mut cursor = QueryCursor::new();
+        let captures = unsafe {
+            // Safety: We do not drop the cursor until self is dropped. Therefore it is ok to extend the lifetime of the cursor to that of self.
+            std::mem::transmute::<QueryCaptures<'_, 'doc, _, _>, QueryCaptures<'doc, 'doc, _, _>>(
+                cursor.captures(query, parse_tree.root_node(), doc),
+            )
+        };
+        let cursor_ptr = NonNull::new(cursor.into_raw())
+            .expect("QueryCursor::into_raw() does not reutrn null pointer");
 
         Some(Self {
+            cursor_ptr,
             captures,
             capture_index,
         })
     }
 }
 
-impl<'doc> Iterator for CapturesIterator<'doc, '_> {
+impl Drop for CapturesIterator<'_> {
+    fn drop(&mut self) {
+        let _ = unsafe { QueryCursor::from_raw(self.cursor_ptr.as_mut()) };
+    }
+}
+
+impl<'doc> Iterator for CapturesIterator<'doc> {
     type Item = tree_sitter::Node<'doc>;
 
     fn next(&mut self) -> Option<Self::Item> {

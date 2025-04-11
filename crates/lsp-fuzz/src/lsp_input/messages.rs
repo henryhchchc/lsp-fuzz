@@ -169,8 +169,7 @@ where
             .map(|(name, &usage)| (name.clone(), max_usage - usage))
             .collect();
         let chosen = state.rand_mut().weighted_choose(weights)?;
-        let mut cursor = tree_sitter::QueryCursor::new();
-        let captures = CapturesIterator::new(doc, &chosen, &mut cursor)?;
+        let captures = CapturesIterator::new(doc, &chosen)?;
         let node = state.rand_mut().choose(captures)?;
         let pos = node.lsp_start_position();
         let usage_stats = state

@@ -172,7 +172,6 @@ pub mod node_filters {
     use derive_new::new as New;
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
-    use tree_sitter::QueryCursor;
 
     use crate::text_document::{
         GrammarBasedMutation, GrammarContext, TextDocument,
@@ -222,9 +221,7 @@ pub mod node_filters {
             _grammar_context: &GrammarContext,
             state: &mut State,
         ) -> Option<tree_sitter::Node<'t>> {
-            let mut query_cursor = QueryCursor::new();
-            let captured_nodes =
-                CapturesIterator::new(doc, &self.capture_group_name, &mut query_cursor)?;
+            let captured_nodes = CapturesIterator::new(doc, &self.capture_group_name)?;
             state.rand_mut().choose(captured_nodes)
         }
     }

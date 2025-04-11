@@ -151,7 +151,6 @@ pub enum CreationError {
 #[cfg(test)]
 mod tests {
 
-    use ::tree_sitter::QueryCursor;
 
     use crate::text_document::{TextDocument, grammar::tree_sitter::CapturesIterator};
 
@@ -188,14 +187,13 @@ mod tests {
             }
         "#;
         let doc = TextDocument::new(Language::Rust, RUST_CODE.as_bytes().to_vec());
-        let mut cursor = QueryCursor::new();
-        let mut capture_iter = CapturesIterator::new(&doc, "comment", &mut cursor).unwrap();
+        let mut capture_iter = CapturesIterator::new(&doc, "comment").unwrap();
         let node = capture_iter.next().expect("There is one comment node");
         let text = &doc.content[node.byte_range()];
         assert_eq!(text, b"// Hello");
         assert!(dbg!(capture_iter.next()).is_none());
 
-        let mut capture_iter = CapturesIterator::new(&doc, "keyword", &mut cursor).unwrap();
+        let mut capture_iter = CapturesIterator::new(&doc, "keyword").unwrap();
         let node = capture_iter.next().expect("There is one keyword node");
         let text = &doc.content[node.byte_range()];
         assert_eq!(text, b"fn");
