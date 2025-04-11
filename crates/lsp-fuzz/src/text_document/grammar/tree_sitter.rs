@@ -121,7 +121,7 @@ impl<'doc> CapturesIterator<'doc> {
             )
         };
         let cursor_ptr = NonNull::new(cursor.into_raw())
-            .expect("QueryCursor::into_raw() does not reutrn null pointer");
+            .expect("QueryCursor::into_raw() does not return a null pointer");
 
         Some(Self {
             cursor_ptr,
