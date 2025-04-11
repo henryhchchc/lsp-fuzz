@@ -27,7 +27,6 @@ use libafl::{
         StdState,
     },
 };
-
 use libafl_bolts::{
     AsSliceMut, HasLen, current_nanos,
     fs::InputFile,
@@ -50,17 +49,15 @@ use lsp_fuzz::{
     },
     utf8::UTF8Tokens,
 };
-
 use lsp_fuzz_grammars::Language;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
 
+use super::{GlobalOptions, parse_hash_map};
 use crate::{
     fuzzing::{ExecutorOptions, FuzzerStateDir},
     language_fragments::load_grammar_lookup,
 };
-
-use super::{GlobalOptions, parse_hash_map};
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]

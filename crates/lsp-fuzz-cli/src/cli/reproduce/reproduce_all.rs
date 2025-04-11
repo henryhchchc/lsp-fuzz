@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
 use anyhow::Context;
 use libafl::inputs::Input;
@@ -7,8 +6,7 @@ use lsp_fuzz::lsp_input::LspInput;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tracing::info;
 
-use crate::cli::GlobalOptions;
-use crate::cli::reproduce::reproduce;
+use crate::cli::{GlobalOptions, reproduce::reproduce};
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]

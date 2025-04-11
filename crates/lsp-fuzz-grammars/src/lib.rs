@@ -1,3 +1,5 @@
+#![feature(variant_count)]
+
 use derive_more::{Display, FromStr};
 use serde::{Deserialize, Serialize};
 

@@ -1,19 +1,17 @@
-use ahash::{AHasher, HashSetExt};
-use ahash::{HashMap, HashSet};
-use derive_more::derive::{Deref, DerefMut};
-use derive_new::new as New;
-use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::VecDeque, hash::Hasher};
 
+use ahash::{AHasher, HashMap, HashSet, HashSetExt};
+use derive_more::derive::{Deref, DerefMut};
+use derive_new::new as New;
 use libafl::{
     HasMetadata, SerdeAny,
     feedbacks::{Feedback, StateInitializer},
 };
 use libafl_bolts::Named;
-
-use crate::{lsp_input::LspInput, utils::AflContext};
+use serde::{Deserialize, Serialize};
 
 use super::{GrammarBasedMutation, Language};
+use crate::{lsp_input::LspInput, utils::AflContext};
 
 #[derive(Debug, New)]
 pub struct TokenNoveltyFeedback {

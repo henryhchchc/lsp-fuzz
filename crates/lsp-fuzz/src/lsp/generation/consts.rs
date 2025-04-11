@@ -3,9 +3,8 @@ use lsp_types::{
     SignatureHelpTriggerKind, TraceValue,
 };
 
-use crate::lsp_input::LspInput;
-
 use super::{GenerationError, LspParamsGenerator};
+use crate::lsp_input::LspInput;
 
 #[derive(Debug, Clone)]
 pub struct ConstGenerator<T> {

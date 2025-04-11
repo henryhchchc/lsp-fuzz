@@ -9,8 +9,7 @@ use anyhow::{Context, bail};
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
-use reproduce::reproduce_all::ReproduceAll;
-use reproduce::reproduce_one::ReproduceOne;
+use reproduce::{reproduce_all::ReproduceAll, reproduce_one::ReproduceOne};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 

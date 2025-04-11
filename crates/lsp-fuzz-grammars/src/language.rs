@@ -1,9 +1,9 @@
+use std::{collections::BTreeSet, mem::variant_count, sync::OnceLock};
+
 use tree_sitter_language::LanguageFn;
 
-use crate::language_data;
-
 use super::Language;
-use std::{collections::BTreeSet, sync::OnceLock};
+use crate::language_data;
 
 pub(super) struct LanguageInfo {
     pub extensions: &'static [&'static str],
@@ -13,30 +13,23 @@ pub(super) struct LanguageInfo {
     pub ts_language_fn: LanguageFn,
 }
 
-// [TODO] Use `variant_count::<Language>()` when stablized.
-const LANGUAGES_COUNT: usize = 12;
-
-// # Important: The order of this array must be identical to the order of variants in the Language enum.
-const LANGUAGES: [LanguageInfo; LANGUAGES_COUNT] = [
-    language_data::C,
-    language_data::CPP,
-    language_data::JAVASCRIPT,
-    language_data::RUBY,
-    language_data::RUST,
-    language_data::TOML,
-    language_data::LATEX,
-    language_data::BIBTEX,
-    language_data::VERILOG,
-    language_data::SOLIDITY,
-    language_data::MLIR,
-    language_data::QML,
-];
-
 impl Language {
     #[inline]
-    const fn info(&self) -> &'static LanguageInfo {
-        let index = *self as u8 as usize;
-        &LANGUAGES[index]
+    const fn info(&self) -> LanguageInfo {
+        match self {
+            Language::C => language_data::C,
+            Language::CPlusPlus => language_data::CPP,
+            Language::JavaScript => language_data::JAVASCRIPT,
+            Language::Ruby => language_data::RUBY,
+            Language::Rust => language_data::RUST,
+            Language::Toml => language_data::TOML,
+            Language::LaTeX => language_data::LATEX,
+            Language::BibTeX => language_data::BIBTEX,
+            Language::Verilog => language_data::VERILOG,
+            Language::Solidity => language_data::SOLIDITY,
+            Language::MLIR => language_data::MLIR,
+            Language::QML => language_data::QML,
+        }
     }
 
     pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
@@ -57,8 +50,8 @@ impl Language {
     /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
     /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
     pub fn ts_highlight_query(&self) -> &'static tree_sitter::Query {
-        static QUERIES: [OnceLock<tree_sitter::Query>; LANGUAGES_COUNT] =
-            [const { OnceLock::new() }; LANGUAGES_COUNT];
+        static QUERIES: [OnceLock<tree_sitter::Query>; variant_count::<Language>()] =
+            [const { OnceLock::new() }; variant_count::<Language>()];
 
         let query_idx = (*self as u8) as usize;
         QUERIES[query_idx].get_or_init(|| {

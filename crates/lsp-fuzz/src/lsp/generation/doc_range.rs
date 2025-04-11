@@ -1,26 +1,20 @@
-use libafl::state::HasRand;
-use libafl_bolts::rands::Rand;
+use std::{marker::PhantomData, result::Result};
 
 use derive_new::new as New;
+use libafl::state::HasRand;
+use libafl_bolts::rands::Rand;
+use lsp_types::{Position, Range, TextDocumentIdentifier};
 
 use super::{GenerationError, LspParamsGenerator};
-
-use std::result::Result;
-
 use crate::{
     lsp::HasPredefinedGenerators,
     lsp_input::LspInput,
     text_document::{
+        GrammarBasedMutation, TextDocument,
         grammar::tree_sitter::TreeIter,
         mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
     },
 };
-
-use std::marker::PhantomData;
-
-use crate::text_document::{GrammarBasedMutation, TextDocument};
-
-use lsp_types::{Position, Range, TextDocumentIdentifier};
 
 #[derive(Debug)]
 pub struct RangeInDoc(pub TextDocumentIdentifier, pub Range);

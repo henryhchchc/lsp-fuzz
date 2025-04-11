@@ -9,12 +9,11 @@ use libafl::{
 use libafl_bolts::{HasLen, Named, rands::Rand};
 use lsp_types::Uri;
 
-use crate::lsp_input::LspInput;
-
 use super::{
     GrammarBasedMutation, GrammarContextLookup, TextDocument, generation::GrammarContext,
     grammar::tree_sitter::TreeIter,
 };
+use crate::lsp_input::LspInput;
 
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
 
@@ -120,14 +119,14 @@ where
 }
 
 pub mod text_document_selectors {
+    use std::option::Option;
+
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
     use lsp_types::Uri;
-    use std::option::Option;
-
-    use crate::{lsp_input::LspInput, text_document::TextDocument};
 
     use super::TextDocumentSelector;
+    use crate::{lsp_input::LspInput, text_document::TextDocument};
 
     #[derive(Debug)]
     pub struct RandomDoc;
@@ -173,12 +172,11 @@ pub mod node_filters {
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
 
+    use super::NodeSelector;
     use crate::text_document::{
         GrammarBasedMutation, GrammarContext, TextDocument,
         grammar::tree_sitter::{CapturesIterator, TreeIter},
     };
-
-    use super::NodeSelector;
 
     #[derive(Debug, Clone, Copy, New)]
     pub struct NodesThat<Predicate> {
@@ -234,9 +232,8 @@ pub mod node_generators {
     use libafl::{HasMetadata, state::HasRand};
     use libafl_bolts::rands::Rand;
 
-    use crate::text_document::generation::{GrammarContext, NamedNodeGenerator, RuleUsageSteer};
-
     use super::NodeGenerator;
+    use crate::text_document::generation::{GrammarContext, NamedNodeGenerator, RuleUsageSteer};
 
     #[derive(Debug)]
     pub struct EmptyNode;

@@ -1,13 +1,13 @@
+use std::{borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, ops::Range};
+
 use itertools::Itertools;
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_fuzz_grammars::Language;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, ops::Range};
-
-use crate::utils::RandExt;
 
 use super::grammar::{DerivationSequence, Grammar, Symbol, Terminal};
+use crate::utils::RandExt;
 
 #[derive(Debug, Serialize, Deserialize, libafl_bolts::SerdeAny)]
 pub struct GrammarContextLookup {

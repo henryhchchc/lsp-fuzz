@@ -1,9 +1,10 @@
-use anyhow::bail;
 use core::fmt;
+use std::fmt::{Display, Formatter};
+
+use anyhow::bail;
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 
 pub mod fragment_extraction;
 pub mod tree_sitter;
@@ -151,9 +152,8 @@ pub enum CreationError {
 #[cfg(test)]
 mod tests {
 
-    use crate::text_document::{TextDocument, grammar::tree_sitter::CapturesIterator};
-
     use super::*;
+    use crate::text_document::{TextDocument, grammar::tree_sitter::CapturesIterator};
 
     #[test]
     fn load_all_derivation_grammars() {

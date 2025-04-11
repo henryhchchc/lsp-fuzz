@@ -1,21 +1,15 @@
-use super::GenerationError;
+use std::{marker::PhantomData, result::Result};
 
-use std::result::Result;
-
-use crate::{
-    lsp::HasPredefinedGenerators, lsp_input::LspInput,
-    text_document::mutations::text_document_selectors::RandomDoc,
-};
-
+use derive_new::new as New;
 use libafl::state::HasRand;
 use lsp_types::TextDocumentIdentifier;
 
-use crate::text_document::mutations::TextDocumentSelector;
-
-use super::LspParamsGenerator;
-use derive_new::new as New;
-
-use std::marker::PhantomData;
+use super::{GenerationError, LspParamsGenerator};
+use crate::{
+    lsp::HasPredefinedGenerators,
+    lsp_input::LspInput,
+    text_document::mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
+};
 
 #[derive(Debug, New)]
 pub struct TextDocumentIdentifierGenerator<D> {

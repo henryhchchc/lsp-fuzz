@@ -1,7 +1,9 @@
-use libafl::{HasMetadata, state::HasRand};
-use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 use std::{marker::PhantomData, rc::Rc};
 
+use libafl::{HasMetadata, state::HasRand};
+use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
+
+use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
 use crate::{
     lsp_input::{
         LspInput,
@@ -11,8 +13,6 @@ use crate::{
     },
     text_document::mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
 };
-
-use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
 
 #[derive(Debug)]
 pub struct TextDocumentPositionParamsGenerator<D, PosSel> {

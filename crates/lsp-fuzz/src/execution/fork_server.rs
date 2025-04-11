@@ -32,9 +32,8 @@ use nix::{
 use os_pipe::{PipeReader, PipeWriter};
 use tracing::{debug, info, warn};
 
-use crate::utils::AflContext;
-
 use super::FuzzInput;
+use crate::utils::AflContext;
 
 /// Represents the different ways to set up fuzzing input for the target.
 #[derive(Debug)]

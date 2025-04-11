@@ -14,12 +14,14 @@ use lsp_types::{
 use trait_gen::trait_gen;
 use tuple_list::{TupleList, tuple_list_type};
 
-use crate::lsp_input::LspInput;
-
 use super::{
     Compose,
-    generation::{TabSize, ZeroToOne32, doc_range::RangeInDoc},
+    generation::{
+        doc_range::RangeInDoc,
+        numeric::{TabSize, ZeroToOne32},
+    },
 };
+use crate::lsp_input::LspInput;
 
 impl<Head, Tail> Compose for (Head, Tail) {
     type Components = (Head, Tail);

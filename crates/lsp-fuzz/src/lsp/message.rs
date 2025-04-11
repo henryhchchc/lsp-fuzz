@@ -2,9 +2,8 @@ use std::{borrow::Cow, mem, ops::Range};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{lsp_input::LspInput, macros::lsp_messages};
-
 use super::json_rpc::JsonRPCMessage;
+use crate::{lsp_input::LspInput, macros::lsp_messages};
 
 lsp_messages! {
     /// A Language Server Protocol message.

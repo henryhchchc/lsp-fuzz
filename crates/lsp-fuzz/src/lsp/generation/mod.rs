@@ -1,15 +1,7 @@
-use std::{
-    marker::{PhantomData, Sized},
-    ops::Deref,
-    result::Result,
-};
-
-use libafl::state::HasRand;
-use libafl_bolts::rands::Rand;
-
-use crate::lsp_input::LspInput;
+use std::{marker::Sized, ops::Deref, result::Result};
 
 use super::HasPredefinedGenerators;
+use crate::lsp_input::LspInput;
 pub mod composition;
 pub mod consts;
 pub mod doc;

@@ -1,11 +1,5 @@
 use std::{
-    any::type_name,
-    borrow::Cow,
-    fmt::Debug,
-    iter::{once, repeat},
-    marker::PhantomData,
-    rc::Rc,
-    sync::Arc,
+    any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData, rc::Rc, sync::Arc,
 };
 
 use derive_more::derive::{Deref, DerefMut};
@@ -25,10 +19,11 @@ use serde::{Deserialize, Serialize};
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list, tuple_list_type};
 
+use super::LspInput;
 use crate::{
     lsp::{
         self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
-        generation::{DefaultGenerator, GenerationError, LspParamsGenerator, MappingGenerator},
+        generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
     },
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
@@ -38,8 +33,6 @@ use crate::{
     },
     utils::RandExt,
 };
-
-use super::LspInput;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
 pub struct LspMessages {
@@ -273,26 +266,6 @@ impl<State: 'static> HasPredefinedGenerators<State> for P {
     }
 }
 
-
-impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
-where
-    State: 'static,
-    A: HasPredefinedGenerators<State> + 'static,
-    B: HasPredefinedGenerators<State> + 'static,
-{
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let left_gen = A::generators()
-            .into_iter()
-            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Left)) as _);
-        let right_gen = B::generators()
-            .into_iter()
-            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Right)) as _);
-        left_gen.chain(right_gen)
-    }
-}
-
 #[derive(Debug, New)]
 pub struct OptionGenerator<State, T>
 where
@@ -331,22 +304,6 @@ where
         } else {
             Ok(None)
         }
-    }
-}
-
-impl<State, T> HasPredefinedGenerators<State> for Option<T>
-where
-    State: 'static,
-    T: HasPredefinedGenerators<State> + 'static,
-    T::Generator: Clone,
-{
-    type Generator = OptionGenerator<State, T>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        T::generators()
-            .into_iter()
-            .flat_map(|g| [OptionGenerator::new(Some(g))])
-            .chain(once(OptionGenerator::new(None)))
     }
 }
 

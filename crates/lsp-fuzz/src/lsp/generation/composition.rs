@@ -1,11 +1,10 @@
 use std::marker::PhantomData;
 
+use super::{GenerationError, LspParamsGenerator};
 use crate::{
     lsp::{Compose, HasPredefinedGenerators},
     lsp_input::LspInput,
 };
-
-use super::{GenerationError, LspParamsGenerator};
 
 impl<State, T, T1, T2> HasPredefinedGenerators<State> for T
 where

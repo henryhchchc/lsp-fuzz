@@ -234,11 +234,12 @@ fn jsonrpc_version_deserialize() {
 
 #[test]
 fn test_lsp_request() {
-    use crate::lsp::ClientToServerMessage;
     use lsp_types::{
         InitializeParams, WorkspaceFolder,
         request::{Initialize, Request},
     };
+
+    use crate::lsp::ClientToServerMessage;
 
     let request = ClientToServerMessage::Initialize(InitializeParams {
         workspace_folders: Some(vec![WorkspaceFolder {

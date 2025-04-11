@@ -1,21 +1,19 @@
 //! APIs exposed from the [`tree_sitter_generate`](https://github.com/tree-sitter/tree-sitter/tree/master/cli/generate) project.
 
-use crate::text_document::grammar::{CreationError, DerivationSequence, Grammar, Symbol, Terminal};
 use indexmap::IndexSet;
 use itertools::Itertools;
 use lsp_fuzz_grammars::Language;
 
 use super::upstream::tree_sitter_generate::{
-    grammars::{LexicalVariable, ProductionStep, SyntaxVariable},
-    rules::Alias,
-};
-
-use super::upstream::tree_sitter_generate::{
-    grammars::{LexicalGrammar, SyntaxGrammar, VariableType},
+    grammars::{
+        LexicalGrammar, LexicalVariable, ProductionStep, SyntaxGrammar, SyntaxVariable,
+        VariableType,
+    },
     parse_grammar::parse_grammar,
     prepare_grammar::prepare_grammar,
-    rules::{AliasMap, SymbolType},
+    rules::{Alias, AliasMap, SymbolType},
 };
+use crate::text_document::grammar::{CreationError, DerivationSequence, Grammar, Symbol, Terminal};
 
 impl Grammar {
     pub fn from_tree_sitter_grammar_json(
