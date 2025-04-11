@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, num::NonZeroUsize, result::Result};
+use std::{marker::PhantomData, num::NonZeroUsize, rc::Rc, result::Result};
 
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
@@ -92,14 +92,14 @@ where
 
 impl<State> HasPredefinedGenerators<State> for String
 where
-    State: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata,
 {
-    type Generator = &'static dyn LspParamsGenerator<State, Output = Self>;
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
-        static TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
-        static TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
-        [&DEFAULT as _, &TOKENS as _, &TERMINAL_TEXT as _]
-    }
+            const DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
+            const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
+            const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
+            [Rc::new(DEFAULT) as _, Rc::new(TOKENS) as _, Rc::new(TERMINAL_TEXT) as _]
+        }
 }

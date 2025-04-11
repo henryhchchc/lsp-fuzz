@@ -1,16 +1,4 @@
-use lsp_types::{
-    CallHierarchyPrepareParams, CodeActionContext, CodeActionKind, CodeActionParams,
-    CodeActionTriggerKind, CodeLensParams, Color, ColorPresentationParams, CompletionContext,
-    CompletionParams, CompletionTriggerKind, DocumentColorParams, DocumentDiagnosticParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentOnTypeFormattingParams,
-    DocumentRangeFormattingParams, DocumentSymbolParams, FoldingRangeParams, FormattingOptions,
-    GotoDefinitionParams, HoverParams, InlayHintParams, LinkedEditingRangeParams, LogTraceParams,
-    MonikerParams, PartialResultParams, PreviousResultId, ReferenceContext, ReferenceParams,
-    RenameParams, SelectionRangeParams, SemanticTokensParams, SemanticTokensRangeParams,
-    SignatureHelpContext, SignatureHelpParams, SignatureHelpTriggerKind, TextDocumentIdentifier,
-    TextDocumentPositionParams, TypeHierarchyPrepareParams, WorkDoneProgressParams,
-    WorkspaceDiagnosticParams, WorkspaceSymbolParams,
-};
+use lsp_types::*;
 use trait_gen::trait_gen;
 use tuple_list::{TupleList, tuple_list_type};
 
@@ -24,9 +12,13 @@ use super::{
 use crate::lsp_input::LspInput;
 
 macro_rules! compose {
-    ($output: ty {
-        $( $field: ident: $field_type: ty ),*
-    }) => {
+    (
+        $(#[$outer:meta])*
+        $output: ty {
+            $( $field: ident: $field_type: ty ),*
+        }
+    ) => {
+        $(#[$outer])*
         impl Compose for $output {
             type Components = tuple_list_type![
                 $( $field_type ),*
@@ -41,27 +33,44 @@ macro_rules! compose {
     };
 }
 
-#[trait_gen(T ->
-    GotoDefinitionParams,
-    DocumentHighlightParams,
-    MonikerParams,
-)]
-impl Compose for T {
-    type Components = tuple_list_type![
-        TextDocumentPositionParams,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
+compose! {
+    #[trait_gen(T ->
+        GotoDefinitionParams,
+        DocumentHighlightParams,
+        MonikerParams,
+    )]
+    T {
+        text_document_position_params: TextDocumentPositionParams,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
+    }
+}
 
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position_params, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            text_document_position_params,
-            work_done_progress_params,
-            partial_result_params,
-        }
+compose! {
+    #[trait_gen(T ->
+        CallHierarchyPrepareParams,
+        TypeHierarchyPrepareParams,
+        HoverParams,
+        LinkedEditingRangeParams
+    )]
+    T {
+        text_document_position_params: TextDocumentPositionParams,
+        work_done_progress_params: WorkDoneProgressParams
+    }
+}
+
+compose! {
+    #[trait_gen(T ->
+        SemanticTokensParams,
+        DocumentSymbolParams,
+        DocumentLinkParams,
+        DocumentColorParams,
+        CodeLensParams,
+    )]
+    T {
+        text_document: TextDocumentIdentifier,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
     }
 }
 
@@ -88,6 +97,7 @@ impl Compose for SignatureHelpContext {
         }
     }
 }
+
 compose! {
     FoldingRangeParams {
         text_document: TextDocumentIdentifier,
@@ -119,25 +129,6 @@ compose! {
     }
 }
 
-#[trait_gen(T ->
-    CallHierarchyPrepareParams,
-    TypeHierarchyPrepareParams,
-    HoverParams,
-    LinkedEditingRangeParams
-)]
-impl Compose for T {
-    type Components = tuple_list_type![TextDocumentPositionParams, WorkDoneProgressParams];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document_position_params, work_done_progress_params) = components.into_tuple();
-        Self {
-            text_document_position_params,
-            work_done_progress_params,
-        }
-    }
-}
-
 compose! {
     DocumentDiagnosticParams {
         text_document: TextDocumentIdentifier,
@@ -153,32 +144,6 @@ compose! {
         query: String,
         work_done_progress_params: WorkDoneProgressParams,
         partial_result_params: PartialResultParams
-    }
-}
-
-#[trait_gen(T ->
-    SemanticTokensParams,
-    DocumentSymbolParams,
-    DocumentLinkParams,
-    DocumentColorParams,
-    CodeLensParams,
-)]
-impl Compose for T {
-    type Components = tuple_list_type![
-        TextDocumentIdentifier,
-        WorkDoneProgressParams,
-        PartialResultParams
-    ];
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        let (text_document, work_done_progress_params, partial_result_params) =
-            components.into_tuple();
-        Self {
-            work_done_progress_params,
-            partial_result_params,
-            text_document,
-        }
     }
 }
 
@@ -278,7 +243,6 @@ compose! {
         verbose: Option<String>
     }
 }
-
 
 compose! {
     WorkspaceDiagnosticParams {

@@ -56,7 +56,7 @@ where
 
 impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
 where
-    State: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata,
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 

@@ -1,6 +1,4 @@
-use std::{
-    any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData, rc::Rc, sync::Arc,
-};
+use std::{any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData, rc::Rc};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -209,49 +207,6 @@ pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::ClientToSer
 use lsp_types::*;
 
 #[trait_gen(P ->
-        ApplyWorkspaceEditParams,
-        CallHierarchyIncomingCallsParams,
-        CallHierarchyOutgoingCallsParams,
-        CancelParams,
-        CodeAction,
-        CodeLens,
-        CompletionItem,
-        ConfigurationParams,
-        CreateFilesParams,
-        DeleteFilesParams,
-        DidChangeConfigurationParams,
-        DidChangeNotebookDocumentParams,
-        DidChangeTextDocumentParams,
-        DidChangeWatchedFilesParams,
-        DidChangeWorkspaceFoldersParams,
-        DidCloseNotebookDocumentParams,
-        DidCloseTextDocumentParams,
-        DidOpenNotebookDocumentParams,
-        DidSaveNotebookDocumentParams,
-        DidSaveTextDocumentParams,
-        DocumentLink,
-        ExecuteCommandParams,
-        InlayHint,
-        InlineValueParams,
-        PublishDiagnosticsParams,
-        RegistrationParams,
-        RenameFilesParams,
-        SemanticTokensDeltaParams,
-        TypeHierarchySubtypesParams,
-        TypeHierarchySupertypesParams,
-        UnregistrationParams,
-        WillSaveTextDocumentParams,
-        WorkspaceSymbol,
-)]
-impl<State> HasPredefinedGenerators<State> for P {
-    type Generator = Arc<dyn LspParamsGenerator<State, Output = Self>>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        []
-    }
-}
-
-#[trait_gen(P ->
     WorkDoneProgressParams,
     PartialResultParams,
     (),
@@ -263,47 +218,6 @@ impl<State: 'static> HasPredefinedGenerators<State> for P {
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         [DefaultGenerator::new()]
-    }
-}
-
-#[derive(Debug, New)]
-pub struct OptionGenerator<State, T>
-where
-    State: 'static,
-    T: HasPredefinedGenerators<State>,
-{
-    inner: Option<T::Generator>,
-    _state: PhantomData<State>,
-}
-
-impl<State, T> Clone for OptionGenerator<State, T>
-where
-    State: 'static,
-    T: HasPredefinedGenerators<State>,
-    T::Generator: Clone,
-{
-    fn clone(&self) -> Self {
-        Self::new(self.inner.clone())
-    }
-}
-
-impl<State, T> LspParamsGenerator<State> for OptionGenerator<State, T>
-where
-    State: 'static,
-    T: HasPredefinedGenerators<State> + 'static,
-{
-    type Output = Option<T>;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        if let Some(ref inner) = self.inner {
-            Ok(Some(inner.generate(state, input)?))
-        } else {
-            Ok(None)
-        }
     }
 }
 

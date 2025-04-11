@@ -40,7 +40,7 @@ where
 
 impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
 where
-    State: HasRand + 'static,
+    State: HasRand,
 {
     type Generator = TextDocumentIdentifierGenerator<RandomDoc>;
 

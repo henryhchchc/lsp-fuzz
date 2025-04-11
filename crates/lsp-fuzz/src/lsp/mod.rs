@@ -23,9 +23,7 @@ where
 pub trait HasPredefinedGenerators<State> {
     type Generator: LspParamsGenerator<State, Output = Self>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
-    where
-        State: 'static;
+    fn generators() -> impl IntoIterator<Item = Self::Generator>;
 }
 
 pub trait Compose {

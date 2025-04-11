@@ -1,12 +1,11 @@
-use std::{iter::once, marker::PhantomData, rc::Rc};
+use std::{marker::PhantomData, rc::Rc};
 
+use libafl::state::HasRand;
+use libafl_bolts::rands::Rand;
 use lsp_types::OneOf;
 
 use super::{GenerationError, LspParamsGenerator};
-use crate::{
-    lsp::HasPredefinedGenerators,
-    lsp_input::{LspInput, messages::OptionGenerator},
-};
+use crate::{lsp::HasPredefinedGenerators, lsp_input::LspInput};
 
 #[derive(Debug)]
 pub struct DefaultGenerator<T> {
@@ -49,23 +48,18 @@ where
 }
 
 #[derive(Debug)]
-pub struct MappingGenerator<State, G, T, U> {
+pub struct MappingGenerator<G, T, U> {
     generator: G,
     mapper: fn(T) -> U,
-    _phantom: PhantomData<State>,
 }
 
-impl<State, G, T, U> MappingGenerator<State, G, T, U> {
+impl<G, T, U> MappingGenerator<G, T, U> {
     pub const fn new(generator: G, mapper: fn(T) -> U) -> Self {
-        Self {
-            generator,
-            mapper,
-            _phantom: PhantomData,
-        }
+        Self { generator, mapper }
     }
 }
 
-impl<State, G, T, U> Clone for MappingGenerator<State, G, T, U>
+impl<G, T, U> Clone for MappingGenerator<G, T, U>
 where
     G: Clone,
 {
@@ -75,7 +69,7 @@ where
     }
 }
 
-impl<State, G, T, U> LspParamsGenerator<State> for MappingGenerator<State, G, T, U>
+impl<State, G, T, U> LspParamsGenerator<State> for MappingGenerator<G, T, U>
 where
     G: LspParamsGenerator<State, Output = T>,
 {
@@ -92,9 +86,10 @@ where
 
 impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
 where
-    State: 'static,
     A: HasPredefinedGenerators<State> + 'static,
     B: HasPredefinedGenerators<State> + 'static,
+    A::Generator: 'static,
+    B::Generator: 'static,
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
@@ -111,16 +106,55 @@ where
 
 impl<State, T> HasPredefinedGenerators<State> for Option<T>
 where
-    State: 'static,
-    T: HasPredefinedGenerators<State> + 'static,
-    T::Generator: Clone,
+    T: HasPredefinedGenerators<State>,
+    OptionGenerator<T::Generator>: LspParamsGenerator<State, Output = Option<T>>,
 {
-    type Generator = OptionGenerator<State, T>;
+    type Generator = OptionGenerator<T::Generator>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         T::generators()
             .into_iter()
-            .flat_map(|g| [OptionGenerator::new(Some(g))])
-            .chain(once(OptionGenerator::new(None)))
+            .map(|inner| OptionGenerator::new(inner, 0.2))
+    }
+}
+
+#[derive(Debug)]
+pub struct OptionGenerator<G> {
+    inner: G,
+    none_prob: f64,
+}
+
+impl<G> OptionGenerator<G> {
+    pub const fn new(inner: G, none_prob: f64) -> Self {
+        Self { inner, none_prob }
+    }
+}
+
+impl<G> Clone for OptionGenerator<G>
+where
+    G: Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.inner.clone(), self.none_prob)
+    }
+}
+
+impl<State, G> LspParamsGenerator<State> for OptionGenerator<G>
+where
+    State: HasRand,
+    G: LspParamsGenerator<State>,
+{
+    type Output = Option<G::Output>;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        if state.rand_mut().coinflip(self.none_prob) {
+            Ok(None)
+        } else {
+            self.inner.generate(state, input).map(Some)
+        }
     }
 }

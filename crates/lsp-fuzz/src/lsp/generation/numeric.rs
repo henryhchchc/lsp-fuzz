@@ -31,10 +31,7 @@ where
 {
     type Generator = ZeroToOne32Gen;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
-    where
-        State: 'static,
-    {
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
         [ZeroToOne32Gen]
     }
 }
@@ -71,10 +68,7 @@ where
 {
     type Generator = TabSizeGen;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
-    where
-        State: 'static,
-    {
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
         [TabSizeGen]
     }
 }

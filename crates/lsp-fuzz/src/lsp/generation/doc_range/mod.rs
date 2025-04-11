@@ -58,7 +58,7 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where
-        State: HasRand + 'static,
+        State: HasRand,
     {
         [
             range_selectors::whole_range,

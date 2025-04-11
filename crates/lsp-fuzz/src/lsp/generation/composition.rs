@@ -8,18 +8,15 @@ use crate::{
 
 impl<State, T, T1, T2> HasPredefinedGenerators<State> for T
 where
-    T1: HasPredefinedGenerators<State> + 'static,
-    T2: HasPredefinedGenerators<State> + 'static,
-    T: Compose<Components = (T1, T2)> + 'static,
+    T1: HasPredefinedGenerators<State>,
+    T2: HasPredefinedGenerators<State>,
+    T: Compose<Components = (T1, T2)>,
     T1::Generator: Clone,
     T2::Generator: Clone,
 {
     type Generator = CompositionGenerator<T1::Generator, T2::Generator, Self>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
-    where
-        State: 'static,
-    {
+    fn generators() -> impl IntoIterator<Item = Self::Generator> {
         let t1_generators = T1::generators();
         t1_generators.into_iter().flat_map(|g1| {
             T2::generators()
