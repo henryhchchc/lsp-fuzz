@@ -1,11 +1,8 @@
-
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
 use lsp_types::{Position, Range};
 
-use crate::text_document::{
-    GrammarBasedMutation, TextDocument, grammar::tree_sitter::TreeIter,
-};
+use crate::text_document::{GrammarBasedMutation, TextDocument, grammar::tree_sitter::TreeIter};
 
 fn lsp_whole_range(doc: &TextDocument) -> Range {
     let start = lsp_types::Position::default();
