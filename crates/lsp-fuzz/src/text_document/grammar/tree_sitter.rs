@@ -86,7 +86,7 @@ impl<'a> TextProvider<&'a [u8]> for &'a TextDocument {
     type I = std::iter::Once<&'a [u8]>;
 
     fn text(&mut self, node: tree_sitter::Node<'_>) -> Self::I {
-        std::iter::once(&self.content[node.byte_range()])
+        std::iter::once(&self.content()[node.byte_range()])
     }
 }
 

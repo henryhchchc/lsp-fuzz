@@ -47,7 +47,7 @@ where
             .afl_context("No text document found")?;
         let seen_hashes = state.metadata_or_insert_with(SeenTokenHashes::default);
         if let Some(token_hashes) = hash_paths(text_document.parse_tree(), self.max_depth) {
-            let is_interesting = seen_hashes.update(text_document.language, token_hashes);
+            let is_interesting = seen_hashes.update(text_document.language(), token_hashes);
             Ok(is_interesting)
         } else {
             Ok(false)
