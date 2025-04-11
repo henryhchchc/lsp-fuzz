@@ -293,10 +293,10 @@ impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
 where
     State: HasRand + 'static,
 {
-    type Generator = TextDocumentIdentifierGenerator<RandomDoc<State>>;
+    type Generator = TextDocumentIdentifierGenerator<RandomDoc>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [TextDocumentIdentifierGenerator::<RandomDoc<State>>::new()]
+        [TextDocumentIdentifierGenerator::<RandomDoc>::new()]
     }
 }
 
@@ -307,8 +307,7 @@ where
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        type SelectInRandomDoc<State, PosSel> =
-            TextDocumentPositionParamsGenerator<RandomDoc<State>, PosSel>;
+        type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         let term_start_pos = TerminalStartPosition::new();
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
@@ -410,7 +409,7 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
-        static TOKENS: UTF8TokensGenerator<String> = UTF8TokensGenerator::new();
+        static TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
         [&DEFAULT as _, &TOKENS as _]
     }
 }

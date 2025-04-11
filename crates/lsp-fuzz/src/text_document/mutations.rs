@@ -123,16 +123,16 @@ pub mod text_document_selectors {
     use libafl::state::HasRand;
     use libafl_bolts::rands::Rand;
     use lsp_types::Uri;
-    use std::{marker::PhantomData, option::Option};
+    use std::option::Option;
 
     use crate::{lsp_input::LspInput, text_document::TextDocument};
 
     use super::TextDocumentSelector;
 
     #[derive(Debug)]
-    pub struct RandomDoc<State>(PhantomData<State>);
+    pub struct RandomDoc;
 
-    impl<State> TextDocumentSelector<State> for RandomDoc<State>
+    impl<State> TextDocumentSelector<State> for RandomDoc
     where
         State: HasRand,
     {

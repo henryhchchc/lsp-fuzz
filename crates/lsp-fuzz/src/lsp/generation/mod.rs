@@ -297,19 +297,15 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct UTF8TokensGenerator<T> {
-    _phantom: PhantomData<T>,
-}
+pub struct UTF8TokensGenerator;
 
-impl<T> UTF8TokensGenerator<T> {
+impl UTF8TokensGenerator {
     pub const fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
+        Self
     }
 }
 
-impl<State> LspParamsGenerator<State> for UTF8TokensGenerator<String>
+impl<State> LspParamsGenerator<State> for UTF8TokensGenerator
 where
     State: HasMetadata + HasRand,
 {
@@ -331,6 +327,47 @@ where
         let tokens: &UTF8Tokens = unsafe { state.metadata().unwrap_unchecked() };
         let token = tokens[idx].clone();
         Ok(token)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TerminalTextGenerator<DocSel> {
+    _phantom: PhantomData<DocSel>,
+}
+
+impl<DocSel> TerminalTextGenerator<DocSel> {
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<State, DocSel> LspParamsGenerator<State> for TerminalTextGenerator<DocSel>
+where
+    State: HasRand,
+    DocSel: TextDocumentSelector<State>,
+{
+    type Output = String;
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let doc = DocSel::select_document(state, input)
+            .map(|it| it.1)
+            .ok_or(GenerationError::NothingGenerated)?;
+        let terminal_text = doc
+            .parse_tree()
+            .iter()
+            .filter(|it| it.child_count() == 0)
+            .filter_map(|node| node.utf8_text(doc.content()).ok());
+        let text = state
+            .rand_mut()
+            .choose(terminal_text)
+            .ok_or(GenerationError::NothingGenerated)?;
+
+        Ok(text.to_owned())
     }
 }
 
@@ -372,7 +409,7 @@ impl<State> HasPredefinedGenerators<State> for RangeInDoc
 where
     State: HasRand,
 {
-    type Generator = RangeInDocGenerator<State, RandomDoc<State>>;
+    type Generator = RangeInDocGenerator<State, RandomDoc>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator>
     where

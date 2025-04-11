@@ -94,6 +94,10 @@ impl TextDocument {
     pub fn lines(&self) -> impl DoubleEndedIterator<Item = &[u8]> {
         self.content.as_slice().split(|&it| it == LINE_SEP)
     }
+
+    pub const fn content(&self) -> &[u8] {
+        self.content.as_slice()
+    }
 }
 
 pub trait GrammarBasedMutation {
@@ -191,7 +195,7 @@ impl HasLen for TextDocument {
 }
 
 type ReplaceNodeInRandomRoc<'a, State, NodeSel, NodeGen> =
-    ReplaceNodeMutation<'a, RandomDoc<State>, NodeSel, NodeGen, State>;
+    ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen, State>;
 
 pub fn text_document_mutations<State>(
     grammar_lookup: &GrammarContextLookup,
@@ -220,7 +224,7 @@ where
             HighlightedNodes::new("comment".to_owned()),
             EmptyNode
         ),
-        DropUncoveredArea::<RandomDoc<State>>::new(),
+        DropUncoveredArea::<RandomDoc>::new(),
     ]
 }
 
@@ -239,7 +243,7 @@ where
             EmptyNode
         ),
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
-        DropUncoveredArea::<RandomDoc<State>>::new(),
+        DropUncoveredArea::<RandomDoc>::new(),
     ]
 }
 
