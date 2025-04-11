@@ -1,28 +1,19 @@
-use crate::lsp::HasPredefinedGenerators;
-use crate::lsp::generation::DefaultGenerator;
-use crate::text_document::GrammarBasedMutation;
-use crate::text_document::grammar::tree_sitter::TreeIter;
-use crate::text_document::mutations::TextDocumentSelector;
-use crate::text_document::mutations::text_document_selectors::RandomDoc;
+use std::{marker::PhantomData, num::NonZeroUsize, result::Result};
 
-use std::marker::PhantomData;
-
-use std::num::NonZeroUsize;
-
-use crate::utf8::UTF8Tokens;
-
-use super::GenerationError;
-
-use std::result::Result;
-
-use crate::lsp_input::LspInput;
-
-use libafl::state::HasRand;
-
-use libafl::HasMetadata;
+use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 
-use super::LspParamsGenerator;
+use super::{GenerationError, LspParamsGenerator};
+use crate::{
+    lsp::{HasPredefinedGenerators, generation::meta::DefaultGenerator},
+    lsp_input::LspInput,
+    text_document::{
+        GrammarBasedMutation,
+        grammar::tree_sitter::TreeIter,
+        mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
+    },
+    utf8::UTF8Tokens,
+};
 
 #[derive(Debug, Default)]
 pub struct UTF8TokensGenerator;
