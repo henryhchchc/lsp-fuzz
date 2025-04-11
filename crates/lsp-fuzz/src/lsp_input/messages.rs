@@ -31,7 +31,6 @@ use crate::{
         generation::{
             ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
             MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
-            UTF8TokensGenerator,
         },
     },
     macros::{append_randoms, prop_mutator},
@@ -398,19 +397,6 @@ where
             .into_iter()
             .flat_map(|g| [OptionGenerator::new(Some(g))])
             .chain(once(OptionGenerator::new(None)))
-    }
-}
-
-impl<State> HasPredefinedGenerators<State> for String
-where
-    State: HasRand + HasMetadata + 'static,
-{
-    type Generator = &'static dyn LspParamsGenerator<State, Output = Self>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        static DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
-        static TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
-        [&DEFAULT as _, &TOKENS as _]
     }
 }
 

@@ -1,12 +1,11 @@
 use std::{
     marker::{PhantomData, Sized},
-    num::NonZeroUsize,
     ops::Deref,
     result::Result,
 };
 
 use derive_new::new as New;
-use libafl::{HasMetadata, state::HasRand};
+use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
 use lsp_types::{
     CodeActionKind, CodeActionTriggerKind, CompletionTriggerKind, Position, Range, SetTraceParams,
@@ -21,10 +20,11 @@ use crate::{
         grammar::tree_sitter::TreeIter,
         mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
     },
-    utf8::UTF8Tokens,
 };
 
-use super::{Compose, HasPredefinedGenerators};
+use super::HasPredefinedGenerators;
+pub mod composition;
+pub mod string;
 
 pub trait LspParamsGenerator<State> {
     type Output;
@@ -223,151 +223,6 @@ where
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
         self.generator.generate(state, input).map(self.mapper)
-    }
-}
-
-impl<State, T, T1, T2> HasPredefinedGenerators<State> for T
-where
-    T1: HasPredefinedGenerators<State> + 'static,
-    T2: HasPredefinedGenerators<State> + 'static,
-    T: Compose<Components = (T1, T2)> + 'static,
-    T1::Generator: Clone,
-    T2::Generator: Clone,
-{
-    type Generator = CompositionGenerator<T1::Generator, T2::Generator, Self>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
-    where
-        State: 'static,
-    {
-        let t1_generators = T1::generators();
-        t1_generators.into_iter().flat_map(|g1| {
-            T2::generators()
-                .into_iter()
-                .map(move |g2| CompositionGenerator::new(g1.clone(), g2.clone()))
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct CompositionGenerator<G1, G2, T> {
-    generator1: G1,
-    generator2: G2,
-    _phantom: PhantomData<fn() -> T>,
-}
-
-impl<G1, G2, T> CompositionGenerator<G1, G2, T> {
-    pub const fn new(generator1: G1, generator2: G2) -> Self {
-        Self {
-            generator1,
-            generator2,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<G1, G2, T> Clone for CompositionGenerator<G1, G2, T>
-where
-    G1: Clone,
-    G2: Clone,
-{
-    fn clone(&self) -> Self {
-        Self::new(self.generator1.clone(), self.generator2.clone())
-    }
-}
-
-impl<State, T, G1, G2> LspParamsGenerator<State> for CompositionGenerator<G1, G2, T>
-where
-    G1: LspParamsGenerator<State>,
-    G2: LspParamsGenerator<State>,
-    T: Compose<Components = (G1::Output, G2::Output)>,
-{
-    type Output = T;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let c1 = self.generator1.generate(state, input)?;
-        let c2 = self.generator2.generate(state, input)?;
-        let output = T::compose((c1, c2));
-        Ok(output)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct UTF8TokensGenerator;
-
-impl UTF8TokensGenerator {
-    pub const fn new() -> Self {
-        Self
-    }
-}
-
-impl<State> LspParamsGenerator<State> for UTF8TokensGenerator
-where
-    State: HasMetadata + HasRand,
-{
-    type Output = String;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        _input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let token_cnt = state
-            .metadata()
-            .map(UTF8Tokens::len)
-            .ok()
-            .and_then(NonZeroUsize::new)
-            .ok_or(GenerationError::NothingGenerated)?;
-        let idx = state.rand_mut().below(token_cnt);
-        // SAFETY: We checked just now that the metadata is present
-        let tokens: &UTF8Tokens = unsafe { state.metadata().unwrap_unchecked() };
-        let token = tokens[idx].clone();
-        Ok(token)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct TerminalTextGenerator<DocSel> {
-    _phantom: PhantomData<DocSel>,
-}
-
-impl<DocSel> TerminalTextGenerator<DocSel> {
-    pub const fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<State, DocSel> LspParamsGenerator<State> for TerminalTextGenerator<DocSel>
-where
-    State: HasRand,
-    DocSel: TextDocumentSelector<State>,
-{
-    type Output = String;
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let doc = DocSel::select_document(state, input)
-            .map(|it| it.1)
-            .ok_or(GenerationError::NothingGenerated)?;
-        let terminal_text = doc
-            .parse_tree()
-            .iter()
-            .filter(|it| it.child_count() == 0)
-            .filter_map(|node| node.utf8_text(doc.content()).ok());
-        let text = state
-            .rand_mut()
-            .choose(terminal_text)
-            .ok_or(GenerationError::NothingGenerated)?;
-
-        Ok(text.to_owned())
     }
 }
 
