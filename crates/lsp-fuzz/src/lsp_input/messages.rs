@@ -29,8 +29,7 @@ use crate::{
     lsp::{
         self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
         generation::{
-            ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator,
-            MappingGenerator, TextDocumentIdentifierGenerator, TextDocumentPositionParamsGenerator,
+            ConstGenerator, DefaultGenerator, GenerationError, LspParamsGenerator, MappingGenerator,
         },
     },
     macros::{append_randoms, prop_mutator},
@@ -38,7 +37,6 @@ use crate::{
     text_document::{
         TextDocument,
         grammar::tree_sitter::{CapturesIterator, TSNodeExt, TreeIter},
-        mutations::text_document_selectors::RandomDoc,
     },
     utils::RandExt,
 };
@@ -285,42 +283,6 @@ where
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
         [ConstGenerator::new(false), ConstGenerator::new(true)]
-    }
-}
-
-impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
-where
-    State: HasRand + 'static,
-{
-    type Generator = TextDocumentIdentifierGenerator<RandomDoc>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [TextDocumentIdentifierGenerator::<RandomDoc>::new()]
-    }
-}
-
-impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
-where
-    State: HasRand + HasMetadata + 'static,
-{
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
-
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
-        let term_start_pos = TerminalStartPosition::new();
-        let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
-        let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
-        let result: [Self::Generator; 8] = [
-            Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-            Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024))),
-            term_start.clone(),
-            term_start.clone(),
-            term_start.clone(),
-            steer.clone(),
-            steer.clone(),
-            steer.clone(),
-        ];
-        result
     }
 }
 

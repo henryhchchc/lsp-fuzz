@@ -151,7 +151,6 @@ pub enum CreationError {
 #[cfg(test)]
 mod tests {
 
-
     use crate::text_document::{TextDocument, grammar::tree_sitter::CapturesIterator};
 
     use super::*;

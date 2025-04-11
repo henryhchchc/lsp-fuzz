@@ -13,7 +13,7 @@ use lsp_types::{
 };
 
 use crate::{
-    lsp_input::{LspInput, messages::PositionSelector},
+    lsp_input::LspInput,
     macros::const_generators,
     text_document::{
         GrammarBasedMutation, TextDocument,
@@ -24,6 +24,8 @@ use crate::{
 
 use super::HasPredefinedGenerators;
 pub mod composition;
+pub mod doc;
+pub mod position;
 pub mod string;
 
 pub trait LspParamsGenerator<State> {
@@ -123,64 +125,6 @@ where
         _input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
         Ok(T::default())
-    }
-}
-
-#[derive(Debug, New)]
-pub struct TextDocumentIdentifierGenerator<D> {
-    _phantom: PhantomData<D>,
-}
-
-impl<T> Clone for TextDocumentIdentifierGenerator<T> {
-    fn clone(&self) -> Self {
-        Self::new()
-    }
-}
-
-impl<State, D> LspParamsGenerator<State> for TextDocumentIdentifierGenerator<D>
-where
-    D: TextDocumentSelector<State>,
-{
-    type Output = TextDocumentIdentifier;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let (uri, _) = D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
-        Ok(Self::Output { uri })
-    }
-}
-
-#[derive(Debug, New)]
-pub struct TextDocumentPositionParamsGenerator<D, PosSel> {
-    position_selector: PosSel,
-    _phantom: PhantomData<D>,
-}
-
-impl<State, D, PosSel> LspParamsGenerator<State> for TextDocumentPositionParamsGenerator<D, PosSel>
-where
-    D: TextDocumentSelector<State>,
-    PosSel: PositionSelector<State>,
-{
-    type Output = lsp_types::TextDocumentPositionParams;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let (uri, doc) =
-            D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
-        let position = self
-            .position_selector
-            .select_position(state, doc)
-            .ok_or(GenerationError::NothingGenerated)?;
-        Ok(Self::Output {
-            text_document: TextDocumentIdentifier { uri },
-            position,
-        })
     }
 }
 
