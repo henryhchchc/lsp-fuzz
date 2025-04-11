@@ -1,12 +1,9 @@
-use ahash::AHasher;
+use ahash::{AHasher, HashSetExt};
+use ahash::{HashMap, HashSet};
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet, VecDeque},
-    hash::Hasher,
-};
+use std::{borrow::Cow, collections::VecDeque, hash::Hasher};
 
 use libafl::{
     HasMetadata, SerdeAny,
