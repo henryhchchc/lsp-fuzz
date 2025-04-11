@@ -18,7 +18,7 @@ use crate::lsp_input::LspInput;
 
 use super::{
     Compose,
-    generation::{RangeInDoc, TabSize, ZeroToOne32},
+    generation::{TabSize, ZeroToOne32, doc_range::RangeInDoc},
 };
 
 impl<Head, Tail> Compose for (Head, Tail) {
@@ -238,7 +238,6 @@ impl Compose for T {
 #[trait_gen(T ->
     InlayHintParams,
 )]
-
 impl Compose for T {
     type Components = tuple_list_type![RangeInDoc, WorkDoneProgressParams,];
 
