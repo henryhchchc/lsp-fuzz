@@ -103,9 +103,9 @@ pub enum JsonRPCMessage {
     },
 }
 
-const CONTENT_LENGTH_HEADER: &[u8] = b"Content-Length";
-const HEADER_SEP: &[u8] = b": ";
-const HEADER_BODY_SEP: &[u8] = b"\r\n\r\n";
+const CONTENT_LENGTH_HEADER: &str = "Content-Length";
+const HEADER_SEP: &str = ": ";
+const HEADER_BODY_SEP: &str = "\r\n\r\n";
 
 impl JsonRPCMessage {
     pub fn request(
@@ -163,11 +163,12 @@ impl JsonRPCMessage {
             serde_json::to_vec(self).expect("Serialization of serde_json::Value cannot fail.");
         let content_length = content.len().to_string().into_bytes();
         CONTENT_LENGTH_HEADER
+            .as_bytes()
             .iter()
             .copied()
-            .chain(HEADER_SEP.iter().copied())
+            .chain(HEADER_SEP.as_bytes().iter().copied())
             .chain(content_length)
-            .chain(HEADER_BODY_SEP.iter().copied())
+            .chain(HEADER_BODY_SEP.as_bytes().iter().copied())
             .chain(content)
             .collect()
     }
@@ -197,7 +198,7 @@ impl JsonRPCMessage {
                     "Could not read any data",
                 ));
             }
-            let line = line.strip_suffix("\r\n").ok_or(Error::new(
+            let line = line.strip_suffix(HEADER_BODY_SEP).ok_or(Error::new(
                 InvalidData,
                 "The header does not end with \\r\\n",
             ))?;
@@ -205,9 +206,9 @@ impl JsonRPCMessage {
                 return Ok(content_length);
             }
             let (key, value) = line
-                .split_once(": ")
-                .ok_or_else(|| Error::new(InvalidData, format!("Invalid header: {}", line)))?;
-            if key == "Content-Length" {
+                .split_once(HEADER_SEP)
+                .ok_or_else(|| Error::new(InvalidData, format!("Invalid header: {line}")))?;
+            if key == CONTENT_LENGTH_HEADER {
                 let value = value.parse().map_err(|e| Error::new(InvalidData, e))?;
                 content_length = Some(value);
             }
