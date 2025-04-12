@@ -253,7 +253,7 @@ fn test_lsp_request() {
     let jsonrpc = request
         .into_json_rpc(&mut id, Some("file:///path/to/folder/"))
         .to_lsp_payload();
-    let header = b"Content-Length: 178\r\n\r\n";
+    let header = format!("Content-Length: {}\r\n\r\n", jsonrpc.len()).into_bytes();
     assert_eq!(jsonrpc[..header.len()], header[..]);
     let json_value: serde_json::Value = serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();
     assert_eq!(json_value["jsonrpc"], JsonRPC20::VERSION);
@@ -269,6 +269,12 @@ fn test_lsp_request() {
 
 #[test]
 fn parse_payload() {
-    let mut payload = b"Content-Length: 107\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":null,\"rootUri\":null,\"capabilities\":{}}}".as_slice();
-    JsonRPCMessage::read_lsp_payload(&mut payload).unwrap();
+    let payload = b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":null,\"rootUri\":null,\"capabilities\":{}}}";
+    let payload = [
+        format!("Content-Length: {}", payload.len()).as_bytes(),
+        HEADER_BODY_SEP.as_bytes(),
+        payload.as_slice(),
+    ]
+    .concat();
+    JsonRPCMessage::read_lsp_payload(&mut payload.as_slice()).unwrap();
 }
