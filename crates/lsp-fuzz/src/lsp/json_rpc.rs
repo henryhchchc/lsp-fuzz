@@ -198,7 +198,7 @@ impl JsonRPCMessage {
                     "Could not read any data",
                 ));
             }
-            let line = line.strip_suffix(HEADER_BODY_SEP).ok_or(Error::new(
+            let line = line.strip_suffix("\r\n").ok_or(Error::new(
                 InvalidData,
                 "The header does not end with \\r\\n",
             ))?;
