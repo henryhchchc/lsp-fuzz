@@ -234,11 +234,8 @@ fn jsonrpc_version_deserialize() {
 }
 
 #[test]
-fn test_lsp_request() {
-    use lsp_types::{
-        InitializeParams, WorkspaceFolder,
-        request::{Initialize, Request},
-    };
+fn test_lsp_request_roundtrip() {
+    use lsp_types::{InitializeParams, WorkspaceFolder};
 
     use crate::lsp::ClientToServerMessage;
 
@@ -249,21 +246,26 @@ fn test_lsp_request() {
         }]),
         ..Default::default()
     });
-    let mut id = 1;
+    let mut id = 0;
+    let workspace_folder = "file:///path/to/folder/";
     let jsonrpc = request
-        .into_json_rpc(&mut id, Some("file:///path/to/folder/"))
+        .clone()
+        .into_json_rpc(&mut id, Some(workspace_folder))
         .to_lsp_payload();
-    let header = format!("Content-Length: {}\r\n\r\n", jsonrpc.len()).into_bytes();
-    assert_eq!(jsonrpc[..header.len()], header[..]);
-    let json_value: serde_json::Value = serde_json::from_slice(&jsonrpc[header.len()..]).unwrap();
-    assert_eq!(json_value["jsonrpc"], JsonRPC20::VERSION);
-    assert_eq!(json_value["id"], 1);
-    assert_eq!(json_value["method"], Initialize::METHOD);
+    let JsonRPCMessage::Request {
+        id, method, params, ..
+    } = JsonRPCMessage::read_lsp_payload(&mut jsonrpc.as_ref()).unwrap()
+    else {
+        panic!("The generated payload does not match");
+    };
+    assert_eq!(id, MessageId::Number(0));
+    assert_eq!(method, "initialize");
     assert!(
-        json_value["params"]["workspaceFolders"][0]["uri"]
-            .as_str()
-            .unwrap()
-            .contains("path/to/folder")
+        params["workspaceFolders"]
+            .as_array()
+            .and_then(|it| it.first())
+            .and_then(|it| it["uri"].as_str())
+            .is_some_and(|it| it.starts_with(workspace_folder))
     );
 }
 
