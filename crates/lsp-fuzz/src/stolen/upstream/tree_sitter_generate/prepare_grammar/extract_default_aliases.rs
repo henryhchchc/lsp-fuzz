@@ -1,4 +1,4 @@
-use crate::stolen::upstream::tree_sitter_generate::{
+use super::super::{
     grammars::{LexicalGrammar, SyntaxGrammar},
     rules::{Alias, AliasMap, Symbol, SymbolType},
 };
@@ -161,144 +161,144 @@ pub(super) fn extract_default_aliases(
     result
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::stolen::upstream::tree_sitter_generate::{
-//         grammars::{LexicalVariable, Production, ProductionStep, SyntaxVariable, VariableType},
-//         nfa::Nfa,
-//     };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::super::{
+        grammars::{LexicalVariable, Production, ProductionStep, SyntaxVariable, VariableType},
+        nfa::Nfa,
+    };
 
-//     #[test]
-//     fn test_extract_simple_aliases() {
-//         let mut syntax_grammar = SyntaxGrammar {
-//             variables: vec![
-//                 SyntaxVariable {
-//                     name: "v1".to_owned(),
-//                     kind: VariableType::Named,
-//                     productions: vec![Production {
-//                         dynamic_precedence: 0,
-//                         steps: vec![
-//                             ProductionStep::new(Symbol::terminal(0)).with_alias("a1", true),
-//                             ProductionStep::new(Symbol::terminal(1)).with_alias("a2", true),
-//                             ProductionStep::new(Symbol::terminal(2)).with_alias("a3", true),
-//                             ProductionStep::new(Symbol::terminal(3)).with_alias("a4", true),
-//                         ],
-//                     }],
-//                 },
-//                 SyntaxVariable {
-//                     name: "v2".to_owned(),
-//                     kind: VariableType::Named,
-//                     productions: vec![Production {
-//                         dynamic_precedence: 0,
-//                         steps: vec![
-//                             // Token 0 is always aliased as "a1".
-//                             ProductionStep::new(Symbol::terminal(0)).with_alias("a1", true),
-//                             // Token 1 is aliased within rule `v1` above, but not here.
-//                             ProductionStep::new(Symbol::terminal(1)),
-//                             // Token 2 is aliased differently here than in `v1`. The alias from
-//                             // `v1` should be promoted to the default alias, because `v1` appears
-//                             // first in the grammar.
-//                             ProductionStep::new(Symbol::terminal(2)).with_alias("a5", true),
-//                             // Token 3 is also aliased differently here than in `v1`. In this case,
-//                             // this alias should be promoted to the default alias, because it is
-//                             // used a greater number of times (twice).
-//                             ProductionStep::new(Symbol::terminal(3)).with_alias("a6", true),
-//                             ProductionStep::new(Symbol::terminal(3)).with_alias("a6", true),
-//                         ],
-//                     }],
-//                 },
-//             ],
-//             ..Default::default()
-//         };
+    #[test]
+    fn test_extract_simple_aliases() {
+        let mut syntax_grammar = SyntaxGrammar {
+            variables: vec![
+                SyntaxVariable {
+                    name: "v1".to_owned(),
+                    kind: VariableType::Named,
+                    productions: vec![Production {
+                        dynamic_precedence: 0,
+                        steps: vec![
+                            ProductionStep::new(Symbol::terminal(0)).with_alias("a1", true),
+                            ProductionStep::new(Symbol::terminal(1)).with_alias("a2", true),
+                            ProductionStep::new(Symbol::terminal(2)).with_alias("a3", true),
+                            ProductionStep::new(Symbol::terminal(3)).with_alias("a4", true),
+                        ],
+                    }],
+                },
+                SyntaxVariable {
+                    name: "v2".to_owned(),
+                    kind: VariableType::Named,
+                    productions: vec![Production {
+                        dynamic_precedence: 0,
+                        steps: vec![
+                            // Token 0 is always aliased as "a1".
+                            ProductionStep::new(Symbol::terminal(0)).with_alias("a1", true),
+                            // Token 1 is aliased within rule `v1` above, but not here.
+                            ProductionStep::new(Symbol::terminal(1)),
+                            // Token 2 is aliased differently here than in `v1`. The alias from
+                            // `v1` should be promoted to the default alias, because `v1` appears
+                            // first in the grammar.
+                            ProductionStep::new(Symbol::terminal(2)).with_alias("a5", true),
+                            // Token 3 is also aliased differently here than in `v1`. In this case,
+                            // this alias should be promoted to the default alias, because it is
+                            // used a greater number of times (twice).
+                            ProductionStep::new(Symbol::terminal(3)).with_alias("a6", true),
+                            ProductionStep::new(Symbol::terminal(3)).with_alias("a6", true),
+                        ],
+                    }],
+                },
+            ],
+            ..Default::default()
+        };
 
-//         let lexical_grammar = LexicalGrammar {
-//             nfa: Nfa::new(),
-//             variables: vec![
-//                 LexicalVariable {
-//                     name: "t0".to_string(),
-//                     kind: VariableType::Anonymous,
-//                     implicit_precedence: 0,
-//                     start_state: 0,
-//                 },
-//                 LexicalVariable {
-//                     name: "t1".to_string(),
-//                     kind: VariableType::Anonymous,
-//                     implicit_precedence: 0,
-//                     start_state: 0,
-//                 },
-//                 LexicalVariable {
-//                     name: "t2".to_string(),
-//                     kind: VariableType::Anonymous,
-//                     implicit_precedence: 0,
-//                     start_state: 0,
-//                 },
-//                 LexicalVariable {
-//                     name: "t3".to_string(),
-//                     kind: VariableType::Anonymous,
-//                     implicit_precedence: 0,
-//                     start_state: 0,
-//                 },
-//             ],
-//         };
+        let lexical_grammar = LexicalGrammar {
+            nfa: Nfa::new(),
+            variables: vec![
+                LexicalVariable {
+                    name: "t0".to_string(),
+                    kind: VariableType::Anonymous,
+                    implicit_precedence: 0,
+                    start_state: 0,
+                },
+                LexicalVariable {
+                    name: "t1".to_string(),
+                    kind: VariableType::Anonymous,
+                    implicit_precedence: 0,
+                    start_state: 0,
+                },
+                LexicalVariable {
+                    name: "t2".to_string(),
+                    kind: VariableType::Anonymous,
+                    implicit_precedence: 0,
+                    start_state: 0,
+                },
+                LexicalVariable {
+                    name: "t3".to_string(),
+                    kind: VariableType::Anonymous,
+                    implicit_precedence: 0,
+                    start_state: 0,
+                },
+            ],
+        };
 
-//         let default_aliases = extract_default_aliases(&mut syntax_grammar, &lexical_grammar);
-//         assert_eq!(default_aliases.len(), 3);
+        let default_aliases = extract_default_aliases(&mut syntax_grammar, &lexical_grammar);
+        assert_eq!(default_aliases.len(), 3);
 
-//         assert_eq!(
-//             default_aliases.get(&Symbol::terminal(0)),
-//             Some(&Alias {
-//                 value: "a1".to_string(),
-//                 is_named: true,
-//             })
-//         );
-//         assert_eq!(
-//             default_aliases.get(&Symbol::terminal(2)),
-//             Some(&Alias {
-//                 value: "a3".to_string(),
-//                 is_named: true,
-//             })
-//         );
-//         assert_eq!(
-//             default_aliases.get(&Symbol::terminal(3)),
-//             Some(&Alias {
-//                 value: "a6".to_string(),
-//                 is_named: true,
-//             })
-//         );
-//         assert_eq!(default_aliases.get(&Symbol::terminal(1)), None);
+        assert_eq!(
+            default_aliases.get(&Symbol::terminal(0)),
+            Some(&Alias {
+                value: "a1".to_string(),
+                is_named: true,
+            })
+        );
+        assert_eq!(
+            default_aliases.get(&Symbol::terminal(2)),
+            Some(&Alias {
+                value: "a3".to_string(),
+                is_named: true,
+            })
+        );
+        assert_eq!(
+            default_aliases.get(&Symbol::terminal(3)),
+            Some(&Alias {
+                value: "a6".to_string(),
+                is_named: true,
+            })
+        );
+        assert_eq!(default_aliases.get(&Symbol::terminal(1)), None);
 
-//         assert_eq!(
-//             syntax_grammar.variables,
-//             vec![
-//                 SyntaxVariable {
-//                     name: "v1".to_owned(),
-//                     kind: VariableType::Named,
-//                     productions: vec![Production {
-//                         dynamic_precedence: 0,
-//                         steps: vec![
-//                             ProductionStep::new(Symbol::terminal(0)),
-//                             ProductionStep::new(Symbol::terminal(1)).with_alias("a2", true),
-//                             ProductionStep::new(Symbol::terminal(2)),
-//                             ProductionStep::new(Symbol::terminal(3)).with_alias("a4", true),
-//                         ],
-//                     },],
-//                 },
-//                 SyntaxVariable {
-//                     name: "v2".to_owned(),
-//                     kind: VariableType::Named,
-//                     productions: vec![Production {
-//                         dynamic_precedence: 0,
-//                         steps: vec![
-//                             ProductionStep::new(Symbol::terminal(0)),
-//                             ProductionStep::new(Symbol::terminal(1)),
-//                             ProductionStep::new(Symbol::terminal(2)).with_alias("a5", true),
-//                             ProductionStep::new(Symbol::terminal(3)),
-//                             ProductionStep::new(Symbol::terminal(3)),
-//                         ],
-//                     },],
-//                 },
-//             ]
-//         );
-//     }
-// }
+        assert_eq!(
+            syntax_grammar.variables,
+            vec![
+                SyntaxVariable {
+                    name: "v1".to_owned(),
+                    kind: VariableType::Named,
+                    productions: vec![Production {
+                        dynamic_precedence: 0,
+                        steps: vec![
+                            ProductionStep::new(Symbol::terminal(0)),
+                            ProductionStep::new(Symbol::terminal(1)).with_alias("a2", true),
+                            ProductionStep::new(Symbol::terminal(2)),
+                            ProductionStep::new(Symbol::terminal(3)).with_alias("a4", true),
+                        ],
+                    },],
+                },
+                SyntaxVariable {
+                    name: "v2".to_owned(),
+                    kind: VariableType::Named,
+                    productions: vec![Production {
+                        dynamic_precedence: 0,
+                        steps: vec![
+                            ProductionStep::new(Symbol::terminal(0)),
+                            ProductionStep::new(Symbol::terminal(1)),
+                            ProductionStep::new(Symbol::terminal(2)).with_alias("a5", true),
+                            ProductionStep::new(Symbol::terminal(3)),
+                            ProductionStep::new(Symbol::terminal(3)),
+                        ],
+                    },],
+                },
+            ]
+        );
+    }
+}

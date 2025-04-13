@@ -4,24 +4,33 @@ mod extract_default_aliases;
 mod extract_tokens;
 mod flatten_grammar;
 mod intern_symbols;
+mod process_inlines;
 
 use std::{
     cmp::Ordering,
-    collections::{hash_map, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map},
     mem,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
+pub use expand_tokens::ExpandTokensError;
+pub use extract_tokens::ExtractTokensError;
+pub use flatten_grammar::FlattenGrammarError;
+pub use intern_symbols::InternSymbolsError;
+pub use process_inlines::ProcessInlinesError;
+use serde::Serialize;
+use thiserror::Error;
 
 pub use self::expand_tokens::expand_tokens;
 use self::{
     expand_repeats::expand_repeats, extract_default_aliases::extract_default_aliases,
     extract_tokens::extract_tokens, flatten_grammar::flatten_grammar,
-    intern_symbols::intern_symbols,
+    intern_symbols::intern_symbols, process_inlines::process_inlines,
 };
 use super::{
     grammars::{
-        ExternalToken, InputGrammar, LexicalGrammar, PrecedenceEntry, SyntaxGrammar, Variable,
+        ExternalToken, InlinedProductionMap, InputGrammar, LexicalGrammar, PrecedenceEntry,
+        ReservedWordContext, SyntaxGrammar, Variable,
     },
     rules::{AliasMap, Precedence, Rule, Symbol},
 };
@@ -35,6 +44,7 @@ pub struct IntermediateGrammar<T, U> {
     variables_to_inline: Vec<Symbol>,
     supertype_symbols: Vec<Symbol>,
     word_token: Option<Symbol>,
+    reserved_word_sets: Vec<ReservedWordContext<T>>,
 }
 
 pub type InternedGrammar = IntermediateGrammar<Rule, Variable>;
@@ -58,7 +68,64 @@ impl<T, U> Default for IntermediateGrammar<T, U> {
             variables_to_inline: Vec::default(),
             supertype_symbols: Vec::default(),
             word_token: Option::default(),
+            reserved_word_sets: Vec::default(),
         }
+    }
+}
+
+pub type PrepareGrammarResult<T> = Result<T, PrepareGrammarError>;
+
+#[derive(Debug, Error, Serialize)]
+#[error(transparent)]
+pub enum PrepareGrammarError {
+    ValidatePrecedences(#[from] ValidatePrecedenceError),
+    InternSymbols(#[from] InternSymbolsError),
+    ExtractTokens(#[from] ExtractTokensError),
+    FlattenGrammar(#[from] FlattenGrammarError),
+    ExpandTokens(#[from] ExpandTokensError),
+    ProcessInlines(#[from] ProcessInlinesError),
+}
+
+pub type ValidatePrecedenceResult<T> = Result<T, ValidatePrecedenceError>;
+
+#[derive(Debug, Error, Serialize)]
+#[error(transparent)]
+pub enum ValidatePrecedenceError {
+    Undeclared(#[from] UndeclaredPrecedenceError),
+    Ordering(#[from] ConflictingPrecedenceOrderingError),
+}
+
+#[derive(Debug, Error, Serialize)]
+pub struct UndeclaredPrecedenceError {
+    pub precedence: String,
+    pub rule: String,
+}
+
+impl std::fmt::Display for UndeclaredPrecedenceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Undeclared precedence '{}' in rule '{}'",
+            self.precedence, self.rule
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Error, Serialize)]
+pub struct ConflictingPrecedenceOrderingError {
+    pub precedence_1: String,
+    pub precedence_2: String,
+}
+
+impl std::fmt::Display for ConflictingPrecedenceOrderingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Conflicting orderings for precedences {} and {}",
+            self.precedence_1, self.precedence_2
+        )?;
+        Ok(())
     }
 }
 
@@ -66,7 +133,12 @@ impl<T, U> Default for IntermediateGrammar<T, U> {
 /// for parse table construction.
 pub fn prepare_grammar(
     input_grammar: &InputGrammar,
-) -> Result<(SyntaxGrammar, LexicalGrammar, AliasMap)> {
+) -> PrepareGrammarResult<(
+    SyntaxGrammar,
+    LexicalGrammar,
+    InlinedProductionMap,
+    AliasMap,
+)> {
     validate_precedences(input_grammar)?;
 
     let interned_grammar = intern_symbols(input_grammar)?;
@@ -75,17 +147,21 @@ pub fn prepare_grammar(
     let mut syntax_grammar = flatten_grammar(syntax_grammar)?;
     let lexical_grammar = expand_tokens(lexical_grammar)?;
     let default_aliases = extract_default_aliases(&mut syntax_grammar, &lexical_grammar);
-    // let inlines = process_inlines(&syntax_grammar, &lexical_grammar)?;
-    Ok((syntax_grammar, lexical_grammar, default_aliases))
+    let inlines = process_inlines(&syntax_grammar, &lexical_grammar)?;
+    Ok((syntax_grammar, lexical_grammar, inlines, default_aliases))
 }
 
 /// Check that all of the named precedences used in the grammar are declared
 /// within the `precedences` lists, and also that there are no conflicting
 /// precedence orderings declared in those lists.
-fn validate_precedences(grammar: &InputGrammar) -> Result<()> {
+fn validate_precedences(grammar: &InputGrammar) -> ValidatePrecedenceResult<()> {
     // Check that no rule contains a named precedence that is not present in
     // any of the `precedences` lists.
-    fn validate(rule_name: &str, rule: &Rule, names: &HashSet<&String>) -> Result<()> {
+    fn validate(
+        rule_name: &str,
+        rule: &Rule,
+        names: &HashSet<&String>,
+    ) -> ValidatePrecedenceResult<()> {
         match rule {
             Rule::Repeat(rule) => validate(rule_name, rule, names),
             Rule::Seq(elements) | Rule::Choice(elements) => elements
@@ -94,7 +170,10 @@ fn validate_precedences(grammar: &InputGrammar) -> Result<()> {
             Rule::Metadata { rule, params } => {
                 if let Precedence::Name(n) = &params.precedence {
                     if !names.contains(n) {
-                        return Err(anyhow!("Undeclared precedence '{n}' in rule '{rule_name}'"));
+                        Err(UndeclaredPrecedenceError {
+                            precedence: n.to_string(),
+                            rule: rule_name.to_string(),
+                        })?;
                     }
                 }
                 validate(rule_name, rule, names)?;
@@ -124,9 +203,10 @@ fn validate_precedences(grammar: &InputGrammar) -> Result<()> {
                     }
                     hash_map::Entry::Occupied(e) => {
                         if e.get() != &ordering {
-                            return Err(anyhow!(
-                                "Conflicting orderings for precedences {entry1} and {entry2}",
-                            ));
+                            Err(ConflictingPrecedenceOrderingError {
+                                precedence_1: entry1.to_string(),
+                                precedence_2: entry2.to_string(),
+                            })?;
                         }
                     }
                 }
@@ -156,7 +236,7 @@ fn validate_precedences(grammar: &InputGrammar) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stolen::upstream::tree_sitter_generate::grammars::VariableType;
+    use super::super::grammars::VariableType;
 
     #[test]
     fn test_validate_precedences_with_undeclared_precedence() {

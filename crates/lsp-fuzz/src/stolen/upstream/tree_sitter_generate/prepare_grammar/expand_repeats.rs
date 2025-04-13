@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem};
 
 use super::ExtractedSyntaxGrammar;
-use crate::stolen::upstream::tree_sitter_generate::{
+use super::super::{
     grammars::{Variable, VariableType},
     rules::{Rule, Symbol},
 };

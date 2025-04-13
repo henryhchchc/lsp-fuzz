@@ -4,7 +4,7 @@ edition.workspace = true
 version.workspace = true
 
 [dependencies]
-lsp-fuzz-grammars = {path = "../lsp-fuzz-grammars"}
+lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
@@ -27,6 +27,7 @@ nix.workspace = true
 ordermap.workspace = true
 os_pipe.workspace = true
 regex-syntax = "0.8.5"
+smallbitvec.workspace = true
 serde.workspace = true
 serde_cbor.workspace = true
 serde_json.workspace = true

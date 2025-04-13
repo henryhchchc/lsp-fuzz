@@ -20,9 +20,10 @@ impl Grammar {
         language: Language,
         grammar_json: &str,
     ) -> Result<Self, CreationError> {
-        let input_grammar = parse_grammar(grammar_json).map_err(CreationError::TreeSitter)?;
-        let (syntax_grammar, lexical_grammar, aliases) =
-            prepare_grammar(&input_grammar).map_err(CreationError::TreeSitter)?;
+        let input_grammar =
+            parse_grammar(grammar_json).map_err(|e| CreationError::TreeSitter(e.into()))?;
+        let (syntax_grammar, lexical_grammar, _inlined_prod, aliases) =
+            prepare_grammar(&input_grammar).map_err(|e| CreationError::TreeSitter(e.into()))?;
         Self::from_tree_sitter_grammar(language, syntax_grammar, lexical_grammar, aliases)
     }
 
