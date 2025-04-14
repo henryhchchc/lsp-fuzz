@@ -203,7 +203,8 @@ fn parse_asan_log<R: Read>(
     let asan_summary = log_content
         .lines()
         .skip(1)
-        .filter_map(|it| it.strip_prefix(&pid_prefix))
+        .map(|it| it.strip_prefix(&pid_prefix).unwrap_or(it))
+        .take_while(|&it| !it.starts_with("    #"))
         .join("\n");
     info!(asan_summary);
     let lines = log_content.lines().map(ToOwned::to_owned).collect();
