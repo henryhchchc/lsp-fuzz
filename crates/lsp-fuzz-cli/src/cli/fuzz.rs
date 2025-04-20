@@ -37,7 +37,7 @@ use lsp_fuzz::{
     },
     fuzz_target::{self, StaticTargetBinaryInfo},
     lsp_input::{LspInput, LspInputGenerator, LspInputMutator, messages::message_mutations},
-    stages::{CleanupWorkspaceDirs, StopOnReceived},
+    stages::{CleanupWorkspaceDirs, StopOnReceived, TimeoutStopStage},
     text_document::{
         generation::GrammarContextLookup, text_document_mutations,
         token_novelty::TokenNoveltyFeedback,
@@ -97,7 +97,7 @@ pub(super) struct FuzzCommand {
 
     /// Stop fuzzing after a certain number of hours.
     #[clap(long)]
-    stop_after_hours: Option<u64>,
+    timeout: u64,
 
     #[clap(long)]
     no_asan: bool,
@@ -212,15 +212,14 @@ impl FuzzCommand {
                 .to_str()
                 .context("temp_dir is not a valid UTF-8 string")?;
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
-            let trigger_stop = trigger_stop_stage(
-                self.stop_after_hours
-                    .map(|it| Duration::from_secs(it * 60 * 60)),
-            )?;
+            let trigger_stop = trigger_stop_stage()?;
+            let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.timeout));
             tuple_list![
                 calibration_stage,
                 mutation_stage,
                 cleanup_workspace_stage,
-                trigger_stop
+                timeout_stop,
+                trigger_stop,
             ]
         };
 
@@ -310,21 +309,9 @@ impl FuzzCommand {
     }
 }
 
-fn trigger_stop_stage<State>(
-    after_duration: Option<Duration>,
-) -> Result<StopOnReceived<State>, anyhow::Error> {
+fn trigger_stop_stage<State>() -> Result<StopOnReceived<State>, anyhow::Error> {
     let (tx, rx) = mpsc::channel();
     let mut is_control_c_pressed = false;
-    if let Some(duration) = after_duration {
-        let timeout_tx = tx.clone();
-        std::thread::Builder::new()
-            .name("Timeout signal".to_owned())
-            .spawn(move || {
-                std::thread::sleep(duration);
-                timeout_tx.send(()).expect("Failed to send stop signal");
-            })
-            .context("Spawning timeout thread")?;
-    }
     ctrlc::try_set_handler(move || {
         if is_control_c_pressed {
             info!("Control-C pressed again. Exiting immediately.");

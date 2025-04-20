@@ -1,11 +1,11 @@
-use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread};
+use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread, time::Duration};
 
 use derive_new::new as New;
 use libafl::{
     HasNamedMetadata, SerdeAny,
     events::{Event, EventFirer, EventWithStats, LogSeverity},
     stages::{Restartable, Stage},
-    state::HasExecutions,
+    state::{HasExecutions, HasStartTime},
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -106,6 +106,44 @@ where
         manager: &mut M,
     ) -> Result<(), libafl::Error> {
         if self.receiver.try_recv().is_ok() {
+            let executions = state.executions();
+            let event = EventWithStats::with_current_time(Event::Stop, *executions);
+            manager.fire(state, event)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, New)]
+pub struct TimeoutStopStage {
+    timeout: Duration,
+}
+
+impl<State> Restartable<State> for TimeoutStopStage {
+    fn should_restart(&mut self, _state: &mut State) -> Result<bool, libafl::Error> {
+        Ok(true)
+    }
+
+    fn clear_progress(&mut self, _state: &mut State) -> Result<(), libafl::Error> {
+        Ok(())
+    }
+}
+
+impl<E, M, Z, State> Stage<E, M, State, Z> for TimeoutStopStage
+where
+    State: HasStartTime + HasExecutions,
+    M: EventFirer<LspInput, State>,
+{
+    fn perform(
+        &mut self,
+        _fuzzer: &mut Z,
+        _executor: &mut E,
+        state: &mut State,
+        manager: &mut M,
+    ) -> Result<(), libafl::Error> {
+        let start_time = *state.start_time();
+        let current_time = libafl_bolts::current_time();
+        if current_time - start_time > self.timeout {
             let executions = state.executions();
             let event = EventWithStats::with_current_time(Event::Stop, *executions);
             manager.fire(state, event)?;

@@ -1,3 +1,5 @@
+#![feature(duration_constructors)]
+
 mod cli;
 mod fuzzing;
 
