@@ -1,8 +1,6 @@
-use std::{
-    collections::HashMap, env::temp_dir, ops::Not, path::PathBuf, sync::mpsc, time::Duration,
-};
+use std::{collections::HashMap, ops::Not, path::PathBuf, sync::mpsc, time::Duration};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
@@ -28,14 +26,11 @@ use libafl::{
     },
 };
 use libafl_bolts::{
-    AsSliceMut, HasLen, current_nanos,
-    fs::InputFile,
+    AsSliceMut, HasLen,
     rands::{Rand, StdRand},
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
-    tuples::Handled,
 };
 use lsp_fuzz::{
-    afl,
     execution::{
         FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor,
         workspace_observer::WorkspaceObserver,
@@ -109,30 +104,28 @@ pub(super) struct FuzzCommand {
 }
 
 impl FuzzCommand {
-    pub(super) fn run(mut self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+    pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
         info!("Analyzing fuzz target");
         let binary_info = StaticTargetBinaryInfo::scan(&self.execution.lsp_executable)
             .context("Analyzing fuzz target")?;
-        if binary_info.is_afl_instrumented {
-            info!("Fuzz target is instrumented with AFL++");
-        } else {
-            warn!("The fuzz target is not instrumented with AFL++");
+        if !binary_info.is_afl_instrumented {
+            bail!("The fuzz target is not instrumented with AFL++");
         }
-        let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
-            .context("Dumping map size")?;
-
         if binary_info.is_persistent_mode {
             info!("Persistent fuzzing detected.");
         }
         if binary_info.is_defer_fork_server {
             info!("Deferred fork server detected.");
         }
-        if let Some(shm_size) = self.execution.shared_memory_fuzzing {
-            info!(shm_size, "Shared memory fuzzing is enabled.");
+        if binary_info.uses_address_sanitizer {
+            info!("Fuzz target is compiled with Address Sanitizer.");
         }
+
+        let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
+            .context("Dumping map size")?;
 
         info!("Detected coverage map size: {}", map_size);
         let mut coverage_shmem = shmem_provider
@@ -153,15 +146,7 @@ impl FuzzCommand {
 
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
-        binary_info
-            .uses_address_sanitizer
-            .then(|| info!("Fuzz target is compiled with Address Sanitizer."));
-
-        let asan_handle = (binary_info.uses_address_sanitizer && self.no_asan.not()).then(|| {
-            info!("Crash stack hashing will be enabled");
-            asan_observer.handle()
-        });
-
+        let asan_enabled = binary_info.uses_address_sanitizer && self.no_asan.not();
         let edges_observer = HitcountsMapObserver::new(coverage_map_observer).track_indices();
 
         // Create an observation channel to keep track of the execution time
@@ -180,7 +165,7 @@ impl FuzzCommand {
             CrashFeedback::new(),
             MaxMapFeedback::with_name("crash_edges", &edges_observer),
             feedback_or_fast!(
-                ConstFeedback::new(asan_handle.is_none()),
+                ConstFeedback::new(!asan_enabled),
                 NewHashFeedback::new(&asan_observer)
             )
         );
@@ -194,7 +179,9 @@ impl FuzzCommand {
         )
         .context("Creating solution corpus")?;
 
-        let random_seed = global_options.random_seed.unwrap_or_else(current_nanos);
+        let random_seed = global_options
+            .random_seed
+            .unwrap_or_else(libafl_bolts::current_nanos);
         let rand = StdRand::with_seed(random_seed);
         let mut state = StdState::new(rand, corpus, solutions, &mut feedback, &mut objective)
             .context("Creating state")?;
@@ -217,14 +204,7 @@ impl FuzzCommand {
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        let test_case_shmem = self
-            .execution
-            .shared_memory_fuzzing
-            .map(|size| shmem_provider.new_shmem(size))
-            .transpose()
-            .context("Creating shared memory for test case passing")?;
-
-        let temp_dir = self.temp_dir.unwrap_or_else(temp_dir);
+        let temp_dir = self.temp_dir.unwrap_or_else(std::env::temp_dir);
 
         let mut fuzz_stages = {
             let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
@@ -244,51 +224,40 @@ impl FuzzCommand {
             ]
         };
 
-        let fuzz_input = if let Some(shm) = test_case_shmem {
-            FuzzInput::SharedMemory(shm)
-        } else {
-            let filename = format!("lsp-fuzz-input_{}", current_nanos());
-            let input_file_path = temp_dir.join(filename);
-            let input_file_path_str = input_file_path
-                .to_str()
-                .context("Invalid temp file path")?
-                .to_owned();
-            let input_file = InputFile::create(input_file_path)?;
-            info!(path = %input_file.path.display(), "Created input file");
-
-            if replace_at_args(&mut self.execution.target_args, input_file_path_str) {
-                FuzzInput::File(input_file)
-            } else {
-                FuzzInput::Stdin(input_file)
-            }
+        let asan_observer = asan_enabled.then_some(asan_observer);
+        if asan_observer.is_some() {
+            info!("Crash stack hashing will be enabled");
+        }
+        let mut executor = {
+            let execution_config = self.execution;
+            const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
+            let test_case_shmem = shmem_provider
+                .new_shmem(INPUT_SHM_SIZE)
+                .context("Creating shared memory for test case passing")?;
+            let fuzz_input = FuzzInput::SharedMemory(test_case_shmem);
+            let target_info = FuzzTargetInfo {
+                path: execution_config.lsp_executable,
+                args: execution_config.target_args,
+                persistent_fuzzing: binary_info.is_persistent_mode,
+                defer_fork_server: binary_info.is_defer_fork_server,
+                crash_exit_code: execution_config.crash_exit_code,
+                timeout: Duration::from_millis(execution_config.timeout).into(),
+                kill_signal: execution_config.kill_signal,
+                env: execution_config.target_env,
+            };
+            let workspace_observer = WorkspaceObserver::new(temp_dir);
+            let exec_config = FuzzExecutionConfig {
+                debug_child: execution_config.debug_child,
+                debug_afl: execution_config.debug_afl,
+                fuzz_input,
+                auto_tokens: tokens.as_mut(),
+                coverage_shm_info: Some((coverage_map_shmem_id, edges_observer.as_ref().len())),
+                map_observer: edges_observer,
+                asan_observer,
+                other_observers: tuple_list![workspace_observer, time_observer],
+            };
+            LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
-
-        let target_info = FuzzTargetInfo {
-            path: self.execution.lsp_executable,
-            args: self.execution.target_args,
-            persistent_fuzzing: binary_info.is_persistent_mode,
-            defer_fork_server: binary_info.is_defer_fork_server,
-            crash_exit_code: self.execution.crash_exit_code,
-            timeout: Duration::from_millis(self.execution.timeout).into(),
-            kill_signal: self.execution.kill_signal,
-            env: self.execution.target_env,
-        };
-
-        let workspace_observer = WorkspaceObserver;
-
-        let exec_config = FuzzExecutionConfig {
-            debug_child: self.execution.debug_child,
-            debug_afl: self.execution.debug_afl,
-            fuzz_input,
-            auto_tokens: tokens.as_mut(),
-            coverage_map_info: Some((coverage_map_shmem_id, edges_observer.as_ref().len())),
-            map_observer: edges_observer,
-            asan_observer_handle: asan_handle,
-            other_observers: tuple_list![workspace_observer, asan_observer, time_observer],
-        };
-
-        let mut executor =
-            LspExecutor::start(target_info, exec_config).context("Starting executor")?;
 
         if let Some(tokens) = tokens {
             info!("Extracted {} UTF-8 token(s) from the target.", tokens.len());
@@ -433,16 +402,4 @@ where
         }
     }
     Ok(())
-}
-
-pub fn replace_at_args(target_args: &mut [String], input_file_path_str: String) -> bool {
-    let mut replaced = false;
-    target_args
-        .iter_mut()
-        .filter(|it| *it == afl::ARG_FILE_PLACE_HOLDER)
-        .for_each(|input_file| {
-            *input_file = input_file_path_str.clone();
-            replaced = true;
-        });
-    replaced
 }

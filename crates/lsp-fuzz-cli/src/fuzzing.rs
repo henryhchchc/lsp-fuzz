@@ -43,10 +43,6 @@ pub struct ExecutorOptions {
     #[clap(long, short, env = "AFL_MAP_SIZE", value_parser = parse_size)]
     pub coverage_map_size: Option<usize>,
 
-    /// Shared memory fuzzing.
-    #[clap(long, short, value_parser = parse_size)]
-    pub shared_memory_fuzzing: Option<usize>,
-
     /// Exit code that indicates a crash.
     #[clap(long, env = "AFL_CRASH_EXITCODE", value_parser = BoolishValueParser::new())]
     pub crash_exit_code: Option<i8>,

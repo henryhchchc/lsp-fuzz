@@ -11,7 +11,7 @@ use libafl_bolts::{
     AsSliceMut, Truncate,
     fs::InputFile,
     shmem::{ShMem, ShMemId},
-    tuples::{Handle, MatchNameRef, Prepend, RefIndexable},
+    tuples::{Prepend, RefIndexable},
 };
 use nix::{
     sys::{signal::Signal, time::TimeSpec},
@@ -92,9 +92,9 @@ pub struct FuzzExecutionConfig<'a, SHM, A, OBS> {
     pub debug_afl: bool,
     pub fuzz_input: FuzzInput<SHM>,
     pub auto_tokens: Option<&'a mut UTF8Tokens>,
-    pub coverage_map_info: Option<(ShMemId, usize)>,
+    pub coverage_shm_info: Option<(ShMemId, usize)>,
     pub map_observer: A,
-    pub asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
+    pub asan_observer: Option<AsanBacktraceObserver>,
     pub other_observers: OBS,
 }
 
@@ -104,8 +104,8 @@ pub struct LspExecutor<State, OBS, SHM> {
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
+    asan_observer: Option<AsanBacktraceObserver>,
     observers: OBS,
-    asan_observer_handle: Option<Handle<AsanBacktraceObserver>>,
     _state: PhantomData<State>,
 }
 
@@ -141,7 +141,7 @@ where
             "malloc_context_size=0",
         ];
 
-        if config.asan_observer_handle.is_some() {
+        if config.asan_observer.is_some() {
             asan_options.push(const_str::concat!("log_path=", ASAN_LOG_PATH));
         }
 
@@ -162,7 +162,7 @@ where
             memlimit: 0,
             persistent_fuzzing: target_info.persistent_fuzzing,
             deferred: target_info.defer_fork_server,
-            coverage_map_info: config.coverage_map_info,
+            coverage_map_info: config.coverage_shm_info,
             afl_debug: config.debug_afl,
             debug_output: config.debug_child,
             kill_signal: target_info.kill_signal,
@@ -207,7 +207,7 @@ where
             timeout: target_info.timeout,
             fuzz_input: config.fuzz_input,
             observers,
-            asan_observer_handle: config.asan_observer_handle,
+            asan_observer: config.asan_observer,
             _state: PhantomData,
         })
     }
@@ -269,8 +269,11 @@ where
         self.observers
             .post_exec_child_all(state, input, &exit_kind)?;
         if exit_kind == ExitKind::Crash {
-            if let Some(ref handle) = self.asan_observer_handle.as_ref().cloned() {
-                self.update_asan_observer(child_pid, handle)?;
+            if let Some(ref mut asan_observer) = self.asan_observer {
+                if let Some(ref asan_log_content) = read_asan_log(child_pid)? {
+                    let log_content = String::from_utf8_lossy(asan_log_content);
+                    asan_observer.parse_asan_output(log_content.as_ref());
+                }
             }
         }
 
@@ -279,28 +282,14 @@ where
     }
 }
 
-impl<State, OBS, SHM> LspExecutor<State, OBS, SHM>
-where
-    State: HasExecutions,
-    OBS: ObserversTuple<LspInput, State>,
-    SHM: ShMem,
-{
-    fn update_asan_observer(
-        &mut self,
-        child_pid: Pid,
-        handle: &Handle<AsanBacktraceObserver>,
-    ) -> Result<(), libafl::Error> {
-        let mut observers = self.observers_mut();
-        let asan_observer = observers
-            .get_mut(handle)
-            .afl_context("ASAN handle is attached but ASAN observer not found")?;
-        let asan_log_file = format!("{ASAN_LOG_PATH}.{child_pid}");
-        if fs::exists(&asan_log_file)? {
-            let asan_log = fs::read(&asan_log_file).afl_context("Reading ASAN log file")?;
-            let asan_log = String::from_utf8_lossy(&asan_log);
-            asan_observer.parse_asan_output(&asan_log);
-            fs::remove_file(asan_log_file).afl_context("Fail to cleanup ASAN log file")?;
-        }
-        Ok(())
-    }
+fn read_asan_log(child_pid: Pid) -> Result<Option<Vec<u8>>, libafl::Error> {
+    let asan_log_file = format!("{ASAN_LOG_PATH}.{child_pid}");
+    let log = if fs::exists(&asan_log_file)? {
+        let asan_log = fs::read(&asan_log_file).afl_context("Reading ASAN log file")?;
+        fs::remove_file(asan_log_file).afl_context("Fail to cleanup ASAN log file")?;
+        Some(asan_log)
+    } else {
+        None
+    };
+    Ok(log)
 }

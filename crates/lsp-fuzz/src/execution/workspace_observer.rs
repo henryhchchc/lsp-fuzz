@@ -1,9 +1,9 @@
 use std::{
     borrow::Cow,
-    env::temp_dir,
     path::{Path, PathBuf},
 };
 
+use derive_new::new as New;
 use libafl::{HasMetadata, SerdeAny, observers::Observer, state::HasExecutions};
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
@@ -21,8 +21,10 @@ impl CurrentWorkspaceMetadata {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct WorkspaceObserver;
+#[derive(Debug, Serialize, Deserialize, New)]
+pub struct WorkspaceObserver {
+    temp_dir: PathBuf,
+}
 
 impl Named for WorkspaceObserver {
     fn name(&self) -> &Cow<'static, str> {
@@ -36,7 +38,9 @@ where
     State: HasExecutions + HasMetadata,
 {
     fn pre_exec(&mut self, state: &mut State, input: &LspInput) -> Result<(), libafl::Error> {
-        let workspace_dir = temp_dir().join(format!("lsp-fuzz-workspace_{}", state.executions()));
+        let workspace_dir = self
+            .temp_dir
+            .join(format!("lsp-fuzz-workspace_{}", state.executions()));
         let workspace_metadata: &mut CurrentWorkspaceMetadata =
             state.metadata_or_insert_with(Default::default);
         workspace_metadata.workspace_dir = workspace_dir;
