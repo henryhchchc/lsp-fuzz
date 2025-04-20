@@ -78,12 +78,11 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct StopOnReceived<State> {
+pub struct StopOnReceived {
     receiver: Receiver<()>,
-    _phantom: std::marker::PhantomData<State>,
 }
 
-impl<State> Restartable<State> for StopOnReceived<State> {
+impl<State> Restartable<State> for StopOnReceived {
     fn should_restart(&mut self, _state: &mut State) -> Result<bool, libafl::Error> {
         Ok(true)
     }
@@ -93,7 +92,7 @@ impl<State> Restartable<State> for StopOnReceived<State> {
     }
 }
 
-impl<E, M, Z, State> Stage<E, M, State, Z> for StopOnReceived<State>
+impl<E, M, Z, State> Stage<E, M, State, Z> for StopOnReceived
 where
     State: HasExecutions,
     M: EventFirer<LspInput, State>,

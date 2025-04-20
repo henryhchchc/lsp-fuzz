@@ -309,7 +309,7 @@ impl FuzzCommand {
     }
 }
 
-fn trigger_stop_stage<State>() -> Result<StopOnReceived<State>, anyhow::Error> {
+fn trigger_stop_stage() -> Result<StopOnReceived, anyhow::Error> {
     let (tx, rx) = mpsc::channel();
     let mut is_control_c_pressed = false;
     ctrlc::try_set_handler(move || {
