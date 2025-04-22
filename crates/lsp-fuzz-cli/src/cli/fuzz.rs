@@ -57,10 +57,6 @@ use crate::{
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
 pub(super) struct FuzzCommand {
-    /// Directory containing seed inputs for the fuzzer.
-    #[clap(long)]
-    seeds_dir: Option<PathBuf>,
-
     /// Directory containing the fuzzer states.
     #[clap(long)]
     state: FuzzerStateDir,
@@ -137,7 +133,6 @@ impl FuzzCommand {
         let grammar_ctx =
             load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
-        // Create an observation channel using the signals map
         let coverage_map_observer = {
             let shmem_buf = coverage_shmem.as_slice_mut();
             // SAFETY: We never move the piece of the shared memory.
@@ -270,7 +265,6 @@ impl FuzzCommand {
 
         // In case the corpus is empty (on first run), reset
         initialize_corpus(
-            self.seeds_dir,
             &mut state,
             &mut fuzzer,
             &mut executor,
@@ -358,7 +352,6 @@ where
 }
 
 fn initialize_corpus<E, Z, EM, R, C, SC>(
-    seeds_dir: Option<PathBuf>,
     state: &mut StdState<C, LspInput, R, SC>,
     fuzzer: &mut Z,
     executor: &mut E,
@@ -374,19 +367,12 @@ where
     EM: EventFirer<LspInput, StdState<C, LspInput, R, SC>>,
 {
     if state.must_load_initial_inputs() {
-        if let Some(seeds_dir) = seeds_dir {
-            state
-                .load_initial_inputs(fuzzer, executor, event_manager, &[seeds_dir])
-                .context("Loading seed inputs")?;
-            info!(num_inputs = state.corpus().count(), "Seed inputs imported");
-        } else {
-            warn!("No seed inputs provided, starting from scratch");
-            let mut generator = LspInputGenerator::new(grammar_context_lookup);
-            state
-                .generate_initial_inputs(fuzzer, executor, &mut generator, event_manager, num_seeds)
-                .context("Generating initial input")?;
-            info!(seeds = %state.corpus().count(), "Seed generation completed");
-        }
+        info!("Generating seeds");
+        let mut generator = LspInputGenerator::new(grammar_context_lookup);
+        state
+            .generate_initial_inputs(fuzzer, executor, &mut generator, event_manager, num_seeds)
+            .context("Generating initial input")?;
+        info!(seeds = %state.corpus().count(), "Seed generation completed");
     }
     Ok(())
 }
