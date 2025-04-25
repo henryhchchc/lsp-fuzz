@@ -173,7 +173,7 @@ mod tests {
         for language in languages {
             let grammar =
                 Grammar::from_tree_sitter_grammar_json(language, language.grammar_json()).unwrap();
-            eprintln!("{}", grammar);
+            eprintln!("{grammar}");
             grammar
                 .validate()
                 .unwrap_or_else(|_| panic!("Fail to validate grammar for language: {language}"));

@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fs, marker::PhantomData, mem, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    marker::PhantomData,
+    mem::{self, transmute},
+    path::PathBuf,
+};
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
@@ -8,15 +14,16 @@ use libafl::{
     state::HasExecutions,
 };
 use libafl_bolts::{
-    AsSliceMut, Truncate,
+    AsSliceMut, HasLen, Named, Truncate,
     fs::InputFile,
     shmem::{ShMem, ShMemId},
-    tuples::{Prepend, RefIndexable},
+    tuples::{MatchName, RefIndexable, type_eq},
 };
 use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use workspace_observer::CurrentWorkspaceMetadata;
 
@@ -87,41 +94,39 @@ pub struct FuzzTargetInfo {
 }
 
 #[derive(Debug)]
-pub struct FuzzExecutionConfig<'a, SHM, A, OBS> {
+pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
     pub debug_child: bool,
     pub debug_afl: bool,
     pub fuzz_input: FuzzInput<SHM>,
     pub auto_tokens: Option<&'a mut UTF8Tokens>,
     pub coverage_shm_info: Option<(ShMemId, usize)>,
-    pub map_observer: A,
+    pub map_observer: MO,
     pub asan_observer: Option<AsanBacktraceObserver>,
     pub other_observers: OBS,
 }
 
 #[derive(Debug)]
-pub struct LspExecutor<State, OBS, SHM> {
+pub struct LspExecutor<State, MO, OBS, SHM> {
     fork_server: NeoForkServer,
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
-    asan_observer: Option<AsanBacktraceObserver>,
-    observers: OBS,
+    observers: Observers<MO, OBS>,
     _state: PhantomData<State>,
 }
 
-impl<State, OBS, A, SHM> LspExecutor<State, (A, OBS), SHM>
+impl<State, OBS, MO, SHM> LspExecutor<State, MO, OBS, SHM>
 where
     SHM: ShMem,
 {
     /// Create and initialize a new LSP executor.
-    pub fn start<MO>(
+    pub fn start<A>(
         target_info: FuzzTargetInfo,
-        mut config: FuzzExecutionConfig<'_, SHM, A, OBS>,
+        mut config: FuzzExecutionConfig<'_, SHM, MO, OBS>,
     ) -> Result<Self, libafl::Error>
     where
-        MO: MapObserver + Truncate,
-        A: Observer<LspInput, State> + AsMut<MO> + AsRef<MO>,
-        OBS: ObserversTuple<LspInput, State> + Prepend<A>,
+        MO: AsRef<A> + AsMut<A>,
+        A: Truncate + HasLen + MapObserver,
     {
         let args = target_info.args.into_iter().map(|it| it.into()).collect();
 
@@ -199,7 +204,11 @@ where
             auto_dict.parse_auto_dict(auto_dict_payload);
         }
 
-        let observers = (config.map_observer, config.other_observers);
+        let observers = Observers {
+            map_observer: config.map_observer,
+            asan_observer: config.asan_observer,
+            other_observers: config.other_observers,
+        };
 
         Ok(Self {
             fork_server,
@@ -207,29 +216,125 @@ where
             timeout: target_info.timeout,
             fuzz_input: config.fuzz_input,
             observers,
-            asan_observer: config.asan_observer,
             _state: PhantomData,
         })
     }
 }
 
-impl<State, OBS, SHM> HasObservers for LspExecutor<State, OBS, SHM>
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Observers<MO, OBS> {
+    map_observer: MO,
+    asan_observer: Option<AsanBacktraceObserver>,
+    other_observers: OBS,
+}
+
+impl<MO, OBS> MatchName for Observers<MO, OBS>
+where
+    MO: Named,
+    OBS: MatchName,
+{
+    fn match_name<T>(&self, name: &str) -> Option<&T> {
+        if type_eq::<T, MO>() && self.map_observer.name() == name {
+            Some(unsafe { transmute::<&MO, &T>(&self.map_observer) })
+        } else if let Some(ref asan_observer) = self.asan_observer
+            && type_eq::<T, AsanBacktraceObserver>()
+            && asan_observer.name() == name
+        {
+            return Some(unsafe { transmute::<&AsanBacktraceObserver, &T>(asan_observer) });
+        } else {
+            #[allow(deprecated, reason = "Fallback call")]
+            self.other_observers.match_name(name)
+        }
+    }
+
+    fn match_name_mut<T>(&mut self, name: &str) -> Option<&mut T> {
+        if type_eq::<T, MO>() && self.map_observer.name() == name {
+            Some(unsafe { transmute::<&mut MO, &mut T>(&mut self.map_observer) })
+        } else if let Some(ref mut asan_observer) = self.asan_observer
+            && type_eq::<T, AsanBacktraceObserver>()
+            && asan_observer.name() == name
+        {
+            return Some(unsafe { transmute::<&mut AsanBacktraceObserver, &mut T>(asan_observer) });
+        } else {
+            #[allow(deprecated, reason = "Fallback call")]
+            self.other_observers.match_name_mut(name)
+        }
+    }
+}
+
+impl<I, State, MO, OBS> ObserversTuple<I, State> for Observers<MO, OBS>
+where
+    MO: Observer<I, State>,
+    OBS: ObserversTuple<I, State>,
+{
+    fn pre_exec_all(&mut self, state: &mut State, input: &I) -> Result<(), libafl::Error> {
+        self.map_observer.pre_exec(state, input)?;
+        if let Some(ref mut asan_observer) = self.asan_observer {
+            asan_observer.pre_exec(state, input)?;
+        }
+        self.other_observers.pre_exec_all(state, input)?;
+        Ok(())
+    }
+
+    fn post_exec_all(
+        &mut self,
+        state: &mut State,
+        input: &I,
+        exit_kind: &ExitKind,
+    ) -> Result<(), libafl::Error> {
+        self.map_observer.post_exec(state, input, exit_kind)?;
+        if let Some(ref mut asan_observer) = self.asan_observer {
+            asan_observer.post_exec(state, input, exit_kind)?;
+        }
+        self.other_observers
+            .post_exec_all(state, input, exit_kind)?;
+        Ok(())
+    }
+
+    fn pre_exec_child_all(&mut self, state: &mut State, input: &I) -> Result<(), libafl::Error> {
+        self.map_observer.pre_exec_child(state, input)?;
+        if let Some(ref mut asan_observer) = self.asan_observer {
+            asan_observer.pre_exec_child(state, input)?;
+        }
+        self.other_observers.pre_exec_child_all(state, input)?;
+        Ok(())
+    }
+
+    fn post_exec_child_all(
+        &mut self,
+        state: &mut State,
+        input: &I,
+        exit_kind: &ExitKind,
+    ) -> Result<(), libafl::Error> {
+        self.map_observer.post_exec_child(state, input, exit_kind)?;
+        if let Some(ref mut asan_observer) = self.asan_observer {
+            asan_observer.post_exec_child(state, input, exit_kind)?;
+        }
+        self.other_observers
+            .post_exec_child_all(state, input, exit_kind)?;
+        Ok(())
+    }
+}
+
+impl<State, MO, OBS, SHM> HasObservers for LspExecutor<State, MO, OBS, SHM>
 where
     OBS: ObserversTuple<LspInput, State>,
 {
-    type Observers = OBS;
+    type Observers = Observers<MO, OBS>;
 
-    fn observers(&self) -> RefIndexable<&OBS, OBS> {
+    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers> {
         RefIndexable::from(&self.observers)
     }
 
-    fn observers_mut(&mut self) -> RefIndexable<&mut OBS, OBS> {
+    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers> {
         RefIndexable::from(&mut self.observers)
     }
 }
 
-impl<EM, Z, State, OBS, SHM> Executor<EM, LspInput, State, Z> for LspExecutor<State, OBS, SHM>
+impl<EM, Z, State, MO, OBS, SHM> Executor<EM, LspInput, State, Z>
+    for LspExecutor<State, MO, OBS, SHM>
 where
+    Observers<MO, OBS>: ObserversTuple<LspInput, State>,
     State: HasExecutions + HasMetadata,
     OBS: ObserversTuple<LspInput, State>,
     SHM: ShMem,
@@ -268,13 +373,12 @@ where
         };
         self.observers
             .post_exec_child_all(state, input, &exit_kind)?;
-        if exit_kind == ExitKind::Crash {
-            if let Some(ref mut asan_observer) = self.asan_observer {
-                if let Some(ref asan_log_content) = read_asan_log(child_pid)? {
-                    let log_content = String::from_utf8_lossy(asan_log_content);
-                    asan_observer.parse_asan_output(log_content.as_ref());
-                }
-            }
+        if exit_kind == ExitKind::Crash
+            && let Some(ref mut asan_observer) = self.observers.asan_observer
+            && let Some(ref asan_log_content) = read_asan_log(child_pid)?
+        {
+            let log_content = String::from_utf8_lossy(asan_log_content);
+            asan_observer.parse_asan_output(log_content.as_ref());
         }
 
         *state.executions_mut() += 1;

@@ -121,10 +121,10 @@ impl UTF8Tokens {
     {
         let mut payload = payload.into_iter();
         while let Some(size) = payload.next().map(usize::from) {
-            if size > 0 {
-                if let Ok(token) = String::from_utf8(payload.by_ref().take(size).collect()) {
-                    self.content.insert(token);
-                }
+            if size > 0
+                && let Ok(token) = String::from_utf8(payload.by_ref().take(size).collect())
+            {
+                self.content.insert(token);
             }
         }
     }

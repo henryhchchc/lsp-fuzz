@@ -306,6 +306,8 @@ where
     }
 }
 
+pub const MAX_MESSAGES: usize = 10;
+
 impl<M, State: 'static> AppendRandomlyGeneratedMessage<M, State>
 where
     M: LspMessage,
@@ -350,7 +352,14 @@ where
             Err(GenerationError::Error(e)) => return Err(e),
         };
         let message = ClientToServerMessage::from_params::<M>(params);
-        input.messages.push(message);
+        if input.messages.len() >= MAX_MESSAGES {
+            let being_replaced = state.rand_mut().choose(input.messages.iter_mut()).expect(
+                "There must be at least one message in the input when entering this branch",
+            );
+            *being_replaced = message;
+        } else {
+            input.messages.push(message);
+        }
         Ok(MutationResult::Mutated)
     }
 }

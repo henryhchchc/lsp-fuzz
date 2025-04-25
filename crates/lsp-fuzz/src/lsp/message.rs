@@ -111,7 +111,7 @@ impl ClientToServerMessage {
             let workspace_uri = if workspace_uri.ends_with('/') {
                 Cow::Borrowed(workspace_uri)
             } else {
-                Cow::Owned(format!("{}/", workspace_uri))
+                Cow::Owned(format!("{workspace_uri}/"))
             };
             localize_json_value(&mut params, workspace_uri.as_ref());
         }

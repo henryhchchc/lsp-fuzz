@@ -199,7 +199,7 @@ fn parse_asan_log<R: Read>(
         .read_to_string(&mut log_content)
         .context("Reading ASAN log")?;
     info!(%log_content);
-    let pid_prefix = format!("=={}==", pid);
+    let pid_prefix = format!("=={pid}==");
     let asan_summary = log_content
         .lines()
         .skip(1)
@@ -224,7 +224,7 @@ fn asan_options(asan_log_file: &Path) -> Vec<Cow<'_, str>> {
     let asan_log_file = asan_log_file
         .to_str()
         .expect("The temp path is not valid UTF-8");
-    let log_config = format!("log_path={}", asan_log_file);
+    let log_config = format!("log_path={asan_log_file}");
     [
         "detect_odr_violation=0",
         "abort_on_error=1",

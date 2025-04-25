@@ -160,7 +160,7 @@ impl LspInput {
         let workspace_dir = if workspace_dir.ends_with('/') {
             Cow::Borrowed(workspace_dir)
         } else {
-            Cow::Owned(format!("{}/", workspace_dir))
+            Cow::Owned(format!("{workspace_dir}/"))
         };
         let workspace_uri = format!("file://{workspace_dir}");
 

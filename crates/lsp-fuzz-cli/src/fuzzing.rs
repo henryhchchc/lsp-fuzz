@@ -44,12 +44,12 @@ pub struct ExecutorOptions {
     pub coverage_map_size: Option<usize>,
 
     /// Exit code that indicates a crash.
-    #[clap(long, env = "AFL_CRASH_EXITCODE", value_parser = BoolishValueParser::new())]
+    #[clap(long, env = "AFL_CRASH_EXITCODE")]
     pub crash_exit_code: Option<i8>,
 
     /// Timeout running the fuzz target in milliseconds.
     #[clap(long, short, default_value_t = 1200)]
-    pub timeout: u64,
+    pub exec_timeout: u64,
 
     /// Signal to send to terminate the child process.
     #[clap(long, short, env = "AFL_KILL_SIGNAL", default_value_t = Signal::SIGKILL)]

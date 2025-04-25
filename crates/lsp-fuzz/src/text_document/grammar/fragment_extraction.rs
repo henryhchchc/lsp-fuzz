@@ -212,7 +212,7 @@ mod test {
         let lang = Language::C.ts_language();
         parser.set_language(&lang).unwrap();
         let fragments = extract_derivation_fragments(C_CODE.as_bytes(), &mut parser).unwrap();
-        eprintln!("{:?}", fragments);
+        eprintln!("{fragments:?}");
         for key in [
             "translation_unit",
             "function_definition",

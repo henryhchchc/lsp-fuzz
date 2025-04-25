@@ -88,15 +88,15 @@ pub(super) struct FuzzCommand {
     #[clap(long)]
     cpu_affinity: Option<usize>,
 
-    #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
-    language_fragments: HashMap<Language, PathBuf>,
-
     /// Stop fuzzing after a certain number of hours.
     #[clap(long)]
-    timeout: u64,
+    time_budget: u64,
 
     #[clap(long)]
     no_asan: bool,
+
+    #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
+    language_fragments: HashMap<Language, PathBuf>,
 }
 
 impl FuzzCommand {
@@ -208,7 +208,7 @@ impl FuzzCommand {
                 .context("temp_dir is not a valid UTF-8 string")?;
             let cleanup_workspace_stage = CleanupWorkspaceDirs::new(temp_dir_str.to_owned(), 1000);
             let trigger_stop = trigger_stop_stage()?;
-            let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.timeout));
+            let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
                 calibration_stage,
                 mutation_stage,
@@ -235,7 +235,7 @@ impl FuzzCommand {
                 persistent_fuzzing: binary_info.is_persistent_mode,
                 defer_fork_server: binary_info.is_defer_fork_server,
                 crash_exit_code: execution_config.crash_exit_code,
-                timeout: Duration::from_millis(execution_config.timeout).into(),
+                timeout: Duration::from_millis(execution_config.exec_timeout).into(),
                 kill_signal: execution_config.kill_signal,
                 env: execution_config.target_env,
             };

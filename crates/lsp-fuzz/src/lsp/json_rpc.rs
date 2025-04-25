@@ -72,8 +72,8 @@ impl From<&'static str> for MessageId {
 impl Display for MessageId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Number(id) => write!(f, "{}", id),
-            Self::String(id) => write!(f, "{}", id),
+            Self::Number(id) => write!(f, "{id}"),
+            Self::String(id) => write!(f, "{id}"),
         }
     }
 }
