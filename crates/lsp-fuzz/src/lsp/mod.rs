@@ -4,6 +4,7 @@ pub mod message;
 use generation::LspParamsGenerator;
 pub use message::ClientToServerMessage;
 
+pub mod code_context;
 pub mod compositions;
 pub mod generation;
 pub mod json_rpc;
