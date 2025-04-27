@@ -10,7 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
-        use crate::lsp::{LspMessage, MessageParam};
+        use crate::lsp::{code_context::CodeContext, LspMessage, MessageParam};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -78,6 +78,62 @@ macro_rules! lsp_messages {
                     M::Params: MessageParam<M>
             {
                 M::Params::into_message(params)
+            }
+        }
+
+        impl CodeContext for $type_name {
+            fn document(&self) -> Option<&lsp_types::TextDocumentIdentifier> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.document())?
+                        $( Self::$not_variant(params) => params.document())?
+                    ),*
+                }
+            }
+
+            fn position(&self) -> Option<&lsp_types::Position> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.position())?
+                        $( Self::$not_variant(params) => params.position())?
+                    ),*
+                }
+            }
+
+            fn range(&self) -> Option<&lsp_types::Range> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.range())?
+                        $( Self::$not_variant(params) => params.range())?
+                    ),*
+                }
+            }
+
+            fn document_mut(&mut self) -> Option<&mut lsp_types::TextDocumentIdentifier> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.document_mut())?
+                        $( Self::$not_variant(params) => params.document_mut())?
+                    ),*
+                }
+            }
+
+            fn position_mut(&mut self) -> Option<&mut lsp_types::Position> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.position_mut())?
+                        $( Self::$not_variant(params) => params.position_mut())?
+                    ),*
+                }
+            }
+
+            fn range_mut(&mut self) -> Option<&mut lsp_types::Range> {
+                match self {
+                    $(
+                        $( Self::$req_variant(params) => params.range_mut())?
+                        $( Self::$not_variant(params) => params.range_mut())?
+                    ),*
+                }
             }
         }
 
