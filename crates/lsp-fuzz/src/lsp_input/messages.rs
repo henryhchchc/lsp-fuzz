@@ -21,6 +21,7 @@ use super::LspInput;
 use crate::{
     lsp::{
         self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
+        code_context::CodeContextRef,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
     },
     macros::{append_randoms, prop_mutator},
@@ -35,6 +36,43 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
 pub struct LspMessages {
     inner: Vec<lsp::ClientToServerMessage>,
+}
+
+impl LspMessages {
+    pub fn calibrate(&mut self, doc_uri: &Uri, input_edit: tree_sitter::InputEdit) {
+        self.inner
+            .iter_mut()
+            .filter(|it| it.document().is_some_and(|it| &it.uri == doc_uri))
+            .for_each(|message| calibrate_message(message, input_edit));
+    }
+}
+
+fn calibrate_message(message: &mut ClientToServerMessage, input_edit: tree_sitter::InputEdit) {
+    // Helper function to determine if a position is after the edit
+    fn is_after_edit(pos: &lsp_types::Position, edit: &tree_sitter::InputEdit) -> bool {
+        (pos.line as usize)
+            .cmp(&edit.old_end_position.row)
+            .then_with(|| (pos.character as usize).cmp(&edit.old_end_position.column))
+            .is_gt()
+    }
+
+    // Helper function to update a position if it's after the edit
+    fn update_position(pos: &mut lsp_types::Position, edit: &tree_sitter::InputEdit) {
+        if is_after_edit(pos, edit) {
+            let line_diff = edit.new_end_position.row as i64 - edit.old_end_position.row as i64;
+            let col_diff =
+                edit.new_end_position.column as i64 - edit.old_end_position.column as i64;
+            pos.line = (pos.line as i64 + line_diff) as u32;
+            pos.character = (pos.character as i64 + col_diff) as u32;
+        }
+    }
+
+    if let Some(pos) = message.position_mut() {
+        update_position(pos, &input_edit);
+    } else if let Some(range) = message.range_mut() {
+        update_position(&mut range.start, &input_edit);
+        update_position(&mut range.end, &input_edit);
+    }
 }
 
 impl HasLen for LspMessages {

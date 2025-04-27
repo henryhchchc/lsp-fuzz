@@ -104,11 +104,15 @@ pub trait GrammarBasedMutation {
     fn language(&self) -> Language;
     fn parse_tree(&self) -> &tree_sitter::Tree;
     fn fragment(&self, range: Range<usize>) -> &[u8];
-    fn edit<E>(&mut self, edit: E)
+    fn edit<E>(&mut self, edit: E) -> tree_sitter::InputEdit
     where
         E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit;
 
-    fn splice(&mut self, range: tree_sitter::Range, new_content: Vec<u8>) {
+    fn splice(
+        &mut self,
+        range: tree_sitter::Range,
+        new_content: Vec<u8>,
+    ) -> tree_sitter::InputEdit {
         self.edit(|content| {
             let byte_range = range.start_byte..range.end_byte;
             let new_content_len = new_content.len();
@@ -117,18 +121,19 @@ pub trait GrammarBasedMutation {
             let replacement = &content[range.start_byte..][..new_content_len];
 
             edit_for_node_replacement(range, replacement)
-        });
+        })
     }
 }
 
 impl GrammarBasedMutation for TextDocument {
-    fn edit<E>(&mut self, edit: E)
+    fn edit<E>(&mut self, edit: E) -> tree_sitter::InputEdit
     where
         E: FnOnce(&mut Vec<u8>) -> tree_sitter::InputEdit,
     {
         let input_edit = edit(&mut self.content);
         self.metadata.parse_tree.edit(&input_edit);
         self.update_metadata();
+        input_edit
     }
 
     fn language(&self) -> Language {

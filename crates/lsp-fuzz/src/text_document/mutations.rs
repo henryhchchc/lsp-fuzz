@@ -92,7 +92,7 @@ where
         state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let Some((_, doc)) = TS::select_document_mut(state, input) else {
+        let Some((ref doc_uri, doc)) = TS::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
         let Some(grammar_ctx) = self.grammar_lookup.get(doc.language()) else {
@@ -113,7 +113,8 @@ where
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        doc.splice(node_range, replacement.to_vec());
+        let input_edit = doc.splice(node_range, replacement.to_vec());
+        input.messages.calibrate(doc_uri, input_edit);
         Ok(MutationResult::Mutated)
     }
 }
