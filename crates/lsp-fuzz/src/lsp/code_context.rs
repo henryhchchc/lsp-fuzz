@@ -1,6 +1,6 @@
 use lsp_types::*;
 
-pub trait CodeContext {
+pub trait CodeContextRef {
     fn document(&self) -> Option<&TextDocumentIdentifier>;
     fn position(&self) -> Option<&Position>;
     fn range(&self) -> Option<&lsp_types::Range>;
@@ -45,7 +45,7 @@ pub trait CodeContext {
     DidChangeTextDocumentParams,
     DidChangeWorkspaceFoldersParams
 )]
-impl CodeContext for T {
+impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         None
     }
@@ -85,7 +85,7 @@ impl CodeContext for T {
     DocumentSymbolParams,
     DidSaveTextDocumentParams,
 )]
-impl CodeContext for T {
+impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         Some(&self.text_document)
     }
@@ -121,7 +121,7 @@ impl CodeContext for T {
     SignatureHelpParams,
     TypeHierarchyPrepareParams,
 )]
-impl CodeContext for T {
+impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         Some(&self.text_document_position_params.text_document)
     }
@@ -153,7 +153,7 @@ impl CodeContext for T {
     ReferenceParams,
     DocumentOnTypeFormattingParams,
 )]
-impl CodeContext for T {
+impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         Some(&self.text_document_position.text_document)
     }
@@ -186,7 +186,7 @@ impl CodeContext for T {
     SemanticTokensRangeParams,
     CodeActionParams,
 )]
-impl CodeContext for T {
+impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         Some(&self.text_document)
     }
@@ -212,7 +212,7 @@ impl CodeContext for T {
     }
 }
 
-impl CodeContext for TextDocumentPositionParams {
+impl CodeContextRef for TextDocumentPositionParams {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
         Some(&self.text_document)
     }

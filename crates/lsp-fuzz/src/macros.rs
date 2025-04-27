@@ -10,7 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
-        use crate::lsp::{code_context::CodeContext, LspMessage, MessageParam};
+        use crate::lsp::{code_context::CodeContextRef, LspMessage, MessageParam};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -81,7 +81,7 @@ macro_rules! lsp_messages {
             }
         }
 
-        impl CodeContext for $type_name {
+        impl CodeContextRef for $type_name {
             fn document(&self) -> Option<&lsp_types::TextDocumentIdentifier> {
                 match self {
                     $(
