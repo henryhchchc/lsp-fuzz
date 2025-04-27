@@ -18,10 +18,10 @@ pub struct ReplaceNodeMutation<'a, TS, NodeSel, NodeGen, State> {
     _phantom: PhantomData<(TS, State)>,
 }
 
-impl<'a, TS, NF, NodeGen, State> ReplaceNodeMutation<'a, TS, NF, NodeGen, State> {
+impl<'a, TS, NodeSel, NodeGen, State> ReplaceNodeMutation<'a, TS, NodeSel, NodeGen, State> {
     pub fn new(
         grammar_lookup: &'a GrammarContextLookup,
-        node_selector: NF,
+        node_selector: NodeSel,
         node_generator: NodeGen,
     ) -> Self {
         let name = Cow::Owned("ReplaceNode".to_owned());
@@ -35,7 +35,7 @@ impl<'a, TS, NF, NodeGen, State> ReplaceNodeMutation<'a, TS, NF, NodeGen, State>
     }
 }
 
-impl<TS, NF, GEN, State> Named for ReplaceNodeMutation<'_, TS, NF, GEN, State> {
+impl<TS, NodeSel, NodeGen, State> Named for ReplaceNodeMutation<'_, TS, NodeSel, NodeGen, State> {
     fn name(&self) -> &std::borrow::Cow<'static, str> {
         &self.name
     }
@@ -73,9 +73,10 @@ pub trait NodeGenerator<State> {
     ) -> Option<Vec<u8>>;
 }
 
-impl<State, TS, Sel, Gen> Mutator<LspInput, State> for ReplaceNodeMutation<'_, TS, Sel, Gen, State>
+impl<State, DocSel, Sel, Gen> Mutator<LspInput, State>
+    for ReplaceNodeMutation<'_, DocSel, Sel, Gen, State>
 where
-    TS: TextDocumentSelector<State>,
+    DocSel: TextDocumentSelector<State>,
     Sel: NodeSelector<State>,
     Gen: NodeGenerator<State>,
 {
@@ -84,7 +85,7 @@ where
         state: &mut State,
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
-        let Some((ref doc_uri, doc)) = TS::select_document_mut(state, input) else {
+        let Some((ref doc_uri, doc)) = DocSel::select_document_mut(state, input) else {
             return Ok(MutationResult::Skipped);
         };
         let Some(grammar_ctx) = self.grammar_lookup.get(doc.language()) else {
