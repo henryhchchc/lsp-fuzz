@@ -1,18 +1,10 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use derive_new::new as New;
-use itertools::Itertools;
-use libafl::{
-    mutators::{MutationResult, Mutator},
-    state::HasRand,
-};
-use libafl_bolts::{HasLen, Named, rands::Rand};
+use libafl::mutators::{MutationResult, Mutator};
+use libafl_bolts::{HasLen, Named};
 use lsp_types::Uri;
 
-use super::{
-    GrammarBasedMutation, GrammarContextLookup, TextDocument, generation::GrammarContext,
-    grammar::tree_sitter::TreeIter,
-};
+use super::{GrammarBasedMutation, GrammarContextLookup, TextDocument, generation::GrammarContext};
 use crate::lsp_input::LspInput;
 
 const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
@@ -289,60 +281,5 @@ pub mod node_generators {
             let fragment = generator.generate(node.kind(), state).ok()?;
             Some(fragment)
         }
-    }
-}
-
-#[derive(Debug, New)]
-pub struct DropUncoveredArea<TS> {
-    _doc_selector: PhantomData<TS>,
-}
-
-impl<TS> Named for DropUncoveredArea<TS> {
-    fn name(&self) -> &std::borrow::Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("DropUncoveredArea");
-        &NAME
-    }
-}
-
-impl<State, TS> Mutator<LspInput, State> for DropUncoveredArea<TS>
-where
-    TS: TextDocumentSelector<State>,
-    State: HasRand,
-{
-    fn mutate(
-        &mut self,
-        state: &mut State,
-        input: &mut LspInput,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some((_path, doc)) = TS::select_document_mut(state, input) else {
-            return Ok(MutationResult::Skipped);
-        };
-        let covered_areas = doc
-            .parse_tree()
-            .iter()
-            .filter(|it| it.child_count() > 0)
-            .map(|it| it.range())
-            .sorted_by_key(|it| it.start_byte)
-            .tuple_windows()
-            .filter(|(prev, curr)| prev.end_byte < curr.start_byte);
-
-        let Some((prev, curr)) = state.rand_mut().choose(covered_areas) else {
-            return Ok(MutationResult::Skipped);
-        };
-
-        doc.edit(|content| {
-            let remove_range = prev.end_byte..curr.start_byte;
-            let _ = content.drain(remove_range);
-            tree_sitter::InputEdit {
-                start_byte: prev.end_byte,
-                old_end_byte: curr.start_byte,
-                new_end_byte: prev.end_byte,
-                start_position: prev.end_point,
-                old_end_position: curr.start_point,
-                new_end_position: prev.end_point,
-            }
-        });
-
-        Ok(MutationResult::Mutated)
     }
 }

@@ -208,7 +208,7 @@ pub fn text_document_mutations<State>(
 where
     State: HasRand + HasMaxSize + HasMetadata,
 {
-    use mutations::{node_filters::NodesThat, *};
+    use mutations::node_filters::NodesThat;
     let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
     tuple_list![
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
@@ -229,26 +229,6 @@ where
             HighlightedNodes::new("comment".to_owned()),
             EmptyNode
         ),
-        DropUncoveredArea::<RandomDoc>::new(),
-    ]
-}
-
-pub fn text_document_reductions<State>(
-    grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
-where
-    State: HasRand + HasMaxSize,
-{
-    use mutations::{node_filters::NodesThat, *};
-    let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
-    tuple_list![
-        ReplaceNodeInRandomRoc::new(
-            grammar_lookup,
-            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
-            EmptyNode
-        ),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
-        DropUncoveredArea::<RandomDoc>::new(),
     ]
 }
 
