@@ -53,7 +53,7 @@ fn calibrate_message(message: &mut ClientToServerMessage, input_edit: tree_sitte
         (pos.line as usize)
             .cmp(&edit.old_end_position.row)
             .then_with(|| (pos.character as usize).cmp(&edit.old_end_position.column))
-            .is_gt()
+            .is_ge()
     }
 
     // Helper function to update a position if it's after the edit
