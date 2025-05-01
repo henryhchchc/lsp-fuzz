@@ -61,11 +61,20 @@ fn find_crashing_request(
             Err(e) if e.kind() == ErrorKind::BrokenPipe => {}
             Err(e) => Err(e).context("Sending message to target")?,
         }
+        let sleep_duration = if jsonrpc
+            .method()
+            .is_some_and(|it| it == "textDocument/didOpen")
+        {
+            Duration::from_secs(10)
+        } else {
+            Duration::from_secs(5)
+        };
+        std::thread::sleep(sleep_duration);
         if let JsonRPCMessage::Request { id: request_id, .. } = &jsonrpc {
             loop {
                 let mut fdset = nix::sys::select::FdSet::new();
                 fdset.insert(target_stdout.get_ref().as_fd());
-                let timeout = &Duration::from_secs(10).into();
+                let timeout = &Duration::from_secs(30).into();
                 let mut sigmask = SigSet::empty();
                 sigmask.add(nix::sys::signal::Signal::SIGINT);
                 match nix::sys::select::pselect(
