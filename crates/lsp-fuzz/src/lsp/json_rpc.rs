@@ -6,6 +6,7 @@ use std::{
 
 use serde::{Deserialize, Deserializer, Serialize};
 use static_assertions::const_assert_eq;
+use zstd::zstd_safe::WriteBuf;
 
 /// JSON-RPC 2.0 protocol version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -279,4 +280,10 @@ fn parse_payload() {
     ]
     .concat();
     JsonRPCMessage::read_lsp_payload(&mut payload.as_slice()).unwrap();
+}
+
+#[test]
+fn sorbet_payload() {
+    const PAYLOAD: &[u8] = b"Content-Length: 141\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":2,\"requestMethod\":\"sorbet/error\",\"error\":{\"code\":-32601,\"message\":\"Unsupported LSP method: textDocument/foldingRange\"}}";
+    dbg!(JsonRPCMessage::read_lsp_payload(&mut PAYLOAD.as_slice())).unwrap();
 }

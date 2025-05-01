@@ -18,7 +18,7 @@ use libcasr::{
     stacktrace::ParseStacktrace,
 };
 use lsp_fuzz::{lsp::json_rpc::JsonRPCMessage, lsp_input::LspInput};
-use nix::libc;
+use nix::{libc, sys::signal::SigSet};
 use serde::Serialize;
 use tracing::{info, warn};
 
@@ -65,8 +65,17 @@ fn find_crashing_request(
             loop {
                 let mut fdset = nix::sys::select::FdSet::new();
                 fdset.insert(target_stdout.get_ref().as_fd());
-                let timeout = &Duration::from_secs(30).into();
-                match nix::sys::select::pselect(None, &mut fdset, None, None, Some(timeout), None) {
+                let timeout = &Duration::from_secs(10).into();
+                let mut sigmask = SigSet::empty();
+                sigmask.add(nix::sys::signal::Signal::SIGINT);
+                match nix::sys::select::pselect(
+                    None,
+                    &mut fdset,
+                    None,
+                    None,
+                    Some(timeout),
+                    Some(&sigmask),
+                ) {
                     Ok(1) => {}
                     Ok(0) => {
                         warn!("Timeout waiting for target to respond");
@@ -84,8 +93,8 @@ fn find_crashing_request(
                             break;
                         }
                     }
-                    Ok(JsonRPCMessage::Notification { .. }) => {
-                        info!("Received a notification from target");
+                    Ok(JsonRPCMessage::Notification { method, .. }) => {
+                        info!(%method, "Received a notification from target");
                     }
                     Ok(JsonRPCMessage::Request { method, .. }) => {
                         info!(%method, "Received a request from target");
