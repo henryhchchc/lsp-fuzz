@@ -60,9 +60,9 @@ fn find_crashing_request(
             .method()
             .is_some_and(|it| it == "textDocument/didOpen")
         {
-            Duration::from_secs(10)
+            Duration::from_secs(20)
         } else {
-            Duration::from_secs(5)
+            Duration::from_secs(15)
         };
         std::thread::sleep(sleep_duration);
         if let Some(status) = child.try_wait().context("Waiting child")? {
@@ -73,6 +73,7 @@ fn find_crashing_request(
         }
     }
     if crashing_request.is_none() {
+        std::thread::sleep(Duration::from_secs(30));
         child.kill().context("Killing child")?;
     }
     Ok(crashing_request)
