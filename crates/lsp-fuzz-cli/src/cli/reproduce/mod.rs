@@ -3,7 +3,7 @@ use std::{
     ffi::CStr,
     fs::File,
     io::{self, BufReader, ErrorKind, Read, Write},
-    os::{fd::AsFd, unix::process::ExitStatusExt},
+    os::unix::process::ExitStatusExt,
     path::Path,
     process::{Child, Command, Stdio},
     time::Duration,
@@ -18,7 +18,7 @@ use libcasr::{
     stacktrace::ParseStacktrace,
 };
 use lsp_fuzz::{lsp::json_rpc::JsonRPCMessage, lsp_input::LspInput};
-use nix::{libc, sys::signal::SigSet};
+use nix::libc;
 use serde::Serialize;
 use tracing::{info, warn};
 
@@ -44,11 +44,6 @@ fn find_crashing_request(
         .stdin
         .take()
         .context("Child should have its stdin piped")?;
-    let target_stdout = child
-        .stdout
-        .take()
-        .context("Child should have its stdout piped")?;
-    let mut target_stdout = BufReader::new(target_stdout);
     let mut crashing_request = None;
     for (idx, jsonrpc) in json_rpc_messages(input, workspace_url).enumerate() {
         info!(
@@ -70,63 +65,15 @@ fn find_crashing_request(
             Duration::from_secs(5)
         };
         std::thread::sleep(sleep_duration);
-        if let JsonRPCMessage::Request { id: request_id, .. } = &jsonrpc {
-            loop {
-                let mut fdset = nix::sys::select::FdSet::new();
-                fdset.insert(target_stdout.get_ref().as_fd());
-                let timeout = &Duration::from_secs(30).into();
-                let mut sigmask = SigSet::empty();
-                sigmask.add(nix::sys::signal::Signal::SIGINT);
-                match nix::sys::select::pselect(
-                    None,
-                    &mut fdset,
-                    None,
-                    None,
-                    Some(timeout),
-                    Some(&sigmask),
-                ) {
-                    Ok(1) => {}
-                    Ok(0) => {
-                        warn!("Timeout waiting for target to respond");
-                        child.kill().context("Killing target")?;
-                        break;
-                    }
-                    Ok(_) => unreachable!("we passed in only one fd"),
-                    Err(e) => return Err(e).context("Error in pselect"),
-                };
-
-                match JsonRPCMessage::read_lsp_payload(&mut target_stdout) {
-                    Ok(JsonRPCMessage::Response { id, .. }) => {
-                        info!(?id, "Received an response from target");
-                        if id.is_some_and(|it| it == *request_id) {
-                            break;
-                        }
-                    }
-                    Ok(JsonRPCMessage::Notification { method, .. }) => {
-                        info!(%method, "Received a notification from target");
-                    }
-                    Ok(JsonRPCMessage::Request { method, .. }) => {
-                        info!(%method, "Received a request from target");
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                        break;
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-                        warn!(error = ?e, "Invalid data read from the target");
-                        break;
-                    }
-                    Err(e) => {
-                        return Err(e).context("Reading from target");
-                    }
-                }
-            }
-        }
         if let Some(status) = child.try_wait().context("Waiting child")? {
             if !status.success() {
                 crashing_request = Some((idx, jsonrpc));
             }
             break;
         }
+    }
+    if crashing_request.is_none() {
+        child.kill().context("Killing child")?;
     }
     Ok(crashing_request)
 }
