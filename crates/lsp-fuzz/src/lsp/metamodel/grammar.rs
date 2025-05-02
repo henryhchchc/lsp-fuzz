@@ -1,149 +1,5 @@
 use libafl::nautilus::grammartec::context::Context;
 
-use super::{LSPSpecMetaModel, META_MODEL_JSON};
-use crate::lsp::metamodel::{BaseType, DataType};
-
-fn convert_spec_grammar() -> Context {
-    use super::MessageDirection::{Both, ClientToServer};
-
-    let mut ctx = Context::new();
-    let meta_model: LSPSpecMetaModel =
-        serde_json::from_str(META_MODEL_JSON).expect("Fail to serialize");
-
-    ctx.add_rule("Start", b"{Message}");
-
-    // Numbers
-    ctx.add_rule("Number", b"{Digit}");
-    ctx.add_rule("Number", b"{Digit}{Number}");
-    for i in 0..=9 {
-        ctx.add_rule("Digit", &[b'0' + i]);
-    }
-
-    // Strings
-    ctx.add_rule("String", b"\"{Char}\"");
-    ctx.add_rule("String", b"{Char}{Char}");
-    ctx.add_rule("Char", b"{Digit}");
-    for letter in b'a'..=b'z' {
-        ctx.add_rule("Char", &[letter]);
-    }
-    for letter in b'A'..=b'Z' {
-        ctx.add_rule("Char", &[letter]);
-    }
-    ctx.add_rule("Char", b"_");
-    ctx.add_rule("Char", b"-");
-    ctx.add_rule("Char", b"/");
-    ctx.add_rule("Char", b".");
-    ctx.add_rule("Char", b",");
-    ctx.add_rule("Char", b":");
-    ctx.add_rule("Char", b"$");
-    ctx.add_rule("Char", b"@");
-    ctx.add_rule("Char", b"#");
-    ctx.add_rule("Char", b"!");
-    ctx.add_rule("Char", b"?");
-    ctx.add_rule("Char", b"+");
-    ctx.add_rule("Char", b"*");
-    ctx.add_rule("Char", b"&");
-    ctx.add_rule("Char", b"%");
-    ctx.add_rule("Char", b"=");
-
-    ctx.add_rule("MessageId", b"{Number}");
-    ctx.add_rule("MessageId", b"{String}");
-
-    ctx.add_rule("DocumentUri", b"file://{String}");
-
-    ctx.add_rule("Uinteger", b"{Number}");
-    ctx.add_rule("Integer", b"{Number}");
-    ctx.add_rule("Integer", b"-{Number}");
-
-    let client_to_server_messages = meta_model
-        .requests
-        .into_iter()
-        .filter_map(|it| {
-            matches!(it.message_direction, ClientToServer | Both).then_some((it.method, it.params))
-        })
-        .chain(meta_model.notifications.into_iter().filter_map(|it| {
-            matches!(it.message_direction, ClientToServer | Both).then_some((it.method, it.params))
-        }));
-
-    for (method, param_type) in client_to_server_messages {
-        let rule_format = if let Some(param_dt) = param_type {
-            let DataType::Reference { name } = param_dt else {
-                todo!()
-            };
-            let param = name;
-            format!(
-                "\\{{\"jsonrpc\":\"2.0\",\"id\":{{MessageId}},\"method\":\"{method}\",\"params\":{{TYPE_{param}}}\\}}",
-            )
-        } else {
-            format!("\\{{\"jsonrpc\":\"2.0\",\"id\":{{MessageId}},\"method\":\"{method}\"\\}}",)
-        };
-        ctx.add_rule("Message", rule_format.into_bytes().as_slice());
-    }
-
-    for struct_t in meta_model.structures {
-        let mut container = format!("\\{{{{GEN_{}_FIELDS}}", &struct_t.name);
-        for ext in struct_t.extends {
-            let DataType::Reference { name: ext_name } = ext else {
-                todo!()
-            };
-            container.push_str(&format!("\\{{{{GEN_{ext_name}_FIELDS}}"));
-        }
-        for mixin in struct_t.mixins {
-            let DataType::Reference { name: mixin_name } = mixin else {
-                todo!()
-            };
-            container.push_str(&format!("\\{{{{GEN_{mixin_name}_FIELDS}}"));
-        }
-        container.push_str("\\}");
-        ctx.add_rule(
-            &format!("TYPE_{}", &struct_t.name),
-            container.into_bytes().as_slice(),
-        );
-        let mut fields_container = "".to_string();
-        for prop in struct_t.properties {
-            let prop_name = format!("GEN_{}_PROP_{}", struct_t.name, prop.name);
-            if !fields_container.is_empty() {
-                fields_container.push(',');
-            }
-            fields_container.push_str(&format!("{{{prop_name}}}"));
-            let prop_type_nt = match prop.data_type {
-                DataType::Reference { name } => format!("TYPE_{name}"),
-                DataType::Base(base) => base.name().to_string(),
-                DataType::Array { element } => match element.as_ref() {
-                    DataType::Reference { name } => format!("ARR_{name}"),
-                    DataType::Base(base) => format!("ARR_{}", base.name()),
-                    it => todo!("ARR: {it:?}"),
-                },
-                it => todo!("{it:?}"),
-            };
-            ctx.add_rule(
-                &prop_name,
-                format!("\"{}\":{{{prop_type_nt}}}", prop.name)
-                    .into_bytes()
-                    .as_slice(),
-            );
-            if prop.optional {
-                ctx.add_rule(
-                    &prop_name,
-                    format!("\"{}\":null", prop.name).into_bytes().as_slice(),
-                );
-            }
-        }
-        ctx.add_rule(
-            &format!("GEN_{}_FIELDS", struct_t.name),
-            fields_container.into_bytes().as_slice(),
-        );
-    }
-
-    ctx
-}
-
-#[test]
-fn test_convert_spec_grammar() {
-    let mut grammar = convert_spec_grammar();
-    grammar.initialize(2333);
-}
-
 fn get_grammar() -> Context {
     let mut ctx = Context::new();
 
@@ -191,6 +47,36 @@ fn get_grammar() -> Context {
     ctx.add_rule("CHAR", b"&");
     ctx.add_rule("CHAR", b"%");
     ctx.add_rule("CHAR", b"=");
+
+    // Basic JSON structures
+    // ctx.add_rule("PARAMS", b"{JSON_OBJECT}");
+    // ctx.add_rule("PARAMS", b"{JSON_ARRAY}");
+
+    // JSON Object
+    ctx.add_rule("JSON_OBJECT", b"\\{\\}");
+    ctx.add_rule("JSON_OBJECT", b"\\{{JSON_MEMBERS}\\}");
+    ctx.add_rule("JSON_MEMBERS", b"{JSON_MEMBER}");
+    ctx.add_rule("JSON_MEMBERS", b"{JSON_MEMBER},{JSON_MEMBERS}");
+    ctx.add_rule("JSON_MEMBER", b"\"{STRING_CONTENT}\":{JSON_VALUE}");
+
+    // JSON Array
+    ctx.add_rule("JSON_ARRAY", b"\\[\\]");
+    ctx.add_rule("JSON_ARRAY", b"\\[{JSON_ELEMENTS}\\]");
+    ctx.add_rule("JSON_ELEMENTS", b"{JSON_VALUE}");
+    ctx.add_rule("JSON_ELEMENTS", b"{JSON_VALUE},{JSON_ELEMENTS}");
+
+    // JSON Value
+    ctx.add_rule("JSON_VALUE", b"{JSON_OBJECT}");
+    ctx.add_rule("JSON_VALUE", b"{JSON_ARRAY}");
+    ctx.add_rule("JSON_VALUE", b"\"{STRING_CONTENT}\"");
+    ctx.add_rule("JSON_VALUE", b"{NUMBER}");
+    ctx.add_rule("JSON_VALUE", b"true");
+    ctx.add_rule("JSON_VALUE", b"false");
+    ctx.add_rule("JSON_VALUE", b"null");
+
+    // String content without quotes
+    ctx.add_rule("STRING_CONTENT", b"{CHAR}");
+    ctx.add_rule("STRING_CONTENT", b"{CHAR}{STRING_CONTENT}");
 
     // Client Request Methods
     ctx.add_rule("CLIENT_REQUEST_METHOD", b"\"initialize\"");
@@ -330,25 +216,15 @@ fn get_grammar() -> Context {
         "TEXT_DOCUMENT_IDENTIFIER",
         b"\\{\"uri\":{URI},\"version\":{NUMBER}\\}",
     );
-    ctx.add_rule("URI", b"\"file:///test/file.rs\"");
+    ctx.add_rule("URI", b"\"file://{STRING}\"");
     ctx.add_rule(
         "POSITION",
         b"\\{\"line\":{NUMBER},\"character\":{NUMBER}\\}",
     );
     ctx.add_rule("RANGE", b"\\{\"start\":{POSITION},\"end\":{POSITION}\\}");
 
-    // Workspace Structures
-    ctx.add_rule(
-        "WORKSPACE_SETTINGS",
-        b"\\{\"rust-analyzer\":{RUST_SETTINGS}\\}",
-    );
-    ctx.add_rule("RUST_SETTINGS", b"\\{\"checkOnSave\":true\\}");
-    ctx.add_rule("RUST_SETTINGS", b"\\{\"checkOnSave\":false\\}");
-
     // File Events
-    ctx.add_rule("FILE_EVENT", b"\\{\"uri\":{URI},\"type\":1\\}");
-    ctx.add_rule("FILE_EVENT", b"\\{\"uri\":{URI},\"type\":2\\}");
-    ctx.add_rule("FILE_EVENT", b"\\{\"uri\":{URI},\"type\":3\\}");
+    ctx.add_rule("FILE_EVENT", b"\\{\"uri\":{URI},\"type\":{NUMBER}\\}");
 
     // Client Capabilities
     ctx.add_rule("CLIENT_CAPABILITIES", b"\\{\"workspace\":{WORKSPACE_CLIENT_CAPABILITIES},\"textDocument\":{TEXT_DOCUMENT_CLIENT_CAPABILITIES}\\}");
@@ -364,6 +240,55 @@ fn get_grammar() -> Context {
     ctx.add_rule(
         "COMPLETION_CAPABILITIES",
         b"\\{\"dynamicRegistration\":true,\"completionItem\":\\{\"snippetSupport\":true\\}\\}",
+    );
+
+    // Workspace Settings
+    ctx.add_rule("WORKSPACE_SETTINGS", b"\\{\"{STRING}\":{JSON_OBJECT}\\}");
+
+    // Add more specific parameter types
+    ctx.add_rule("PARAMS", b"{COMPLETION_PARAMS}");
+    ctx.add_rule("PARAMS", b"{DOCUMENT_SYMBOL_PARAMS}");
+    ctx.add_rule("PARAMS", b"{CODE_ACTION_PARAMS}");
+    ctx.add_rule("PARAMS", b"{RENAME_PARAMS}");
+    ctx.add_rule("PARAMS", b"{FORMATTING_PARAMS}");
+    ctx.add_rule("PARAMS", b"{DID_CHANGE_PARAMS}");
+
+    // Completion parameters
+    ctx.add_rule("COMPLETION_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"position\":{POSITION},\"context\":{COMPLETION_CONTEXT}\\}");
+    ctx.add_rule("COMPLETION_CONTEXT", b"\\{\"triggerKind\":{NUMBER}\\}");
+
+    // Document Symbol parameters
+    ctx.add_rule(
+        "DOCUMENT_SYMBOL_PARAMS",
+        b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER}\\}",
+    );
+
+    // Code Action parameters
+    ctx.add_rule("CODE_ACTION_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"range\":{RANGE},\"context\":{CODE_ACTION_CONTEXT}\\}");
+    ctx.add_rule("CODE_ACTION_CONTEXT", b"\\{\"diagnostics\":{JSON_ARRAY}\\}");
+
+    // Rename parameters
+    ctx.add_rule("RENAME_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"position\":{POSITION},\"newName\":\"{STRING_CONTENT}\"\\}");
+
+    // Formatting parameters
+    ctx.add_rule(
+        "FORMATTING_PARAMS",
+        b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"options\":{FORMATTING_OPTIONS}\\}",
+    );
+    ctx.add_rule(
+        "FORMATTING_OPTIONS",
+        b"\\{\"tabSize\":{NUMBER},\"insertSpaces\":true\\}",
+    );
+
+    // Document change parameters
+    ctx.add_rule("DID_CHANGE_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"contentChanges\":[{TEXT_DOCUMENT_CONTENT_CHANGE_EVENT}]\\}");
+    ctx.add_rule(
+        "TEXT_DOCUMENT_CONTENT_CHANGE_EVENT",
+        b"\\{\"text\":\"{STRING_CONTENT}\"\\}",
+    );
+    ctx.add_rule(
+        "TEXT_DOCUMENT_CONTENT_CHANGE_EVENT",
+        b"\\{\"range\":{RANGE},\"text\":\"{STRING_CONTENT}\"\\}",
     );
 
     ctx
