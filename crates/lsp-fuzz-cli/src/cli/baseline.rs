@@ -1,17 +1,18 @@
-use std::{collections::HashMap, ops::Not, path::PathBuf, sync::mpsc, time::Duration};
+use std::{ops::Not, path::PathBuf, sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
-    corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
-    events::{EventFirer, SimpleEventManager},
-    executors::{Executor, HasObservers},
+    Fuzzer, HasMetadata, StdFuzzer,
+    corpus::{InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    generators::NautilusContext,
+    inputs::NautilusTargetBytesConverter,
     monitors::SimpleMonitor,
-    mutators::StdScheduledMutator,
+    mutators::{MutationResult, NopMutator},
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
@@ -19,47 +20,30 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
         powersched::{BaseSchedule, PowerSchedule},
     },
-    stages::{CalibrationStage, Restartable, Stage, StdPowerMutationalStage},
-    state::{
-        HasCorpus, HasExecutions, HasMaxSize, HasRand, HasSolutions, MaybeHasClientPerfMonitor,
-        StdState,
-    },
+    stages::{CalibrationStage, StdPowerMutationalStage},
+    state::StdState,
 };
 use libafl_bolts::{
     AsSliceMut, HasLen,
-    rands::{Rand, StdRand},
+    rands::StdRand,
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
-    execution::{
-        FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor,
-        workspace_observer::WorkspaceObserver,
-    },
+    baseline::{BaselineByteConverter, BaselineGrammarFeedback},
+    execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
     fuzz_target::{self, StaticTargetBinaryInfo},
-    lsp_input::{
-        LspInput, LspInputBytesConverter, LspInputGenerator, LspInputMutator,
-        messages::message_mutations,
-    },
     stages::{StopOnReceived, TimeoutStopStage},
-    text_document::{
-        generation::GrammarContextLookup, text_document_mutations,
-        token_novelty::TokenNoveltyFeedback,
-    },
     utf8::UTF8Tokens,
 };
-use lsp_fuzz_grammars::Language;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
 
-use super::{GlobalOptions, parse_hash_map};
-use crate::{
-    fuzzing::{ExecutorOptions, FuzzerStateDir},
-    language_fragments::load_grammar_lookup,
-};
+use super::GlobalOptions;
+use crate::fuzzing::{ExecutorOptions, FuzzerStateDir};
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
-pub(super) struct FuzzCommand {
+pub(super) struct BaselineCommand {
     /// Directory containing the fuzzer states.
     #[clap(long)]
     state: FuzzerStateDir,
@@ -97,12 +81,9 @@ pub(super) struct FuzzCommand {
 
     #[clap(long)]
     no_asan: bool,
-
-    #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
-    language_fragments: HashMap<Language, PathBuf>,
 }
 
-impl FuzzCommand {
+impl BaselineCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
@@ -132,9 +113,10 @@ impl FuzzCommand {
             .context("Creating shared memory")?;
         let coverage_map_shmem_id = coverage_shmem.id();
 
+        let grammar_rules = vec![];
+        let nautilus_ctx = NautilusContext::new(15, &grammar_rules);
+
         info!("Loading grammar context");
-        let grammar_ctx =
-            load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
         let coverage_map_observer = {
             let shmem_buf = coverage_shmem.as_slice_mut();
@@ -152,10 +134,10 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let novel_tokens = TokenNoveltyFeedback::new(20);
+        let baseline_grammar_feedback = BaselineGrammarFeedback::new(&nautilus_ctx);
         let mut feedback = feedback_or!(
             map_feedback,
-            novel_tokens,
+            baseline_grammar_feedback,
             TimeFeedback::new(&time_observer)
         );
 
@@ -202,10 +184,9 @@ impl FuzzCommand {
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        let temp_dir = self.temp_dir.unwrap_or_else(std::env::temp_dir);
-
         let mut fuzz_stages = {
-            let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
+            let mutation_stage =
+                StdPowerMutationalStage::new(NopMutator::new(MutationResult::Skipped));
             let trigger_stop = trigger_stop_stage()?;
             let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
@@ -221,6 +202,8 @@ impl FuzzCommand {
             info!("Crash stack hashing will be enabled");
         }
         let mut executor = {
+            let nautilus_bytes_converter = NautilusTargetBytesConverter::new(&nautilus_ctx);
+            let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
             let execution_config = self.execution;
             const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
             let test_case_shmem = shmem_provider
@@ -237,7 +220,6 @@ impl FuzzCommand {
                 kill_signal: execution_config.kill_signal,
                 env: execution_config.target_env,
             };
-            let workspace_observer = WorkspaceObserver::new(temp_dir.clone());
             let exec_config = FuzzExecutionConfig {
                 debug_child: execution_config.debug_child,
                 debug_afl: execution_config.debug_afl,
@@ -246,14 +228,10 @@ impl FuzzCommand {
                 coverage_shm_info: Some((coverage_map_shmem_id, edges_observer.as_ref().len())),
                 map_observer: edges_observer,
                 asan_observer,
-                other_observers: tuple_list![workspace_observer, time_observer],
+                other_observers: tuple_list![time_observer],
             };
-            LspExecutor::start(
-                target_info,
-                LspInputBytesConverter::new(temp_dir),
-                exec_config,
-            )
-            .context("Starting executor")?
+            LspExecutor::start(target_info, target_bytes_converter, exec_config)
+                .context("Starting executor")?
         };
 
         if let Some(tokens) = tokens {
@@ -265,16 +243,6 @@ impl FuzzCommand {
             let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
-
-        // In case the corpus is empty (on first run), reset
-        initialize_corpus(
-            &mut state,
-            &mut fuzzer,
-            &mut executor,
-            &mut event_manager,
-            &grammar_ctx,
-            self.generate_seeds,
-        )?;
 
         if let Some(id) = self.cpu_affinity {
             let core_id = CoreId { id };
@@ -322,60 +290,4 @@ fn trigger_stop_stage<I>() -> Result<StopOnReceived<I>, anyhow::Error> {
     .context("Setting Control-C handler")?;
 
     Ok(StopOnReceived::new(rx))
-}
-
-fn mutation_stage<'g, Exec, EventMgr, State, Fuzzer>(
-    _state: &mut State,
-    grammar_ctx: &'g GrammarContextLookup,
-) -> Result<
-    impl Stage<Exec, EventMgr, State, Fuzzer>
-    + Restartable<State>
-    + use<'g, Exec, EventMgr, State, Fuzzer>,
-    libafl::Error,
->
-where
-    State: HasRand
-        + HasMaxSize
-        + HasMetadata
-        + HasCorpus<LspInput>
-        + HasSolutions<LspInput>
-        + HasCurrentCorpusId
-        + HasNamedMetadata
-        + HasExecutions
-        + MaybeHasClientPerfMonitor
-        + 'static,
-    Fuzzer: Evaluator<Exec, EventMgr, LspInput, State>,
-    Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
-{
-    let text_document_mutator =
-        StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
-    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 6);
-    let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
-    Ok(StdPowerMutationalStage::new(mutator))
-}
-
-fn initialize_corpus<E, Z, EM, R, C, SC>(
-    state: &mut StdState<C, LspInput, R, SC>,
-    fuzzer: &mut Z,
-    executor: &mut E,
-    event_manager: &mut EM,
-    grammar_context_lookup: &GrammarContextLookup,
-    num_seeds: usize,
-) -> Result<(), anyhow::Error>
-where
-    R: Rand,
-    C: Corpus<LspInput>,
-    SC: Corpus<LspInput>,
-    Z: Evaluator<E, EM, LspInput, StdState<C, LspInput, R, SC>>,
-    EM: EventFirer<LspInput, StdState<C, LspInput, R, SC>>,
-{
-    if state.must_load_initial_inputs() {
-        info!("Generating seeds");
-        let mut generator = LspInputGenerator::new(grammar_context_lookup);
-        state
-            .generate_initial_inputs(fuzzer, executor, &mut generator, event_manager, num_seeds)
-            .context("Generating initial input")?;
-        info!(seeds = %state.corpus().count(), "Seed generation completed");
-    }
-    Ok(())
 }

@@ -10,6 +10,7 @@ use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
     HasMetadata,
     executors::{Executor, ExitKind, HasObservers},
+    inputs::TargetBytesConverter,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
 };
@@ -25,9 +26,8 @@ use nix::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
-use workspace_observer::CurrentWorkspaceMetadata;
 
-use crate::{lsp_input::LspInput, utf8::UTF8Tokens, utils::AflContext};
+use crate::{utf8::UTF8Tokens, utils::AflContext};
 
 pub mod fork_server;
 pub mod sanitizers;
@@ -106,22 +106,24 @@ pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
 }
 
 #[derive(Debug)]
-pub struct LspExecutor<State, MO, OBS, SHM> {
+pub struct LspExecutor<State, MO, OBS, I, TC, SHM> {
     fork_server: NeoForkServer,
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
     observers: Observers<MO, OBS>,
-    _state: PhantomData<State>,
+    target_bytes_converter: TC,
+    _state: PhantomData<(State, I)>,
 }
 
-impl<State, OBS, MO, SHM> LspExecutor<State, MO, OBS, SHM>
+impl<State, OBS, MO, I, TC, SHM> LspExecutor<State, MO, OBS, I, TC, SHM>
 where
     SHM: ShMem,
 {
     /// Create and initialize a new LSP executor.
     pub fn start<A>(
         target_info: FuzzTargetInfo,
+        target_bytes_converter: TC,
         mut config: FuzzExecutionConfig<'_, SHM, MO, OBS>,
     ) -> Result<Self, libafl::Error>
     where
@@ -216,6 +218,7 @@ where
             timeout: target_info.timeout,
             fuzz_input: config.fuzz_input,
             observers,
+            target_bytes_converter,
             _state: PhantomData,
         })
     }
@@ -316,9 +319,9 @@ where
     }
 }
 
-impl<State, MO, OBS, SHM> HasObservers for LspExecutor<State, MO, OBS, SHM>
+impl<State, MO, OBS, TC, I, SHM> HasObservers for LspExecutor<State, MO, OBS, I, TC, SHM>
 where
-    OBS: ObserversTuple<LspInput, State>,
+    OBS: ObserversTuple<I, State>,
 {
     type Observers = Observers<MO, OBS>;
 
@@ -331,27 +334,24 @@ where
     }
 }
 
-impl<EM, Z, State, MO, OBS, SHM> Executor<EM, LspInput, State, Z>
-    for LspExecutor<State, MO, OBS, SHM>
+impl<EM, I, Z, State, MO, OBS, TC, SHM> Executor<EM, I, State, Z>
+    for LspExecutor<State, MO, OBS, I, TC, SHM>
 where
-    Observers<MO, OBS>: ObserversTuple<LspInput, State>,
+    Observers<MO, OBS>: ObserversTuple<I, State>,
     State: HasExecutions + HasMetadata,
-    OBS: ObserversTuple<LspInput, State>,
+    OBS: ObserversTuple<I, State>,
     SHM: ShMem,
+    TC: TargetBytesConverter<I>,
 {
     fn run_target(
         &mut self,
         _fuzzer: &mut Z,
         state: &mut State,
         _mgr: &mut EM,
-        input: &LspInput,
+        input: &I,
     ) -> Result<ExitKind, libafl::Error> {
-        let workspace_dir = state
-            .metadata::<CurrentWorkspaceMetadata>()
-            .afl_context("No current working dir available")?
-            .path();
         // Transfer input to the fork server
-        let input_bytes = input.request_bytes(workspace_dir);
+        let input_bytes = self.target_bytes_converter.to_target_bytes(input);
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;

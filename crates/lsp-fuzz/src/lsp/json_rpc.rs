@@ -4,9 +4,9 @@ use std::{
     io::{self, BufRead, Read},
 };
 
+use libafl_bolts::AsSlice;
 use serde::{Deserialize, Deserializer, Serialize};
 use static_assertions::const_assert_eq;
-use zstd::zstd_safe::WriteBuf;
 
 /// JSON-RPC 2.0 protocol version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

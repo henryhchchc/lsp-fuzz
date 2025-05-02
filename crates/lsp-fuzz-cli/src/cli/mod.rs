@@ -1,3 +1,4 @@
+mod baseline;
 mod export;
 mod fuzz;
 mod mine_grammar_fragments;
@@ -6,6 +7,7 @@ mod reproduce;
 use std::{cmp::max, collections::HashMap, str::FromStr};
 
 use anyhow::{Context, bail};
+use baseline::BaselineCommand;
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
@@ -30,6 +32,7 @@ impl Cli {
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
+            Command::Baseline(cmd) => cmd.run(self.global_options),
             Command::Export(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
@@ -66,6 +69,7 @@ impl GlobalOptions {
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Fuzz(Box<FuzzCommand>),
+    Baseline(Box<BaselineCommand>),
     MineGrammarFragments(MineGrammarFragments),
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),

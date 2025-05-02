@@ -19,7 +19,11 @@ memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 itertools = "0.*"
-libafl = { version = "0.*", features = ["errors_backtrace", "casr"] }
+libafl = { version = "0.*", features = [
+    "errors_backtrace",
+    "casr",
+    "nautilus",
+] }
 libafl_bolts = { version = "0.*" }
 libcasr = { version = "2", features = ["serde"] }
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev", features = [

@@ -4,6 +4,7 @@
 
 pub(crate) mod stolen;
 
+pub mod baseline;
 pub mod execution;
 pub mod lsp_input;
 pub mod stages;

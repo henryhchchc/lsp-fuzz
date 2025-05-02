@@ -1,25 +1,11 @@
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, path::PathBuf};
 
 use derive_new::new as New;
-use libafl::{HasMetadata, SerdeAny, observers::Observer, state::HasExecutions};
+use libafl::{HasMetadata, observers::Observer};
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
 
 use crate::lsp_input::LspInput;
-
-#[derive(Debug, Serialize, Deserialize, Default, SerdeAny)]
-pub struct CurrentWorkspaceMetadata {
-    pub workspace_dir: PathBuf,
-}
-
-impl CurrentWorkspaceMetadata {
-    pub fn path(&self) -> &Path {
-        &self.workspace_dir
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, New)]
 pub struct WorkspaceObserver {
@@ -35,18 +21,32 @@ impl Named for WorkspaceObserver {
 
 impl<State> Observer<LspInput, State> for WorkspaceObserver
 where
-    State: HasExecutions + HasMetadata,
+    State: HasMetadata,
 {
-    fn pre_exec(&mut self, state: &mut State, input: &LspInput) -> Result<(), libafl::Error> {
+    fn pre_exec(&mut self, _state: &mut State, input: &LspInput) -> Result<(), libafl::Error> {
+        let input_hash = input.workspace_hash();
         let workspace_dir = self
             .temp_dir
-            .join(format!("lsp-fuzz-workspace_{}", state.executions()));
-        let workspace_metadata: &mut CurrentWorkspaceMetadata =
-            state.metadata_or_insert_with(Default::default);
-        workspace_metadata.workspace_dir = workspace_dir;
+            .join(format!("lsp-fuzz-workspace_{input_hash}"));
 
-        std::fs::create_dir_all(workspace_metadata.path())?;
-        input.setup_source_dir(workspace_metadata.path())?;
+        std::fs::create_dir_all(&workspace_dir)?;
+        input.setup_source_dir(&workspace_dir)?;
+
+        Ok(())
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        input: &LspInput,
+        _exit_kind: &libafl::executors::ExitKind,
+    ) -> Result<(), libafl::Error> {
+        let input_hash = input.workspace_hash();
+        let workspace_dir = self
+            .temp_dir
+            .join(format!("lsp-fuzz-workspace_{input_hash}"));
+
+        std::fs::remove_dir_all(workspace_dir)?;
 
         Ok(())
     }

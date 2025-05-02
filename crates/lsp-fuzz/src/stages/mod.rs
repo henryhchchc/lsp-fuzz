@@ -1,4 +1,4 @@
-use std::{mem, path::PathBuf, sync::mpsc::Receiver, thread, time::Duration};
+use std::{marker::PhantomData, mem, path::PathBuf, sync::mpsc::Receiver, thread, time::Duration};
 
 use derive_new::new as New;
 use libafl::{
@@ -78,11 +78,12 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct StopOnReceived {
+pub struct StopOnReceived<I> {
     receiver: Receiver<()>,
+    _input: PhantomData<I>,
 }
 
-impl<State> Restartable<State> for StopOnReceived {
+impl<I, State> Restartable<State> for StopOnReceived<I> {
     fn should_restart(&mut self, _state: &mut State) -> Result<bool, libafl::Error> {
         Ok(true)
     }
@@ -92,10 +93,10 @@ impl<State> Restartable<State> for StopOnReceived {
     }
 }
 
-impl<E, M, Z, State> Stage<E, M, State, Z> for StopOnReceived
+impl<E, M, Z, I, State> Stage<E, M, State, Z> for StopOnReceived<I>
 where
     State: HasExecutions,
-    M: EventFirer<LspInput, State>,
+    M: EventFirer<I, State>,
 {
     fn perform(
         &mut self,
@@ -114,11 +115,12 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct TimeoutStopStage {
+pub struct TimeoutStopStage<I> {
     timeout: Duration,
+    _input: PhantomData<I>,
 }
 
-impl<State> Restartable<State> for TimeoutStopStage {
+impl<I, State> Restartable<State> for TimeoutStopStage<I> {
     fn should_restart(&mut self, _state: &mut State) -> Result<bool, libafl::Error> {
         Ok(true)
     }
@@ -128,10 +130,10 @@ impl<State> Restartable<State> for TimeoutStopStage {
     }
 }
 
-impl<E, M, Z, State> Stage<E, M, State, Z> for TimeoutStopStage
+impl<E, M, Z, I, State> Stage<E, M, State, Z> for TimeoutStopStage<I>
 where
     State: HasStartTime + HasExecutions,
-    M: EventFirer<LspInput, State>,
+    M: EventFirer<I, State>,
 {
     fn perform(
         &mut self,

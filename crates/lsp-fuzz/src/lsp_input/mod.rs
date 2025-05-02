@@ -4,7 +4,7 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
     io::BufWriter,
     iter::once,
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::LazyLock,
 };
@@ -14,7 +14,7 @@ use libafl::{
     HasMetadata,
     corpus::CorpusId,
     generators::Generator,
-    inputs::{BytesInput, HasTargetBytes, Input},
+    inputs::{BytesInput, HasTargetBytes, Input, TargetBytesConverter},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand},
 };
@@ -112,6 +112,12 @@ impl LspInput {
             LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
         WORKSPACE_ROOT_URI.clone()
     }
+
+    pub fn workspace_hash(&self) -> u64 {
+        let mut hasher = ahash::AHasher::default();
+        self.workspace.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 impl Input for LspInput {
@@ -147,6 +153,21 @@ impl Input for LspInput {
 impl HasLen for LspInput {
     fn len(&self) -> usize {
         self.messages.len() + self.workspace.len()
+    }
+}
+
+#[derive(Debug, New)]
+pub struct LspInputBytesConverter {
+    workspace_root: PathBuf,
+}
+
+impl TargetBytesConverter<LspInput> for LspInputBytesConverter {
+    fn to_target_bytes<'a>(&mut self, input: &'a LspInput) -> OwnedSlice<'a, u8> {
+        let input_hash = input.workspace_hash();
+        let workspace_dir = self
+            .workspace_root
+            .join(format!("lsp-fuzz-workspace_{input_hash}"));
+        input.request_bytes(&workspace_dir).into()
     }
 }
 
