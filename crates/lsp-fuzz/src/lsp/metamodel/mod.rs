@@ -1,5 +1,3 @@
-use ahash::HashSet;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 pub const META_MODEL_JSON: &str = include_str!("meta_model_317.json");
@@ -230,11 +228,48 @@ pub enum MessageDirection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "name")]
+pub enum BaseType {
+    #[serde(rename = "URI")]
+    URI,
+    #[serde(rename = "DocumentUri")]
+    DocumentUri,
+    #[serde(rename = "integer")]
+    Integer,
+    #[serde(rename = "uinteger")]
+    UInteger,
+    #[serde(rename = "decimal")]
+    Decimal,
+    #[serde(rename = "RegExp")]
+    RegExp,
+    #[serde(rename = "string")]
+    String,
+    #[serde(rename = "boolean")]
+    Boolean,
+    #[serde(rename = "null")]
+    Null,
+}
+
+impl BaseType {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            BaseType::URI => "URI",
+            BaseType::DocumentUri => "DocumentUri",
+            BaseType::Integer => "Integer",
+            BaseType::UInteger => "Uinteger",
+            BaseType::Decimal => "Decimal",
+            BaseType::RegExp => "RegExp",
+            BaseType::String => "String",
+            BaseType::Boolean => "Boolean",
+            BaseType::Null => "Null",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum DataType {
-    Base {
-        name: String,
-    },
+    Base(BaseType),
     Reference {
         name: String,
     },

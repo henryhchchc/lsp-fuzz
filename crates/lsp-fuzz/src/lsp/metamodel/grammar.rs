@@ -1,5 +1,149 @@
 use libafl::nautilus::grammartec::context::Context;
 
+use super::{LSPSpecMetaModel, META_MODEL_JSON};
+use crate::lsp::metamodel::{BaseType, DataType};
+
+fn convert_spec_grammar() -> Context {
+    use super::MessageDirection::{Both, ClientToServer};
+
+    let mut ctx = Context::new();
+    let meta_model: LSPSpecMetaModel =
+        serde_json::from_str(META_MODEL_JSON).expect("Fail to serialize");
+
+    ctx.add_rule("Start", b"{Message}");
+
+    // Numbers
+    ctx.add_rule("Number", b"{Digit}");
+    ctx.add_rule("Number", b"{Digit}{Number}");
+    for i in 0..=9 {
+        ctx.add_rule("Digit", &[b'0' + i]);
+    }
+
+    // Strings
+    ctx.add_rule("String", b"\"{Char}\"");
+    ctx.add_rule("String", b"{Char}{Char}");
+    ctx.add_rule("Char", b"{Digit}");
+    for letter in b'a'..=b'z' {
+        ctx.add_rule("Char", &[letter]);
+    }
+    for letter in b'A'..=b'Z' {
+        ctx.add_rule("Char", &[letter]);
+    }
+    ctx.add_rule("Char", b"_");
+    ctx.add_rule("Char", b"-");
+    ctx.add_rule("Char", b"/");
+    ctx.add_rule("Char", b".");
+    ctx.add_rule("Char", b",");
+    ctx.add_rule("Char", b":");
+    ctx.add_rule("Char", b"$");
+    ctx.add_rule("Char", b"@");
+    ctx.add_rule("Char", b"#");
+    ctx.add_rule("Char", b"!");
+    ctx.add_rule("Char", b"?");
+    ctx.add_rule("Char", b"+");
+    ctx.add_rule("Char", b"*");
+    ctx.add_rule("Char", b"&");
+    ctx.add_rule("Char", b"%");
+    ctx.add_rule("Char", b"=");
+
+    ctx.add_rule("MessageId", b"{Number}");
+    ctx.add_rule("MessageId", b"{String}");
+
+    ctx.add_rule("DocumentUri", b"file://{String}");
+
+    ctx.add_rule("Uinteger", b"{Number}");
+    ctx.add_rule("Integer", b"{Number}");
+    ctx.add_rule("Integer", b"-{Number}");
+
+    let client_to_server_messages = meta_model
+        .requests
+        .into_iter()
+        .filter_map(|it| {
+            matches!(it.message_direction, ClientToServer | Both).then_some((it.method, it.params))
+        })
+        .chain(meta_model.notifications.into_iter().filter_map(|it| {
+            matches!(it.message_direction, ClientToServer | Both).then_some((it.method, it.params))
+        }));
+
+    for (method, param_type) in client_to_server_messages {
+        let rule_format = if let Some(param_dt) = param_type {
+            let DataType::Reference { name } = param_dt else {
+                todo!()
+            };
+            let param = name;
+            format!(
+                "\\{{\"jsonrpc\":\"2.0\",\"id\":{{MessageId}},\"method\":\"{method}\",\"params\":{{TYPE_{param}}}\\}}",
+            )
+        } else {
+            format!("\\{{\"jsonrpc\":\"2.0\",\"id\":{{MessageId}},\"method\":\"{method}\"\\}}",)
+        };
+        ctx.add_rule("Message", rule_format.into_bytes().as_slice());
+    }
+
+    for struct_t in meta_model.structures {
+        let mut container = format!("\\{{{{GEN_{}_FIELDS}}", &struct_t.name);
+        for ext in struct_t.extends {
+            let DataType::Reference { name: ext_name } = ext else {
+                todo!()
+            };
+            container.push_str(&format!("\\{{{{GEN_{ext_name}_FIELDS}}"));
+        }
+        for mixin in struct_t.mixins {
+            let DataType::Reference { name: mixin_name } = mixin else {
+                todo!()
+            };
+            container.push_str(&format!("\\{{{{GEN_{mixin_name}_FIELDS}}"));
+        }
+        container.push_str("\\}");
+        ctx.add_rule(
+            &format!("TYPE_{}", &struct_t.name),
+            container.into_bytes().as_slice(),
+        );
+        let mut fields_container = "".to_string();
+        for prop in struct_t.properties {
+            let prop_name = format!("GEN_{}_PROP_{}", struct_t.name, prop.name);
+            if !fields_container.is_empty() {
+                fields_container.push(',');
+            }
+            fields_container.push_str(&format!("{{{prop_name}}}"));
+            let prop_type_nt = match prop.data_type {
+                DataType::Reference { name } => format!("TYPE_{name}"),
+                DataType::Base(base) => base.name().to_string(),
+                DataType::Array { element } => match element.as_ref() {
+                    DataType::Reference { name } => format!("ARR_{name}"),
+                    DataType::Base(base) => format!("ARR_{}", base.name()),
+                    it => todo!("ARR: {it:?}"),
+                },
+                it => todo!("{it:?}"),
+            };
+            ctx.add_rule(
+                &prop_name,
+                format!("\"{}\":{{{prop_type_nt}}}", prop.name)
+                    .into_bytes()
+                    .as_slice(),
+            );
+            if prop.optional {
+                ctx.add_rule(
+                    &prop_name,
+                    format!("\"{}\":null", prop.name).into_bytes().as_slice(),
+                );
+            }
+        }
+        ctx.add_rule(
+            &format!("GEN_{}_FIELDS", struct_t.name),
+            fields_container.into_bytes().as_slice(),
+        );
+    }
+
+    ctx
+}
+
+#[test]
+fn test_convert_spec_grammar() {
+    let mut grammar = convert_spec_grammar();
+    grammar.initialize(2333);
+}
+
 fn get_grammar() -> Context {
     let mut ctx = Context::new();
 
