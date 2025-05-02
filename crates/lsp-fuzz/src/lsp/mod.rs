@@ -8,6 +8,7 @@ pub mod code_context;
 pub mod compositions;
 pub mod generation;
 pub mod json_rpc;
+pub mod metamodel;
 
 pub trait LspMessage {
     type Params;
