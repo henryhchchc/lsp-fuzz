@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 pub const META_MODEL_JSON: &str = include_str!("meta_model_317.json");
 
+mod grammar;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LSPSpecMetaModel {
