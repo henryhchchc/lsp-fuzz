@@ -8,7 +8,10 @@ use libafl::{
     corpus::{Corpus, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
     events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    feedbacks::{
+        ConstFeedback, CrashFeedback, MaxMapFeedback, NautilusChunksMetadata, NewHashFeedback,
+        TimeFeedback,
+    },
     generators::{NautilusContext, NautilusGenerator},
     inputs::NautilusBytesConverter,
     monitors::SimpleMonitor,
@@ -188,6 +191,8 @@ impl BaselineCommand {
             }
             IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
         };
+
+        state.add_metadata(NautilusChunksMetadata::new("/tmp/nautilus".into()));
 
         let nautilus_bytes_converter = NautilusBytesConverter::new(&nautilus_ctx);
         let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
