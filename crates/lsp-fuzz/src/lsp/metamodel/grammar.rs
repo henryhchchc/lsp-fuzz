@@ -111,6 +111,20 @@ pub fn get_grammar() -> Context {
     ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/inlineValue\",\"params\":{INLINE_VALUE_PARAMS}\\}");
     ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/willCreateFiles\",\"params\":{CREATE_FILES_PARAMS}\\}");
     ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/executeCommand\",\"params\":{EXECUTE_COMMAND_PARAMS}\\}");
+    // Additional requests that were missing
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/onTypeFormatting\",\"params\":{ON_TYPE_FORMATTING_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/documentLink\",\"params\":{DOCUMENT_LINK_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"documentLink/resolve\",\"params\":{DOCUMENT_LINK}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"codeLens/resolve\",\"params\":{CODE_LENS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/willRenameFiles\",\"params\":{RENAME_FILES_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/willDeleteFiles\",\"params\":{DELETE_FILES_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"callHierarchy/incomingCalls\",\"params\":{CALL_HIERARCHY_INCOMING_CALLS_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"callHierarchy/outgoingCalls\",\"params\":{CALL_HIERARCHY_OUTGOING_CALLS_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/semanticTokens/range\",\"params\":{SEMANTIC_TOKENS_RANGE_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/semanticTokens/full/delta\",\"params\":{SEMANTIC_TOKENS_DELTA_PARAMS}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"inlineCompletion/resolve\",\"params\":{INLINE_COMPLETION_ITEM}\\}");
+    ctx.add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/inlineCompletion\",\"params\":{INLINE_COMPLETION_PARAMS}\\}");
+    
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}\\}");
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":null\\}");
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{DID_OPEN_PARAMS}\\}");
@@ -119,8 +133,19 @@ pub fn get_grammar() -> Context {
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didClose\",\"params\":{TEXT_DOCUMENT_PARAMS}\\}");
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/willSave\",\"params\":{WILL_SAVE_PARAMS}\\}");
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeConfiguration\",\"params\":{WORKSPACE_PARAMS}\\}");
-    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{WORKSPACE_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWatchedFiles\",\"params\":{DID_CHANGE_WATCHED_FILES_PARAMS}\\}");
     ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"/cancelRequest\",\"params\":{CANCEL_PARAMS}\\}");
+    // Additional notifications that were missing
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"$/progress\",\"params\":{PROGRESS_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"$/setTrace\",\"params\":{SET_TRACE_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"$/logTrace\",\"params\":{LOG_TRACE_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didCreateFiles\",\"params\":{CREATE_FILES_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didRenameFiles\",\"params\":{RENAME_FILES_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didDeleteFiles\",\"params\":{DELETE_FILES_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"notebookDocument/didOpen\",\"params\":{NOTEBOOK_DOCUMENT_DID_OPEN_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"notebookDocument/didChange\",\"params\":{NOTEBOOK_DOCUMENT_DID_CHANGE_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"notebookDocument/didSave\",\"params\":{NOTEBOOK_DOCUMENT_DID_SAVE_PARAMS}\\}");
+    ctx.add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"notebookDocument/didClose\",\"params\":{NOTEBOOK_DOCUMENT_DID_CLOSE_PARAMS}\\}");
 
     // TextDocumentItem for didOpen
     ctx.add_rule("TEXT_DOCUMENT_ITEM", b"\\{\"uri\":\"{URI}\",\"languageId\":\"{LANGUAGE_ID}\",\"version\":{NUMBER},\"text\":\"{TEXT}\"\\}");
@@ -162,16 +187,28 @@ pub fn get_grammar() -> Context {
 
     // Completion params
     ctx.add_rule("COMPLETION_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
-    ctx.add_rule("COMPLETION_ITEM", b"\\{\"label\":\"{STRING_CONTENT}\",\"kind\":{NUMBER},\"detail\":\"{STRING_CONTENT}\"\\}");
+    ctx.add_rule("COMPLETION_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"position\":{POSITION},\"context\":{COMPLETION_CONTEXT}\\}");
+    ctx.add_rule("COMPLETION_CONTEXT", b"\\{\"triggerKind\":{NUMBER},\"triggerCharacter\":\"{CHAR}\"\\}");
+    ctx.add_rule("COMPLETION_ITEM", b"\\{\"label\":\"{STRING_CONTENT}\",\"kind\":{NUMBER},\"detail\":\"{STRING_CONTENT}\",\"documentation\":\"{STRING_CONTENT}\",\"deprecated\":false,\"preselect\":false,\"sortText\":\"{STRING_CONTENT}\",\"filterText\":\"{STRING_CONTENT}\",\"insertText\":\"{STRING_CONTENT}\",\"insertTextFormat\":{NUMBER},\"textEdit\":{TEXT_EDIT},\"additionalTextEdits\":[{TEXT_EDIT}],\"commitCharacters\":[\"{CHAR}\"],\"command\":{COMMAND},\"data\":{JSON_VALUE}\\}");
+    ctx.add_rule("TEXT_EDIT", b"\\{\"range\":{RANGE},\"newText\":\"{STRING_CONTENT}\"\\}");
 
     // Hover params
     ctx.add_rule("HOVER_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
+    ctx.add_rule("HOVER", b"\\{\"contents\":{MARKUP_CONTENT},\"range\":{RANGE}\\}");
+    ctx.add_rule("MARKUP_CONTENT", b"\\{\"kind\":\"markdown\",\"value\":\"{STRING_CONTENT}\"\\}");
+    ctx.add_rule("MARKUP_CONTENT", b"\\{\"kind\":\"plaintext\",\"value\":\"{STRING_CONTENT}\"\\}");
 
     // Signature help params
     ctx.add_rule("SIGNATURE_HELP_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
+    ctx.add_rule("SIGNATURE_HELP_CONTEXT", b"\\{\"isRetrigger\":true,\"triggerCharacter\":\"{CHAR}\",\"activeSignatureHelp\":{SIGNATURE_HELP}\\}");
+    ctx.add_rule("SIGNATURE_HELP", b"\\{\"signatures\":[{SIGNATURE_INFORMATION}],\"activeSignature\":{NUMBER},\"activeParameter\":{NUMBER}\\}");
+    ctx.add_rule("SIGNATURE_INFORMATION", b"\\{\"label\":\"{STRING_CONTENT}\",\"documentation\":\"{STRING_CONTENT}\",\"parameters\":[{PARAMETER_INFORMATION}]\\}");
+    ctx.add_rule("PARAMETER_INFORMATION", b"\\{\"label\":\"{STRING_CONTENT}\",\"documentation\":\"{STRING_CONTENT}\"\\}");
 
     // Definition params
     ctx.add_rule("DEFINITION_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
+    ctx.add_rule("LOCATION", b"\\{\"uri\":\"{URI}\",\"range\":{RANGE}\\}");
+    ctx.add_rule("LOCATION_LINK", b"\\{\"originSelectionRange\":{RANGE},\"targetUri\":\"{URI}\",\"targetRange\":{RANGE},\"targetSelectionRange\":{RANGE}\\}");
 
     // References params
     ctx.add_rule("REFERENCE_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"position\":{POSITION},\"context\":{REFERENCE_CONTEXT}\\}");
@@ -183,7 +220,8 @@ pub fn get_grammar() -> Context {
     // Code action params
     ctx.add_rule("CODE_ACTION_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"range\":{RANGE},\"context\":{CODE_ACTION_CONTEXT}\\}");
     ctx.add_rule("CODE_ACTION_CONTEXT", b"\\{\"diagnostics\":[{DIAGNOSTIC}]\\}");
-    ctx.add_rule("DIAGNOSTIC", b"\\{\"range\":{RANGE},\"severity\":{NUMBER},\"message\":\"{STRING_CONTENT}\"\\}");
+    ctx.add_rule("DIAGNOSTIC", b"\\{\"range\":{RANGE},\"severity\":{NUMBER},\"code\":{NUMBER},\"source\":\"{STRING_CONTENT}\",\"message\":\"{STRING_CONTENT}\",\"tags\":[{NUMBER}],\"relatedInformation\":[{DIAGNOSTIC_RELATED_INFORMATION}]\\}");
+    ctx.add_rule("DIAGNOSTIC_RELATED_INFORMATION", b"\\{\"location\":{LOCATION},\"message\":\"{STRING_CONTENT}\"\\}");
 
     // Formatting params
     ctx.add_rule("FORMATTING_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"options\":{FORMATTING_OPTIONS}\\}");
@@ -233,6 +271,7 @@ pub fn get_grammar() -> Context {
 
     // Moniker params
     ctx.add_rule("MONIKER_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
+    ctx.add_rule("MONIKER", b"\\{\"scheme\":\"{STRING_CONTENT}\",\"identifier\":\"{STRING_CONTENT}\",\"unique\":{NUMBER},\"kind\":{NUMBER}\\}");
 
     // Inline value params
     ctx.add_rule("INLINE_VALUE_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"range\":{RANGE}\\}");
@@ -253,12 +292,73 @@ pub fn get_grammar() -> Context {
 
     // Workspace params
     ctx.add_rule("WORKSPACE_PARAMS", b"\\{\"settings\":{JSON_OBJECT}\\}");
+    
+    // Watched files params
+    ctx.add_rule("DID_CHANGE_WATCHED_FILES_PARAMS", b"\\{\"changes\":[{FILE_EVENT}]\\}");
+    ctx.add_rule("FILE_EVENT", b"\\{\"uri\":\"{URI}\",\"type\":{NUMBER}\\}");
 
     // Cancel params
     ctx.add_rule("CANCEL_PARAMS", b"\\{\"id\":{NUMBER}\\}");
 
     // Workspace symbol params
     ctx.add_rule("WORKSPACE_SYMBOL_PARAMS", b"\\{\"query\":\"{STRING_CONTENT}\"\\}");
+
+    // OnTypeFormatting params
+    ctx.add_rule("ON_TYPE_FORMATTING_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"position\":{POSITION},\"ch\":\"{CHAR}\",\"options\":{FORMATTING_OPTIONS}\\}");
+
+    // DocumentLink params
+    ctx.add_rule("DOCUMENT_LINK_PARAMS", b"{TEXT_DOCUMENT_PARAMS}");
+    ctx.add_rule("DOCUMENT_LINK", b"\\{\"range\":{RANGE},\"target\":\"{URI}\",\"tooltip\":\"{STRING_CONTENT}\",\"data\":{JSON_VALUE}\\}");
+
+    // CodeLens item
+    ctx.add_rule("CODE_LENS", b"\\{\"range\":{RANGE},\"command\":{COMMAND},\"data\":{JSON_VALUE}\\}");
+    ctx.add_rule("COMMAND", b"\\{\"title\":\"{STRING_CONTENT}\",\"command\":\"{STRING_CONTENT}\",\"arguments\":[{JSON_VALUE}]\\}");
+
+    // File operations params
+    ctx.add_rule("RENAME_FILES_PARAMS", b"\\{\"files\":[{FILE_RENAME}]\\}");
+    ctx.add_rule("FILE_RENAME", b"\\{\"oldUri\":\"{URI}\",\"newUri\":\"{URI}\"\\}");
+    ctx.add_rule("DELETE_FILES_PARAMS", b"\\{\"files\":[{FILE_DELETE}]\\}");
+    ctx.add_rule("FILE_DELETE", b"\\{\"uri\":\"{URI}\"\\}");
+
+    // Call hierarchy item
+    ctx.add_rule("CALL_HIERARCHY_ITEM", b"\\{\"name\":\"{STRING_CONTENT}\",\"kind\":{NUMBER},\"uri\":\"{URI}\",\"range\":{RANGE},\"selectionRange\":{RANGE},\"data\":{JSON_VALUE}\\}");
+    ctx.add_rule("CALL_HIERARCHY_INCOMING_CALLS_PARAMS", b"\\{\"item\":{CALL_HIERARCHY_ITEM}\\}");
+    ctx.add_rule("CALL_HIERARCHY_OUTGOING_CALLS_PARAMS", b"\\{\"item\":{CALL_HIERARCHY_ITEM}\\}");
+    ctx.add_rule("CALL_HIERARCHY_INCOMING_CALL", b"\\{\"from\":{CALL_HIERARCHY_ITEM},\"fromRanges\":[{RANGE}]\\}");
+    ctx.add_rule("CALL_HIERARCHY_OUTGOING_CALL", b"\\{\"to\":{CALL_HIERARCHY_ITEM},\"fromRanges\":[{RANGE}]\\}");
+
+    // Semantic tokens params
+    ctx.add_rule("SEMANTIC_TOKENS_PARAMS", b"{TEXT_DOCUMENT_PARAMS}");
+    ctx.add_rule("SEMANTIC_TOKENS_RANGE_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"range\":{RANGE}\\}");
+    ctx.add_rule("SEMANTIC_TOKENS_DELTA_PARAMS", b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"previousResultId\":\"{STRING_CONTENT}\"\\}");
+    ctx.add_rule("SEMANTIC_TOKENS", b"\\{\"resultId\":\"{STRING_CONTENT}\",\"data\":[{NUMBER}]\\}");
+
+    // Inline completion
+    ctx.add_rule("INLINE_COMPLETION_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
+    ctx.add_rule("INLINE_COMPLETION_ITEM", b"\\{\"insertText\":\"{STRING_CONTENT}\",\"range\":{RANGE}\\}");
+
+    // Progress notification
+    ctx.add_rule("PROGRESS_PARAMS", b"\\{\"token\":{JSON_VALUE},\"value\":{JSON_OBJECT}\\}");
+
+    // Trace notification
+    ctx.add_rule("SET_TRACE_PARAMS", b"\\{\"value\":\"{STRING_CONTENT}\"\\}");
+    ctx.add_rule("LOG_TRACE_PARAMS", b"\\{\"message\":\"{STRING_CONTENT}\",\"verbose\":\"{STRING_CONTENT}\"\\}");
+
+    // Notebook document params
+    ctx.add_rule("NOTEBOOK_DOCUMENT_DID_OPEN_PARAMS", b"\\{\"notebookDocument\":{NOTEBOOK_DOCUMENT},\"cellTextDocuments\":[{TEXT_DOCUMENT_ITEM}]\\}");
+    ctx.add_rule("NOTEBOOK_DOCUMENT_DID_CHANGE_PARAMS", b"\\{\"notebookDocument\":{NOTEBOOK_DOCUMENT_IDENTIFIER},\"change\":{NOTEBOOK_DOCUMENT_CHANGE_EVENT}\\}");
+    ctx.add_rule("NOTEBOOK_DOCUMENT_DID_SAVE_PARAMS", b"\\{\"notebookDocument\":{NOTEBOOK_DOCUMENT_IDENTIFIER}\\}");
+    ctx.add_rule("NOTEBOOK_DOCUMENT_DID_CLOSE_PARAMS", b"\\{\"notebookDocument\":{NOTEBOOK_DOCUMENT_IDENTIFIER},\"cellTextDocuments\":[{TEXT_DOCUMENT_IDENTIFIER}]\\}");
+    
+    // Notebook document
+    ctx.add_rule("NOTEBOOK_DOCUMENT", b"\\{\"uri\":\"{URI}\",\"notebookType\":\"{STRING_CONTENT}\",\"version\":{NUMBER},\"cells\":[{NOTEBOOK_CELL}]\\}");
+    ctx.add_rule("NOTEBOOK_DOCUMENT_IDENTIFIER", b"\\{\"uri\":\"{URI}\",\"version\":{NUMBER}\\}");
+    ctx.add_rule("NOTEBOOK_DOCUMENT_CHANGE_EVENT", b"\\{\"cells\":{CELLS_CHANGE_EVENT}\\}");
+    ctx.add_rule("CELLS_CHANGE_EVENT", b"\\{\"structure\":{CELLS_STRUCTURE_CHANGE_EVENT},\"data\":[{NOTEBOOK_CELL}],\"textContent\":[{CELL_TEXT_CONTENT_CHANGE_EVENT}]\\}");
+    ctx.add_rule("CELLS_STRUCTURE_CHANGE_EVENT", b"\\{\"array\":{ARRAY_CHANGE_EVENT},\"didOpen\":[{TEXT_DOCUMENT_ITEM}],\"didClose\":[{TEXT_DOCUMENT_IDENTIFIER}]\\}");
+    ctx.add_rule("ARRAY_CHANGE_EVENT", b"\\{\"start\":{NUMBER},\"deleteCount\":{NUMBER},\"cells\":[{NOTEBOOK_CELL}]\\}");
+    ctx.add_rule("CELL_TEXT_CONTENT_CHANGE_EVENT", b"\\{\"document\":{TEXT_DOCUMENT_IDENTIFIER},\"changes\":[{TEXT_DOCUMENT_CONTENT_CHANGE_EVENT}]\\}");
+    ctx.add_rule("NOTEBOOK_CELL", b"\\{\"kind\":{NUMBER},\"document\":\"{URI}\"\\}");
 
     ctx
 }

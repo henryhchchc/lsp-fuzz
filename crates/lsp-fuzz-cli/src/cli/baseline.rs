@@ -281,19 +281,17 @@ impl BaselineCommand {
         }
 
         let mut generator = BaselineInputGenerator::new(NautilusGenerator::new(&nautilus_ctx));
-        for _ in 0..self.generate_seeds {
-            info!("Generating seeds");
-            state
-                .generate_initial_inputs(
-                    &mut fuzzer,
-                    &mut executor,
-                    &mut generator,
-                    &mut event_manager,
-                    self.generate_seeds,
-                )
-                .context("Generating initial input")?;
-            info!(seeds = %state.corpus().count(), "Seed generation completed");
-        }
+        info!("Generating seeds");
+        state
+            .generate_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut generator,
+                &mut event_manager,
+                self.generate_seeds,
+            )
+            .context("Generating initial input")?;
+        info!(seeds = %state.corpus().count(), "Seed generation completed");
 
         let fuzz_result = fuzzer.fuzz_loop(
             &mut fuzz_stages,
