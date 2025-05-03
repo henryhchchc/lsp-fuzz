@@ -55,6 +55,14 @@ where
 
         Ok(MutationResult::Mutated)
     }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -88,6 +96,14 @@ where
             .expect("We have checked that the string is not empty.");
         input.remove(idx);
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }
 
@@ -126,6 +142,13 @@ where
         input.replace_range(idx..idx + picked.len_utf8(), &new_char.to_string());
         Ok(MutationResult::Mutated)
     }
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -159,6 +182,13 @@ where
         };
         input.truncate(truncate_len);
         Ok(MutationResult::Mutated)
+    }
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }
 
@@ -225,5 +255,13 @@ where
         } else {
             Ok(MutationResult::Skipped)
         }
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }

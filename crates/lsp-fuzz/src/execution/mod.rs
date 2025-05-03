@@ -8,9 +8,9 @@ use std::{
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
-    HasMetadata,
+    HasBytesConverter, HasMetadata,
     executors::{Executor, ExitKind, HasObservers},
-    inputs::TargetBytesConverter,
+    inputs::InputToBytes,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
 };
@@ -106,24 +106,22 @@ pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
 }
 
 #[derive(Debug)]
-pub struct LspExecutor<State, MO, OBS, I, TC, SHM> {
+pub struct LspExecutor<State, MO, OBS, I, SHM> {
     fork_server: NeoForkServer,
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
     observers: Observers<MO, OBS>,
-    target_bytes_converter: TC,
     _state: PhantomData<(State, I)>,
 }
 
-impl<State, OBS, MO, I, TC, SHM> LspExecutor<State, MO, OBS, I, TC, SHM>
+impl<State, OBS, MO, I, SHM> LspExecutor<State, MO, OBS, I, SHM>
 where
     SHM: ShMem,
 {
     /// Create and initialize a new LSP executor.
     pub fn start<A>(
         target_info: FuzzTargetInfo,
-        target_bytes_converter: TC,
         mut config: FuzzExecutionConfig<'_, SHM, MO, OBS>,
     ) -> Result<Self, libafl::Error>
     where
@@ -218,7 +216,6 @@ where
             timeout: target_info.timeout,
             fuzz_input: config.fuzz_input,
             observers,
-            target_bytes_converter,
             _state: PhantomData,
         })
     }
@@ -319,7 +316,7 @@ where
     }
 }
 
-impl<State, MO, OBS, TC, I, SHM> HasObservers for LspExecutor<State, MO, OBS, I, TC, SHM>
+impl<State, MO, OBS, I, SHM> HasObservers for LspExecutor<State, MO, OBS, I, SHM>
 where
     OBS: ObserversTuple<I, State>,
 {
@@ -334,24 +331,25 @@ where
     }
 }
 
-impl<EM, I, Z, State, MO, OBS, TC, SHM> Executor<EM, I, State, Z>
-    for LspExecutor<State, MO, OBS, I, TC, SHM>
+impl<EM, I, Z, State, MO, OBS, SHM> Executor<EM, I, State, Z>
+    for LspExecutor<State, MO, OBS, I, SHM>
 where
     Observers<MO, OBS>: ObserversTuple<I, State>,
     State: HasExecutions + HasMetadata,
     OBS: ObserversTuple<I, State>,
     SHM: ShMem,
-    TC: TargetBytesConverter<I>,
+    Z: HasBytesConverter,
+    Z::Converter: InputToBytes<I>,
 {
     fn run_target(
         &mut self,
-        _fuzzer: &mut Z,
+        fuzzer: &mut Z,
         state: &mut State,
         _mgr: &mut EM,
         input: &I,
     ) -> Result<ExitKind, libafl::Error> {
         // Transfer input to the fork server
-        let input_bytes = self.target_bytes_converter.to_target_bytes(input);
+        let input_bytes = fuzzer.converter_mut().to_bytes(input);
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;

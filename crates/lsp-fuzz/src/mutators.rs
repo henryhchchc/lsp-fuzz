@@ -54,6 +54,14 @@ where
         }
         Ok(MutationResult::Skipped)
     }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, New)]
@@ -92,6 +100,14 @@ where
         input.swap(idx1, idx2);
         Ok(MutationResult::Mutated)
     }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
+    }
 }
 
 pub trait HasMutProp<const OFFSET: usize> {
@@ -126,6 +142,14 @@ where
     ) -> Result<MutationResult, libafl::Error> {
         let field_mut = I::get_field(input);
         self.mutator.mutate(state, field_mut)
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }
 
@@ -182,5 +206,13 @@ where
             .as_mut()
             .map(|it| self.mutator.mutate(state, it))
             .unwrap_or(Ok(MutationResult::Skipped))
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }

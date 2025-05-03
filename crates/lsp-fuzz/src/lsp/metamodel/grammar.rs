@@ -1,6 +1,6 @@
 use libafl::nautilus::grammartec::context::Context;
 
-fn get_grammar() -> Context {
+pub fn get_grammar() -> Context {
     let mut ctx = Context::new();
 
     // Core message structure

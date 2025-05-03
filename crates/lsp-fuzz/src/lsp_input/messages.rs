@@ -236,6 +236,14 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
+    }
 }
 
 prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::ClientToServerMessage>);
@@ -399,6 +407,14 @@ where
             input.messages.push(message);
         }
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
     }
 }
 

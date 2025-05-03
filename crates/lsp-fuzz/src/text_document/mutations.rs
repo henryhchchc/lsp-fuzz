@@ -110,6 +110,14 @@ where
         input.messages.calibrate(doc_uri, input_edit);
         Ok(MutationResult::Mutated)
     }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        Ok(())
+    }
 }
 
 pub mod text_document_selectors {

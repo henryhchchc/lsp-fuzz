@@ -4,15 +4,18 @@ use anyhow::{Context, bail};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    Fuzzer, HasMetadata, StdFuzzer,
+    Fuzzer, HasMetadata, NopInputFilter, StdFuzzerBuilder,
     corpus::{InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
     events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
-    generators::NautilusContext,
-    inputs::NautilusTargetBytesConverter,
+    generators::{NautilusContext, NautilusGenerator},
+    inputs::NautilusBytesConverter,
     monitors::SimpleMonitor,
-    mutators::{MutationResult, NopMutator},
+    mutators::{
+        HavocScheduledMutator, NautilusRandomMutator, NautilusRecursionMutator,
+        NautilusSpliceMutator,
+    },
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
@@ -29,7 +32,10 @@ use libafl_bolts::{
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
-    baseline::{BaselineByteConverter, BaselineGrammarFeedback},
+    baseline::{
+        BaselineByteConverter, BaselineGrammarFeedback, BaselineGrammarMutator,
+        BaselineSequenceMutator,
+    },
     execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
     fuzz_target::{self, StaticTargetBinaryInfo},
     stages::{StopOnReceived, TimeoutStopStage},
@@ -113,8 +119,10 @@ impl BaselineCommand {
             .context("Creating shared memory")?;
         let coverage_map_shmem_id = coverage_shmem.id();
 
-        let grammar_rules = vec![];
-        let nautilus_ctx = NautilusContext::new(15, &grammar_rules);
+        let mut nautilus_ctx = NautilusContext {
+            ctx: lsp_fuzz::lsp::metamodel::get_grammar(),
+        };
+        nautilus_ctx.ctx.initialize(65535);
 
         info!("Loading grammar context");
 
@@ -181,12 +189,29 @@ impl BaselineCommand {
             IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
         };
 
+        let nautilus_bytes_converter = NautilusBytesConverter::new(&nautilus_ctx);
+        let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
         // A fuzzer with feedback and a corpus scheduler
-        let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
+        let mut fuzzer = StdFuzzerBuilder::new()
+            .bytes_converter(target_bytes_converter)
+            .input_filter(NopInputFilter)
+            .build(scheduler, feedback, objective)
+            .context("Building fuzzer")?;
 
         let mut fuzz_stages = {
-            let mutation_stage =
-                StdPowerMutationalStage::new(NopMutator::new(MutationResult::Skipped));
+            let mutations = tuple_list![
+                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineGrammarMutator::new(NautilusRecursionMutator::new(&nautilus_ctx)),
+                BaselineSequenceMutator::new(NautilusGenerator::new(&nautilus_ctx)),
+            ];
+
+            let mutator = HavocScheduledMutator::new(mutations);
+            let mutation_stage = StdPowerMutationalStage::new(mutator);
             let trigger_stop = trigger_stop_stage()?;
             let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
@@ -202,8 +227,6 @@ impl BaselineCommand {
             info!("Crash stack hashing will be enabled");
         }
         let mut executor = {
-            let nautilus_bytes_converter = NautilusTargetBytesConverter::new(&nautilus_ctx);
-            let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
             let execution_config = self.execution;
             const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
             let test_case_shmem = shmem_provider
@@ -230,8 +253,7 @@ impl BaselineCommand {
                 asan_observer,
                 other_observers: tuple_list![time_observer],
             };
-            LspExecutor::start(target_info, target_bytes_converter, exec_config)
-                .context("Starting executor")?
+            LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
 
         if let Some(tokens) = tokens {

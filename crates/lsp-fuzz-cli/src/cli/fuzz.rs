@@ -4,14 +4,14 @@ use anyhow::{Context, bail};
 use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
-    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, StdFuzzer,
+    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, NopInputFilter, StdFuzzerBuilder,
     corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
     events::{EventFirer, SimpleEventManager},
     executors::{Executor, HasObservers},
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
-    mutators::StdScheduledMutator,
+    mutators::HavocScheduledMutator,
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
@@ -198,11 +198,14 @@ impl FuzzCommand {
             }
             IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
         };
+        let temp_dir = self.temp_dir.unwrap_or_else(std::env::temp_dir);
 
         // A fuzzer with feedback and a corpus scheduler
-        let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-        let temp_dir = self.temp_dir.unwrap_or_else(std::env::temp_dir);
+        let mut fuzzer = StdFuzzerBuilder::new()
+            .input_filter(NopInputFilter)
+            .bytes_converter(LspInputBytesConverter::new(temp_dir.clone()))
+            .build(scheduler, feedback, objective)
+            .context("Building fuzzer")?;
 
         let mut fuzz_stages = {
             let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
@@ -237,7 +240,7 @@ impl FuzzCommand {
                 kill_signal: execution_config.kill_signal,
                 env: execution_config.target_env,
             };
-            let workspace_observer = WorkspaceObserver::new(temp_dir.clone());
+            let workspace_observer = WorkspaceObserver::new(temp_dir);
             let exec_config = FuzzExecutionConfig {
                 debug_child: execution_config.debug_child,
                 debug_afl: execution_config.debug_afl,
@@ -248,12 +251,7 @@ impl FuzzCommand {
                 asan_observer,
                 other_observers: tuple_list![workspace_observer, time_observer],
             };
-            LspExecutor::start(
-                target_info,
-                LspInputBytesConverter::new(temp_dir),
-                exec_config,
-            )
-            .context("Starting executor")?
+            LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
 
         if let Some(tokens) = tokens {
@@ -348,8 +346,8 @@ where
     Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
 {
     let text_document_mutator =
-        StdScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
-    let messages_mutator = StdScheduledMutator::with_max_stack_pow(message_mutations(), 6);
+        HavocScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
+    let messages_mutator = HavocScheduledMutator::with_max_stack_pow(message_mutations(), 6);
     let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
     Ok(StdPowerMutationalStage::new(mutator))
 }
