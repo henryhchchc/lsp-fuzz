@@ -217,3 +217,20 @@ where
         Ok(())
     }
 }
+
+#[derive(Debug, New)]
+pub struct BaselineInputGenerator<MsgGen> {
+    inner: MsgGen,
+}
+
+impl<MsgGen, State> Generator<BaselineInput, State> for BaselineInputGenerator<MsgGen>
+where
+    MsgGen: Generator<NautilusInput, State>,
+{
+    fn generate(&mut self, state: &mut State) -> Result<BaselineInput, libafl::Error> {
+        let msg = self.inner.generate(state)?;
+        Ok(BaselineInput {
+            messages: vec![msg],
+        })
+    }
+}

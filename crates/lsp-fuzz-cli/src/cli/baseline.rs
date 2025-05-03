@@ -5,7 +5,7 @@ use clap::builder::BoolishValueParser;
 use core_affinity::CoreId;
 use libafl::{
     Fuzzer, HasMetadata, NopInputFilter, StdFuzzerBuilder,
-    corpus::{InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    corpus::{Corpus, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
     events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
@@ -24,7 +24,7 @@ use libafl::{
         powersched::{BaseSchedule, PowerSchedule},
     },
     stages::{CalibrationStage, StdPowerMutationalStage},
-    state::StdState,
+    state::{HasCorpus, StdState},
 };
 use libafl_bolts::{
     AsSliceMut, HasLen,
@@ -34,7 +34,7 @@ use libafl_bolts::{
 use lsp_fuzz::{
     baseline::{
         BaselineByteConverter, BaselineGrammarFeedback, BaselineGrammarMutator,
-        BaselineSequenceMutator,
+        BaselineInputGenerator, BaselineSequenceMutator,
     },
     execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
     fuzz_target::{self, StaticTargetBinaryInfo},
@@ -273,6 +273,21 @@ impl BaselineCommand {
             } else {
                 warn!("Failed to set CPU affinity to core {id}");
             }
+        }
+
+        let mut generator = BaselineInputGenerator::new(NautilusGenerator::new(&nautilus_ctx));
+        for _ in 0..self.generate_seeds {
+            info!("Generating seeds");
+            state
+                .generate_initial_inputs(
+                    &mut fuzzer,
+                    &mut executor,
+                    &mut generator,
+                    &mut event_manager,
+                    self.generate_seeds,
+                )
+                .context("Generating initial input")?;
+            info!(seeds = %state.corpus().count(), "Seed generation completed");
         }
 
         let fuzz_result = fuzzer.fuzz_loop(
