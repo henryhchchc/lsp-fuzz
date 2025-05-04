@@ -435,7 +435,7 @@ append_randoms! {
         request::RangeFormatting,
         // request::ResolveCompletionItem,
         request::SelectionRangeRequest,
-        // request::SemanticTokensFullDeltaRequest,
+        request::SemanticTokensFullDeltaRequest,
         // request::TypeHierarchySubtypes,
         // request::TypeHierarchySupertypes,
         // request::WillCreateFiles,

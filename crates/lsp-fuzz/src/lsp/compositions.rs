@@ -274,6 +274,15 @@ compose! {
     }
 }
 
+compose! {
+    SemanticTokensDeltaParams {
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams,
+        text_document: TextDocumentIdentifier,
+        previous_result_id: String
+    }
+}
+
 impl Compose for ColorPresentationParams {
     type Components = tuple_list_type![
         Selection,
