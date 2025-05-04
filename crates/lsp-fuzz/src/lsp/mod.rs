@@ -48,12 +48,14 @@ impl<Head, Tail> Compose for (Head, Tail) {
 pub struct GeneratorsConfig {
     pub invalid_ranges: bool,
     pub tab_size: TabSizeGen,
+    pub invalid_positions: bool,
 }
 
 impl Default for GeneratorsConfig {
     fn default() -> Self {
         Self {
             invalid_ranges: true,
+            invalid_positions: true,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,

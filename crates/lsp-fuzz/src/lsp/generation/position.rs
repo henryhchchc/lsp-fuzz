@@ -60,21 +60,27 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
-    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         let term_start_pos = TerminalStartPosition::new();
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
-        let result: [Self::Generator; 8] = [
+
+        let mut generators = Vec::new();
+        generators.extend([
             Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-            Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024))),
             term_start.clone(),
             term_start.clone(),
             term_start.clone(),
             steer.clone(),
             steer.clone(),
             steer.clone(),
-        ];
-        result
+        ]);
+        if config.invalid_positions {
+            generators.push(Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024))));
+        }
+        generators
     }
 }
