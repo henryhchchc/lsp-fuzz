@@ -340,8 +340,7 @@ where
         + HasCurrentCorpusId
         + HasNamedMetadata
         + HasExecutions
-        + MaybeHasClientPerfMonitor
-        + 'static,
+        + MaybeHasClientPerfMonitor + 'static,
     Fuzzer: Evaluator<Exec, EventMgr, LspInput, State>,
     Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
 {

@@ -1,4 +1,4 @@
-use std::{any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData, rc::Rc};
+use std::{any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -268,18 +268,22 @@ impl<State: 'static> HasPredefinedGenerators<State> for P {
 }
 
 #[derive(Debug, Clone)]
-pub struct VecGenerator<G, const MAX_ITEMS: usize = 5> {
+pub struct VecGenerator<G> {
     element_generators: Vec<G>,
+    max_items: usize,
 }
 
-impl<G, const MAX_ITEMS: usize> VecGenerator<G, MAX_ITEMS> {
-    pub fn new(element_generators: impl IntoIterator<Item = G>) -> Self {
+impl<G> VecGenerator<G> {
+    pub fn new(element_generators: impl IntoIterator<Item = G>, max_items: usize) -> Self {
         let element_generators = element_generators.into_iter().collect();
-        Self { element_generators }
+        Self {
+            element_generators,
+            max_items,
+        }
     }
 }
 
-impl<State, G, const MAX_ITEMS: usize> LspParamsGenerator<State> for VecGenerator<G, MAX_ITEMS>
+impl<State, G> LspParamsGenerator<State> for VecGenerator<G>
 where
     G: LspParamsGenerator<State>,
     State: HasRand,
@@ -291,7 +295,7 @@ where
         state: &mut State,
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
-        let len = state.rand_mut().between(1, MAX_ITEMS);
+        let len = state.rand_mut().below_or_zero(self.max_items);
         let mut items = Vec::with_capacity(len);
         let mut anything_generated = false;
         for _ in 0..len {
@@ -314,16 +318,13 @@ where
 
 impl<State, T> HasPredefinedGenerators<State> for Vec<T>
 where
-    State: HasRand + 'static,
-    T: HasPredefinedGenerators<State> + 'static,
+    State: HasRand,
+    T: HasPredefinedGenerators<State>,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Vec<T>>>;
+    type Generator = VecGenerator<T::Generator>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let vec_generator: Self::Generator =
-            Rc::new(VecGenerator::<T::Generator, 5>::new(T::generators()));
-        let default_generator: Self::Generator = Rc::new(DefaultGenerator::new());
-        [vec_generator, default_generator]
+        [VecGenerator::<T::Generator>::new(T::generators(), 5)]
     }
 }
 
@@ -354,7 +355,7 @@ where
 
 pub const MAX_MESSAGES: usize = 10;
 
-impl<M, State: 'static> AppendRandomlyGeneratedMessage<M, State>
+impl<M, State> AppendRandomlyGeneratedMessage<M, State>
 where
     M: LspMessage,
     M::Params: HasPredefinedGenerators<State>,
@@ -495,7 +496,7 @@ append_randoms! {
 
 pub fn message_mutations<State>() -> impl MutatorsTuple<LspInput, State> + NamedTuple
 where
-    State: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata + 'static
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
     append_randomly_generated_messages()

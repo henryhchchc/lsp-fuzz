@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
@@ -47,59 +47,42 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct MappingGenerator<G, T, U> {
-    generator: G,
-    mapper: fn(T) -> U,
+#[derive(Debug, Clone)]
+pub enum OneOfGenerator<L, R> {
+    Left(L),
+    Right(R),
 }
 
-impl<G, T, U> MappingGenerator<G, T, U> {
-    pub const fn new(generator: G, mapper: fn(T) -> U) -> Self {
-        Self { generator, mapper }
-    }
-}
-
-impl<G, T, U> Clone for MappingGenerator<G, T, U>
+impl<State, L, R> LspParamsGenerator<State> for OneOfGenerator<L, R>
 where
-    G: Clone,
+    L: LspParamsGenerator<State, Output = L>,
+    R: LspParamsGenerator<State, Output = R>,
 {
-    fn clone(&self) -> Self {
-        let generator = self.generator.clone();
-        Self::new(generator, self.mapper)
-    }
-}
-
-impl<State, G, T, U> LspParamsGenerator<State> for MappingGenerator<G, T, U>
-where
-    G: LspParamsGenerator<State, Output = T>,
-{
-    type Output = U;
+    type Output = OneOf<L, R>;
 
     fn generate(
         &self,
         state: &mut State,
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
-        self.generator.generate(state, input).map(self.mapper)
+        match self {
+            OneOfGenerator::Left(lgen) => Ok(OneOf::Left(lgen.generate(state, input)?)),
+            OneOfGenerator::Right(rgen) => Ok(OneOf::Right(rgen.generate(state, input)?)),
+        }
     }
 }
 
 impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
 where
-    A: HasPredefinedGenerators<State> + 'static,
-    B: HasPredefinedGenerators<State> + 'static,
-    A::Generator: 'static,
-    B::Generator: 'static,
+    A: HasPredefinedGenerators<State>,
+    B: HasPredefinedGenerators<State>,
+    OneOfGenerator<A::Generator, B::Generator>: LspParamsGenerator<State, Output = OneOf<A, B>>,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
+    type Generator = OneOfGenerator<A::Generator, B::Generator>;
 
     fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let left_gen = A::generators()
-            .into_iter()
-            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Left)) as _);
-        let right_gen = B::generators()
-            .into_iter()
-            .map(|g| Rc::new(MappingGenerator::new(g, OneOf::Right)) as _);
+        let left_gen = A::generators().into_iter().map(OneOfGenerator::Left);
+        let right_gen = B::generators().into_iter().map(OneOfGenerator::Right);
         left_gen.chain(right_gen)
     }
 }
