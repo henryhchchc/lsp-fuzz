@@ -40,7 +40,7 @@ macro_rules! const_generators {
         impl<State> crate::lsp::HasPredefinedGenerators<State> for $type {
             type Generator = &'static ConstGenerator<Self>;
 
-            fn generators() -> impl IntoIterator<Item = Self::Generator> {
+            fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
                 const COUNT: usize = { 0 $( + const_generators!(one $val))* };
                 static GENERATORS: [ConstGenerator<$type>; COUNT] = [
                     $(ConstGenerator::new($val)),*

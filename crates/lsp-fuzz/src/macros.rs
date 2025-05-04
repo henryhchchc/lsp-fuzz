@@ -169,7 +169,7 @@ macro_rules! lsp_messages {
 macro_rules! append_randoms {
     (
         $(#[$outer:meta])*
-        $vis: vis fn $fn_name:ident() -> $return_ty: ident {
+        $vis: vis fn $fn_name:ident(config: &GeneratorsConfig) -> $return_ty: ident {
             $(
                 $( request::$req_variant: ident )?
                 $( notification::$not_variant: ident )?
@@ -186,14 +186,14 @@ macro_rules! append_randoms {
         ];
 
         $(#[$outer])*
-        $vis fn $fn_name<State>() -> $return_ty<State>
+        $vis fn $fn_name<State>(config: &GeneratorsConfig) -> $return_ty<State>
         where
             State: libafl::state::HasRand + libafl::common::HasMetadata + 'static
         {
             tuple_list::tuple_list![
                 $(
-                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>::with_predefined(),)?
-                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>::with_predefined(),)?
+                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>::with_predefined(config),)?
+                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>::with_predefined(config),)?
                 )*
             ]
         }

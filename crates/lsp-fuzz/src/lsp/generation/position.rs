@@ -60,7 +60,7 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         let term_start_pos = TerminalStartPosition::new();
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));

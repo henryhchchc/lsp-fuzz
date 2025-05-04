@@ -1,8 +1,9 @@
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
+use serde::{Deserialize, Serialize};
 
 use super::{GenerationError, LspParamsGenerator};
-use crate::{lsp::HasPredefinedGenerators, lsp_input::LspInput};
+use crate::{lsp::{GeneratorsConfig, HasPredefinedGenerators}, lsp_input::LspInput};
 
 #[derive(Debug)]
 pub struct ZeroToOne32(pub f32);
@@ -31,7 +32,7 @@ where
 {
     type Generator = ZeroToOne32Gen;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(_config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
         [ZeroToOne32Gen]
     }
 }
@@ -39,8 +40,11 @@ where
 #[derive(Debug)]
 pub struct TabSize(pub u32);
 
-#[derive(Debug, Clone)]
-pub struct TabSizeGen;
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TabSizeGen{
+    pub candidates: Vec<u32>,
+    pub rand_prob: f64
+}
 
 impl<State> LspParamsGenerator<State> for TabSizeGen
 where
@@ -49,16 +53,9 @@ where
     type Output = TabSize;
 
     fn generate(&self, state: &mut State, _input: &LspInput) -> Result<TabSize, GenerationError> {
-        let inner = match state.rand_mut().next() % 6 {
-            0 => 0,
-            1 => 1,
-            2 => 2,
-            3 => 4,
-            4 => 8,
-            5 => state.rand_mut().next() as u32,
-            _ => unreachable!("Modulo of 6 should not be greater than 5"),
-        };
-        Ok(TabSize(inner))
+        let rand = state.rand_mut();
+        let value = rand.choose(&self.candidates).copied().unwrap_or_else(|| rand.next() as u32);
+        Ok(TabSize(value))
     }
 }
 
@@ -68,7 +65,7 @@ where
 {
     type Generator = TabSizeGen;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [TabSizeGen]
+    fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+        [config.tab_size.clone()]
     }
 }

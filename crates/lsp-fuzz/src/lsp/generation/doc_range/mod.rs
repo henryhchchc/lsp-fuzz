@@ -56,18 +56,31 @@ where
 {
     type Generator = RangeInDocGenerator<State, RandomDoc>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>
+    fn generators(
+        config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator>
     where
         State: HasRand,
     {
-        [
-            range_selectors::whole_range,
-            range_selectors::random_range,
-            range_selectors::random_range,
-            range_selectors::after_range,
-            range_selectors::inverted_range,
-            range_selectors::random_subtree,
-        ]
-        .map(RangeInDocGenerator::new)
+        let range_sels = if config.invalid_ranges {
+            [
+                range_selectors::whole_range,
+                range_selectors::random_range,
+                range_selectors::random_range,
+                range_selectors::after_range,
+                range_selectors::inverted_range,
+                range_selectors::random_subtree,
+            ]
+        } else {
+            [
+                range_selectors::whole_range,
+                range_selectors::random_range,
+                range_selectors::random_range,
+                range_selectors::random_range,
+                range_selectors::random_range,
+                range_selectors::random_subtree,
+            ]
+        };
+        range_sels.map(RangeInDocGenerator::new)
     }
 }

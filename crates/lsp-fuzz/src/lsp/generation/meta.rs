@@ -80,9 +80,9 @@ where
 {
     type Generator = OneOfGenerator<A::Generator, B::Generator>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        let left_gen = A::generators().into_iter().map(OneOfGenerator::Left);
-        let right_gen = B::generators().into_iter().map(OneOfGenerator::Right);
+    fn generators(config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+        let left_gen = A::generators(config).into_iter().map(OneOfGenerator::Left);
+        let right_gen = B::generators(config).into_iter().map(OneOfGenerator::Right);
         left_gen.chain(right_gen)
     }
 }
@@ -94,8 +94,8 @@ where
 {
     type Generator = OptionGenerator<T::Generator>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        T::generators()
+    fn generators(config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+        T::generators(config)
             .into_iter()
             .map(|inner| OptionGenerator::new(inner, 0.2))
     }

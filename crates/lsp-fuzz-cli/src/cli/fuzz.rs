@@ -32,20 +32,13 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     execution::{
-        FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor,
-        workspace_observer::WorkspaceObserver,
-    },
-    fuzz_target::{self, StaticTargetBinaryInfo},
-    lsp_input::{
-        LspInput, LspInputBytesConverter, LspInputGenerator, LspInputMutator,
-        messages::message_mutations,
-    },
-    stages::{StopOnReceived, TimeoutStopStage},
-    text_document::{
+        workspace_observer::WorkspaceObserver, FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor
+    }, fuzz_target::{self, StaticTargetBinaryInfo}, lsp::GeneratorsConfig, lsp_input::{
+        messages::message_mutations, LspInput, LspInputBytesConverter, LspInputGenerator, LspInputMutator
+    }, stages::{StopOnReceived, TimeoutStopStage}, text_document::{
         generation::GrammarContextLookup, text_document_mutations,
         token_novelty::TokenNoveltyFeedback,
-    },
-    utf8::UTF8Tokens,
+    }, utf8::UTF8Tokens
 };
 use lsp_fuzz_grammars::Language;
 use tracing::{info, warn};
@@ -344,9 +337,10 @@ where
     Fuzzer: Evaluator<Exec, EventMgr, LspInput, State>,
     Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
 {
+    let generators_config = GeneratorsConfig::default();
     let text_document_mutator =
         HavocScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
-    let messages_mutator = HavocScheduledMutator::with_max_stack_pow(message_mutations(), 6);
+    let messages_mutator = HavocScheduledMutator::with_max_stack_pow(message_mutations(&generators_config), 6);
     let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
     Ok(StdPowerMutationalStage::new(mutator))
 }

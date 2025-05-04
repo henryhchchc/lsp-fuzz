@@ -1,9 +1,9 @@
 pub(crate) mod capabilities;
 pub mod message;
 
-
-use generation::LspParamsGenerator;
+use generation::{LspParamsGenerator, numeric::TabSizeGen};
 pub use message::ClientToServerMessage;
+use serde::{Deserialize, Serialize};
 
 pub mod code_context;
 pub mod compositions;
@@ -26,7 +26,7 @@ where
 pub trait HasPredefinedGenerators<State> {
     type Generator: LspParamsGenerator<State, Output = Self>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator>;
+    fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator>;
 }
 
 pub trait Compose {
@@ -41,5 +41,23 @@ impl<Head, Tail> Compose for (Head, Tail) {
     #[inline]
     fn compose(components: Self::Components) -> Self {
         components
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GeneratorsConfig {
+    pub invalid_ranges: bool,
+    pub tab_size: TabSizeGen,
+}
+
+impl Default for GeneratorsConfig {
+    fn default() -> Self {
+        Self {
+            invalid_ranges: true,
+            tab_size: TabSizeGen {
+                candidates: vec![0, 1, 2, 4, 8],
+                rand_prob: 0.2,
+            },
+        }
     }
 }

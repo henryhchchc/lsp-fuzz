@@ -21,7 +21,7 @@ use super::LspInput;
 use crate::{
     lsp::{
         self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
-        code_context::CodeContextRef,
+        code_context::CodeContextRef, GeneratorsConfig,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
     },
     macros::{append_randoms, prop_mutator},
@@ -262,7 +262,7 @@ use lsp_types::*;
 impl<State: 'static> HasPredefinedGenerators<State> for P {
     type Generator = DefaultGenerator<Self>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
         [DefaultGenerator::new()]
     }
 }
@@ -323,8 +323,8 @@ where
 {
     type Generator = VecGenerator<T::Generator>;
 
-    fn generators() -> impl IntoIterator<Item = Self::Generator> {
-        [VecGenerator::<T::Generator>::new(T::generators(), 5)]
+    fn generators(config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+        [VecGenerator::<T::Generator>::new(T::generators(config), 5)]
     }
 }
 
@@ -360,9 +360,9 @@ where
     M: LspMessage,
     M::Params: HasPredefinedGenerators<State>,
 {
-    pub fn with_predefined() -> Self {
+    pub fn with_predefined(config: &GeneratorsConfig) -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
-        let generators: Vec<_> = M::Params::generators().into_iter().collect();
+        let generators: Vec<_> = M::Params::generators(config).into_iter().collect();
         assert!(!generators.is_empty(), "No generators for {}", M::METHOD);
         Self { name, generators }
     }
@@ -378,12 +378,11 @@ where
     }
 }
 
-impl<M, State, P> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
+impl<M, State> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
 where
     State: HasRand,
-    M: LspMessage<Params = P>,
-    M::Params: HasPredefinedGenerators<State>,
-    P: MessageParam<M>,
+    M: LspMessage,
+    M::Params: HasPredefinedGenerators<State> + MessageParam<M>,
 {
     fn mutate(
         &mut self,
@@ -422,7 +421,7 @@ where
 append_randoms! {
 
     /// Mutation operators for each message type with `AppendRandomlyGeneratedMessage` mutator.
-   fn append_randomly_generated_messages() -> AppendRandomlyGenerateMessageMutations {
+   fn append_randomly_generated_messages(config: &GeneratorsConfig) -> AppendRandomlyGenerateMessageMutations {
         // request::CallHierarchyIncomingCalls,
         // request::CallHierarchyOutgoingCalls,
         // request::CodeActionResolveRequest,
@@ -494,12 +493,12 @@ append_randoms! {
     }
 }
 
-pub fn message_mutations<State>() -> impl MutatorsTuple<LspInput, State> + NamedTuple
+pub fn message_mutations<State>(config: &GeneratorsConfig) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<State>
 where
     State: HasRand + HasMetadata + 'static
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
-    append_randomly_generated_messages()
+    append_randomly_generated_messages(config)
         .merge(swap)
         .merge(message_reductions())
 }
