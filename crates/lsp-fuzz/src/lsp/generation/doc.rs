@@ -44,7 +44,9 @@ where
 {
     type Generator = TextDocumentIdentifierGenerator<RandomDoc>;
 
-    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        _config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         [TextDocumentIdentifierGenerator::<RandomDoc>::new()]
     }
 }

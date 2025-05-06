@@ -2,13 +2,10 @@ use std::{borrow::Cow, num::NonZeroUsize};
 
 use derive_new::new as New;
 use libafl::{
-    HasMetadata,
-    corpus::Corpus,
-    feedbacks::{Feedback, NautilusChunksMetadata, StateInitializer},
-    generators::{Generator, NautilusContext},
-    inputs::{Input, InputToBytes, NautilusBytesConverter, nautilus::NautilusInput},
+    generators::Generator,
+    inputs::{Input, InputToBytes},
     mutators::{MutationResult, Mutator},
-    state::{HasCorpus, HasRand},
+    state::HasRand,
 };
 use libafl_bolts::{HasLen, Named, rands::Rand};
 use serde::{Deserialize, Serialize};
@@ -16,11 +13,21 @@ use serde::{Deserialize, Serialize};
 const MAX_MESSAGES: usize = 20;
 
 #[derive(Debug, Clone, Hash, Serialize, Deserialize)]
-pub struct BaselineInput {
-    messages: Vec<NautilusInput>,
+pub struct BaselineInput<Message> {
+    messages: Vec<Message>,
 }
 
-impl HasLen for BaselineInput {
+impl<Message> BaselineInput<Message> {
+    pub fn messages(&self) -> impl Iterator<Item = &Message> {
+        self.messages.iter()
+    }
+
+    pub fn messages_mut(&mut self) -> impl Iterator<Item = &mut Message> {
+        self.messages.iter_mut()
+    }
+}
+
+impl<Message: HasLen> HasLen for BaselineInput<Message> {
     fn len(&self) -> usize {
         self.messages
             .iter()
@@ -33,17 +40,20 @@ impl HasLen for BaselineInput {
     }
 }
 
-impl Input for BaselineInput {}
+impl<Message: Input> Input for BaselineInput<Message> {}
 
 #[derive(Debug, New)]
-pub struct BaselineByteConverter<'a> {
-    inner: NautilusBytesConverter<'a>,
+pub struct BaselineByteConverter<MessageConverter> {
+    inner: MessageConverter,
 }
 
-impl InputToBytes<BaselineInput> for BaselineByteConverter<'_> {
+impl<Message, Converter> InputToBytes<BaselineInput<Message>> for BaselineByteConverter<Converter>
+where
+    Converter: InputToBytes<Message>,
+{
     fn to_bytes<'a>(
         &mut self,
-        input: &'a BaselineInput,
+        input: &'a BaselineInput<Message>,
     ) -> libafl_bolts::ownedref::OwnedSlice<'a, u8> {
         let mut bytes = Vec::new();
         for message in input.messages.iter() {
@@ -53,55 +63,6 @@ impl InputToBytes<BaselineInput> for BaselineByteConverter<'_> {
             bytes.extend(message_bytes.to_vec());
         }
         bytes.into()
-    }
-}
-
-#[derive(Debug, New)]
-pub struct BaselineGrammarFeedback<'a> {
-    context: &'a NautilusContext,
-}
-
-impl Named for BaselineGrammarFeedback<'_> {
-    fn name(&self) -> &std::borrow::Cow<'static, str> {
-        const NAME: Cow<'static, str> = Cow::Borrowed("BaselineGrammarFeedback");
-        &NAME
-    }
-}
-
-impl<State> StateInitializer<State> for BaselineGrammarFeedback<'_> {}
-
-impl<'a, State, EM, OBS> Feedback<EM, BaselineInput, OBS, State> for BaselineGrammarFeedback<'a>
-where
-    State: HasMetadata + HasCorpus<BaselineInput>,
-{
-    fn is_interesting(
-        &mut self,
-        _state: &mut State,
-        _manager: &mut EM,
-        _input: &BaselineInput,
-        _observers: &OBS,
-        _exit_kind: &libafl::executors::ExitKind,
-    ) -> Result<bool, libafl::Error> {
-        Ok(false)
-    }
-
-    fn append_metadata(
-        &mut self,
-        state: &mut State,
-        _manager: &mut EM,
-        _observers: &OBS,
-        testcase: &mut libafl::corpus::Testcase<BaselineInput>,
-    ) -> Result<(), libafl::Error> {
-        state.corpus().load_input_into(testcase)?;
-        let input = testcase.input().as_ref().unwrap().clone();
-        let meta = state
-            .metadata_map_mut()
-            .get_mut::<NautilusChunksMetadata>()
-            .expect("NautilusChunksMetadata not in the state");
-        for msg in input.messages {
-            meta.cks.add_tree(msg.tree().to_owned(), &self.context.ctx);
-        }
-        Ok(())
     }
 }
 
@@ -117,15 +78,16 @@ impl<MsgMut> Named for BaselineGrammarMutator<MsgMut> {
     }
 }
 
-impl<State, MsgMut> Mutator<BaselineInput, State> for BaselineGrammarMutator<MsgMut>
+impl<State, Inner, Message> Mutator<BaselineInput<Message>, State> for BaselineGrammarMutator<Inner>
 where
     State: HasRand,
-    MsgMut: Mutator<NautilusInput, State>,
+    Inner: Mutator<Message, State>,
+    Message: Clone,
 {
     fn mutate(
         &mut self,
         state: &mut State,
-        input: &mut BaselineInput,
+        input: &mut BaselineInput<Message>,
     ) -> Result<MutationResult, libafl::Error> {
         let rand = state.rand_mut();
         let Some(message) = rand.choose(input.messages.iter_mut()) else {
@@ -155,15 +117,17 @@ impl<MsgGen> Named for BaselineSequenceMutator<MsgGen> {
     }
 }
 
-impl<State, MsgGen> Mutator<BaselineInput, State> for BaselineSequenceMutator<MsgGen>
+impl<State, Inner, Message> Mutator<BaselineInput<Message>, State>
+    for BaselineSequenceMutator<Inner>
 where
     State: HasRand,
-    MsgGen: Generator<NautilusInput, State>,
+    Inner: Generator<Message, State>,
+    Message: Clone,
 {
     fn mutate(
         &mut self,
         state: &mut State,
-        input: &mut BaselineInput,
+        input: &mut BaselineInput<Message>,
     ) -> Result<MutationResult, libafl::Error> {
         let rand = state.rand_mut();
 
@@ -230,11 +194,12 @@ pub struct BaselineInputGenerator<MsgGen> {
     inner: MsgGen,
 }
 
-impl<MsgGen, State> Generator<BaselineInput, State> for BaselineInputGenerator<MsgGen>
+impl<MsgGen, State, Message> Generator<BaselineInput<Message>, State>
+    for BaselineInputGenerator<MsgGen>
 where
-    MsgGen: Generator<NautilusInput, State>,
+    MsgGen: Generator<Message, State>,
 {
-    fn generate(&mut self, state: &mut State) -> Result<BaselineInput, libafl::Error> {
+    fn generate(&mut self, state: &mut State) -> Result<BaselineInput<Message>, libafl::Error> {
         let msg = self.inner.generate(state)?;
         Ok(BaselineInput {
             messages: vec![msg],

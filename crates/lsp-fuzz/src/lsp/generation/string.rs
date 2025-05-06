@@ -96,7 +96,9 @@ where
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
-    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        _config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         const DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
         const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
         const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();

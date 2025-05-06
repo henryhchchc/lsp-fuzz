@@ -3,7 +3,10 @@ use libafl_bolts::rands::Rand;
 use serde::{Deserialize, Serialize};
 
 use super::{GenerationError, LspParamsGenerator};
-use crate::{lsp::{GeneratorsConfig, HasPredefinedGenerators}, lsp_input::LspInput};
+use crate::{
+    lsp::{GeneratorsConfig, HasPredefinedGenerators},
+    lsp_input::LspInput,
+};
 
 #[derive(Debug)]
 pub struct ZeroToOne32(pub f32);
@@ -41,9 +44,9 @@ where
 pub struct TabSize(pub u32);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TabSizeGen{
+pub struct TabSizeGen {
     pub candidates: Vec<u32>,
-    pub rand_prob: f64
+    pub rand_prob: f64,
 }
 
 impl<State> LspParamsGenerator<State> for TabSizeGen
@@ -54,7 +57,10 @@ where
 
     fn generate(&self, state: &mut State, _input: &LspInput) -> Result<TabSize, GenerationError> {
         let rand = state.rand_mut();
-        let value = rand.choose(&self.candidates).copied().unwrap_or_else(|| rand.next() as u32);
+        let value = rand
+            .choose(&self.candidates)
+            .copied()
+            .unwrap_or_else(|| rand.next() as u32);
         Ok(TabSize(value))
     }
 }

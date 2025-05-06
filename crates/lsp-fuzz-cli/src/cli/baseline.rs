@@ -1,4 +1,4 @@
-use std::{ops::Not, path::PathBuf, sync::mpsc, time::Duration};
+use std::{borrow::Cow, ops::Not, path::PathBuf, sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::builder::BoolishValueParser;
@@ -9,11 +9,11 @@ use libafl::{
     events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{
-        ConstFeedback, CrashFeedback, MaxMapFeedback, NautilusChunksMetadata, NewHashFeedback,
-        TimeFeedback,
+        ConstFeedback, CrashFeedback, Feedback, MaxMapFeedback, NautilusChunksMetadata,
+        NewHashFeedback, StateInitializer, TimeFeedback,
     },
     generators::{NautilusContext, NautilusGenerator},
-    inputs::NautilusBytesConverter,
+    inputs::{NautilusBytesConverter, NautilusInput},
     monitors::SimpleMonitor,
     mutators::{
         HavocScheduledMutator, NautilusRandomMutator, NautilusRecursionMutator,
@@ -30,20 +30,21 @@ use libafl::{
     state::{HasCorpus, StdState},
 };
 use libafl_bolts::{
-    AsSliceMut, HasLen,
+    AsSliceMut, HasLen, Named,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
     baseline::{
-        BaselineByteConverter, BaselineGrammarFeedback, BaselineGrammarMutator,
-        BaselineInputGenerator, BaselineSequenceMutator,
+        BaselineByteConverter, BaselineGrammarMutator, BaselineInput, BaselineInputGenerator,
+        BaselineSequenceMutator,
     },
     execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
     fuzz_target::{self, StaticTargetBinaryInfo},
     stages::{StopOnReceived, TimeoutStopStage},
     utf8::UTF8Tokens,
 };
+use tempfile::tempdir;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
 
@@ -145,7 +146,7 @@ impl BaselineCommand {
 
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let baseline_grammar_feedback = BaselineGrammarFeedback::new(&nautilus_ctx);
+        let baseline_grammar_feedback = BaselineNautilusFeedback::new(&nautilus_ctx);
         let mut feedback = feedback_or!(
             map_feedback,
             baseline_grammar_feedback,
@@ -192,7 +193,10 @@ impl BaselineCommand {
             IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
         };
 
-        state.add_metadata(NautilusChunksMetadata::new("/tmp/nautilus".into()));
+        let nautilus_wd = tempdir().context("Creating temp directory for nautilus")?;
+        state.add_metadata(NautilusChunksMetadata::new(
+            nautilus_wd.path().as_os_str().to_str().unwrap().to_owned(),
+        ));
 
         let nautilus_bytes_converter = NautilusBytesConverter::new(&nautilus_ctx);
         let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
@@ -330,4 +334,60 @@ fn trigger_stop_stage<I>() -> Result<StopOnReceived<I>, anyhow::Error> {
     .context("Setting Control-C handler")?;
 
     Ok(StopOnReceived::new(rx))
+}
+
+#[derive(Debug)]
+pub struct BaselineNautilusFeedback<'a> {
+    context: &'a NautilusContext,
+}
+
+impl<'a> BaselineNautilusFeedback<'a> {
+    pub const fn new(context: &'a NautilusContext) -> Self {
+        Self { context }
+    }
+}
+
+impl Named for BaselineNautilusFeedback<'_> {
+    fn name(&self) -> &std::borrow::Cow<'static, str> {
+        const NAME: Cow<'static, str> = Cow::Borrowed("BaselineNautilusFeedback");
+        &NAME
+    }
+}
+
+impl<State> StateInitializer<State> for BaselineNautilusFeedback<'_> {}
+
+impl<'a, State, EM, OBS> Feedback<EM, BaselineInput<NautilusInput>, OBS, State>
+    for BaselineNautilusFeedback<'a>
+where
+    State: HasMetadata + HasCorpus<BaselineInput<NautilusInput>>,
+{
+    fn is_interesting(
+        &mut self,
+        _state: &mut State,
+        _manager: &mut EM,
+        _input: &BaselineInput<NautilusInput>,
+        _observers: &OBS,
+        _exit_kind: &libafl::executors::ExitKind,
+    ) -> Result<bool, libafl::Error> {
+        Ok(false)
+    }
+
+    fn append_metadata(
+        &mut self,
+        state: &mut State,
+        _manager: &mut EM,
+        _observers: &OBS,
+        testcase: &mut libafl::corpus::Testcase<BaselineInput<NautilusInput>>,
+    ) -> Result<(), libafl::Error> {
+        state.corpus().load_input_into(testcase)?;
+        let input = testcase.input().as_ref().unwrap().clone();
+        let meta = state
+            .metadata_map_mut()
+            .get_mut::<NautilusChunksMetadata>()
+            .expect("NautilusChunksMetadata not in the state");
+        for msg in input.messages() {
+            meta.cks.add_tree(msg.tree().to_owned(), &self.context.ctx);
+        }
+        Ok(())
+    }
 }

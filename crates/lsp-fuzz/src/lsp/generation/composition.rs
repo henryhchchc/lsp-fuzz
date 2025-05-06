@@ -16,7 +16,9 @@ where
 {
     type Generator = CompositionGenerator<T1::Generator, T2::Generator, Self>;
 
-    fn generators(config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         let t1_generators = T1::generators(config);
         t1_generators.into_iter().flat_map(|g1| {
             T2::generators(config)

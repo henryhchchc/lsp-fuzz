@@ -20,8 +20,9 @@ use tuple_list::{tuple_list, tuple_list_type};
 use super::LspInput;
 use crate::{
     lsp::{
-        self, ClientToServerMessage, HasPredefinedGenerators, LspMessage, MessageParam,
-        code_context::CodeContextRef, GeneratorsConfig,
+        self, ClientToServerMessage, GeneratorsConfig, HasPredefinedGenerators, LspMessage,
+        MessageParam,
+        code_context::CodeContextRef,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
     },
     macros::{append_randoms, prop_mutator},
@@ -262,7 +263,9 @@ use lsp_types::*;
 impl<State: 'static> HasPredefinedGenerators<State> for P {
     type Generator = DefaultGenerator<Self>;
 
-    fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        _config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         [DefaultGenerator::new()]
     }
 }
@@ -323,7 +326,9 @@ where
 {
     type Generator = VecGenerator<T::Generator>;
 
-    fn generators(config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+    fn generators(
+        config: &crate::lsp::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
         [VecGenerator::<T::Generator>::new(T::generators(config), 5)]
     }
 }
@@ -493,9 +498,11 @@ append_randoms! {
     }
 }
 
-pub fn message_mutations<State>(config: &GeneratorsConfig) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<State>
+pub fn message_mutations<State>(
+    config: &GeneratorsConfig,
+) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<State>
 where
-    State: HasRand + HasMetadata + 'static
+    State: HasRand + HasMetadata + 'static,
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
     append_randomly_generated_messages(config)
