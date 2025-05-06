@@ -10,7 +10,7 @@ use crate::{
     text_document::{
         GrammarBasedMutation,
         grammar::tree_sitter::TreeIter,
-        mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
+        mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     },
     utf8::UTF8Tokens,
 };

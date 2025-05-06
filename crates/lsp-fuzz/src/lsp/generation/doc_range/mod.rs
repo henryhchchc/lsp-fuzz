@@ -10,7 +10,7 @@ use crate::{
     lsp_input::LspInput,
     text_document::{
         TextDocument,
-        mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
+        mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     },
 };
 

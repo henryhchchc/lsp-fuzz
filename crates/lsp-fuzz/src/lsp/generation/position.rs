@@ -11,7 +11,7 @@ use crate::{
             HighlightSteer, PositionSelector, RandomPosition, TerminalStartPosition, ValidPosition,
         },
     },
-    text_document::mutations::{TextDocumentSelector, text_document_selectors::RandomDoc},
+    text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
 };
 
 #[derive(Debug)]
