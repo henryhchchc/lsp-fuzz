@@ -2,7 +2,6 @@ use std::{ops::Not, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
-use lsp_fuzz::utf8::UTF8Tokens;
 use libafl::{
     Fuzzer, NopInputFilter, StdFuzzerBuilder,
     corpus::{InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
@@ -35,13 +34,14 @@ use lsp_fuzz::{
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StopOnReceived, TimeoutStopStage},
+    utf8::UTF8Tokens,
 };
 use tracing::info;
 use tuple_list::tuple_list;
 
 use crate::{
     cli::GlobalOptions,
-    fuzzing::{common, ExecutorOptions, FuzzerStateDir},
+    fuzzing::{ExecutorOptions, FuzzerStateDir, common},
 };
 
 /// Fuzz a Language Server Protocol (LSP) server using BytesInput.
@@ -129,7 +129,6 @@ impl BinaryBaseline {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
-            MaxMapFeedback::with_name("crash_edges", &edges_observer),
             feedback_or_fast!(
                 ConstFeedback::new(!asan_enabled),
                 NewHashFeedback::new(&asan_observer)
@@ -252,8 +251,6 @@ impl BinaryBaseline {
         }
     }
 }
-
-
 
 fn trigger_stop_stage<I>() -> Result<StopOnReceived<I>, anyhow::Error> {
     common::trigger_stop_stage()

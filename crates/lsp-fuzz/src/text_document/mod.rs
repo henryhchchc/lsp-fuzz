@@ -18,7 +18,7 @@ use mutations::{
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
-use crate::lsp_input::LspInput;
+use crate::{lsp::GeneratorsConfig, lsp_input::LspInput};
 
 pub mod generation;
 pub mod grammar;
@@ -202,9 +202,10 @@ impl HasLen for TextDocument {
 type ReplaceNodeInRandomRoc<'a, State, NodeSel, NodeGen> =
     ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen, State>;
 
-pub fn text_document_mutations<State>(
-    grammar_lookup: &GrammarContextLookup,
-) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'_, State>
+pub fn text_document_mutations<'g, State>(
+    grammar_lookup: &'g GrammarContextLookup,
+    _genearators_config: &GeneratorsConfig,
+) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'g, State>
 where
     State: HasRand + HasMaxSize + HasMetadata,
 {

@@ -2,13 +2,11 @@ use std::{path::Path, sync::mpsc, time::Duration};
 
 use anyhow::Context;
 use core_affinity::CoreId;
+use libafl::HasMetadata;
 use lsp_fuzz::{
-    execution::FuzzTargetInfo,
-    fuzz_target::StaticTargetBinaryInfo,
-    stages::StopOnReceived,
+    execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
     utf8::UTF8Tokens,
 };
-use libafl::HasMetadata;
 use tracing::{info, warn};
 
 use crate::fuzzing::ExecutorOptions;
@@ -62,8 +60,8 @@ pub fn trigger_stop_stage<I>() -> Result<StopOnReceived<I>, anyhow::Error> {
 }
 
 /// Process tokens extracted during fuzzing.
-pub fn process_tokens<S>(state: &mut S, tokens: Option<UTF8Tokens>) 
-where 
+pub fn process_tokens<S>(state: &mut S, tokens: Option<UTF8Tokens>)
+where
     S: HasMetadata,
 {
     if let Some(tokens) = tokens {
@@ -75,13 +73,12 @@ where
 /// Analyzes the fuzz target and returns information about its instrumentation status.
 pub fn analyze_fuzz_target(target_path: &Path) -> Result<StaticTargetBinaryInfo, anyhow::Error> {
     info!("Analyzing fuzz target");
-    let binary_info = StaticTargetBinaryInfo::scan(target_path)
-        .context("Analyzing fuzz target")?;
-    
+    let binary_info = StaticTargetBinaryInfo::scan(target_path).context("Analyzing fuzz target")?;
+
     if !binary_info.is_afl_instrumented {
         anyhow::bail!("The fuzz target is not instrumented with AFL++");
     }
-    
+
     if binary_info.is_persistent_mode {
         info!("Persistent fuzzing detected.");
     }
@@ -91,6 +88,6 @@ pub fn analyze_fuzz_target(target_path: &Path) -> Result<StaticTargetBinaryInfo,
     if binary_info.uses_address_sanitizer {
         info!("Fuzz target is compiled with Address Sanitizer.");
     }
-    
+
     Ok(binary_info)
 }

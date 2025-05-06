@@ -3,10 +3,9 @@ use std::{collections::HashMap, ops::Not, path::PathBuf, time::Duration};
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
-    Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, NopInputFilter, StdFuzzerBuilder,
-    corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
-    events::{EventFirer, SimpleEventManager},
-    executors::{Executor, HasObservers},
+    Fuzzer, NopInputFilter, StdFuzzerBuilder,
+    corpus::{Corpus, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
     monitors::SimpleMonitor,
@@ -18,15 +17,12 @@ use libafl::{
         IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
         powersched::{BaseSchedule, PowerSchedule},
     },
-    stages::{CalibrationStage, Restartable, Stage, StdPowerMutationalStage},
-    state::{
-        HasCorpus, HasExecutions, HasMaxSize, HasRand, HasSolutions, MaybeHasClientPerfMonitor,
-        StdState,
-    },
+    stages::{CalibrationStage, StdPowerMutationalStage},
+    state::{HasCorpus, StdState},
 };
 use libafl_bolts::{
     AsSliceMut, HasLen,
-    rands::{Rand, StdRand},
+    rands::StdRand,
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
@@ -36,14 +32,10 @@ use lsp_fuzz::{
     fuzz_target,
     lsp::GeneratorsConfig,
     lsp_input::{
-        LspInput, LspInputBytesConverter, LspInputGenerator, LspInputMutator,
-        messages::message_mutations,
+        LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
     },
     stages::TimeoutStopStage,
-    text_document::{
-        generation::GrammarContextLookup, text_document_mutations,
-        token_novelty::TokenNoveltyFeedback,
-    },
+    text_document::{text_document_mutations, token_novelty::TokenNoveltyFeedback},
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;
@@ -146,7 +138,6 @@ impl FuzzCommand {
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
-            MaxMapFeedback::with_name("crash_edges", &edges_observer),
             feedback_or_fast!(
                 ConstFeedback::new(!asan_enabled),
                 NewHashFeedback::new(&asan_observer)
@@ -193,7 +184,19 @@ impl FuzzCommand {
             .context("Building fuzzer")?;
 
         let mut fuzz_stages = {
-            let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
+            let mutation_stage = {
+                let generators_config = GeneratorsConfig::default();
+                let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(
+                    text_document_mutations(&grammar_ctx, &generators_config),
+                    4,
+                );
+                let messages_mutator = HavocScheduledMutator::with_max_stack_pow(
+                    message_mutations(&generators_config),
+                    6,
+                );
+                let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
+                StdPowerMutationalStage::new(mutator)
+            };
             let trigger_stop = common::trigger_stop_stage()?;
             let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
@@ -238,14 +241,20 @@ impl FuzzCommand {
         };
 
         // In case the corpus is empty (on first run), reset
-        initialize_corpus(
-            &mut state,
-            &mut fuzzer,
-            &mut executor,
-            &mut event_manager,
-            &grammar_ctx,
-            self.generate_seeds,
-        )?;
+        if state.must_load_initial_inputs() {
+            info!("Generating seeds");
+            let mut generator = LspInputGenerator::new(&grammar_ctx);
+            state
+                .generate_initial_inputs(
+                    &mut fuzzer,
+                    &mut executor,
+                    &mut generator,
+                    &mut event_manager,
+                    self.generate_seeds,
+                )
+                .context("Generating initial input")?;
+            info!(seeds = %state.corpus().count(), "Seed generation completed");
+        }
 
         common::set_cpu_affinity(self.cpu_affinity);
 
@@ -268,62 +277,4 @@ impl FuzzCommand {
             err @ Err(_) => err.context("In fuzz loop"),
         }
     }
-}
-
-fn mutation_stage<'g, Exec, EventMgr, State, Fuzzer>(
-    _state: &mut State,
-    grammar_ctx: &'g GrammarContextLookup,
-) -> Result<
-    impl Stage<Exec, EventMgr, State, Fuzzer>
-    + Restartable<State>
-    + use<'g, Exec, EventMgr, State, Fuzzer>,
-    libafl::Error,
->
-where
-    State: HasRand
-        + HasMaxSize
-        + HasMetadata
-        + HasCorpus<LspInput>
-        + HasSolutions<LspInput>
-        + HasCurrentCorpusId
-        + HasNamedMetadata
-        + HasExecutions
-        + MaybeHasClientPerfMonitor
-        + 'static,
-    Fuzzer: Evaluator<Exec, EventMgr, LspInput, State>,
-    Exec: Executor<EventMgr, LspInput, State, Fuzzer> + HasObservers,
-{
-    let generators_config = GeneratorsConfig::default();
-    let text_document_mutator =
-        HavocScheduledMutator::with_max_stack_pow(text_document_mutations(grammar_ctx), 4);
-    let messages_mutator =
-        HavocScheduledMutator::with_max_stack_pow(message_mutations(&generators_config), 6);
-    let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
-    Ok(StdPowerMutationalStage::new(mutator))
-}
-
-fn initialize_corpus<E, Z, EM, R, C, SC>(
-    state: &mut StdState<C, LspInput, R, SC>,
-    fuzzer: &mut Z,
-    executor: &mut E,
-    event_manager: &mut EM,
-    grammar_context_lookup: &GrammarContextLookup,
-    num_seeds: usize,
-) -> Result<(), anyhow::Error>
-where
-    R: Rand,
-    C: Corpus<LspInput>,
-    SC: Corpus<LspInput>,
-    Z: Evaluator<E, EM, LspInput, StdState<C, LspInput, R, SC>>,
-    EM: EventFirer<LspInput, StdState<C, LspInput, R, SC>>,
-{
-    if state.must_load_initial_inputs() {
-        info!("Generating seeds");
-        let mut generator = LspInputGenerator::new(grammar_context_lookup);
-        state
-            .generate_initial_inputs(fuzzer, executor, &mut generator, event_manager, num_seeds)
-            .context("Generating initial input")?;
-        info!(seeds = %state.corpus().count(), "Seed generation completed");
-    }
-    Ok(())
 }

@@ -188,7 +188,7 @@ pub mod node_filters {
     impl<State, Predicate> NodeSelector<State> for NodesThat<Predicate>
     where
         State: HasRand,
-        Predicate: Fn(&tree_sitter::Node<'_>) -> bool,
+        Predicate: for<'t> Fn(&tree_sitter::Node<'t>) -> bool,
     {
         const NAME: &'static str = "NotesThat<Pred>";
 
