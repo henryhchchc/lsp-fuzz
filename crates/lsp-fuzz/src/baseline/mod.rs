@@ -22,7 +22,14 @@ pub struct BaselineInput {
 
 impl HasLen for BaselineInput {
     fn len(&self) -> usize {
-        self.messages.iter().map(|it| it.len()).sum()
+        self.messages
+            .iter()
+            .map(|it| {
+                let content_len = it.len();
+                let header_len = format!("Content-Length: {content_len}\r\n\r\n").len();
+                content_len + header_len
+            })
+            .sum()
     }
 }
 
