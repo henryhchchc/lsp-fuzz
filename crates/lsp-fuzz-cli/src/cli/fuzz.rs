@@ -1,8 +1,7 @@
-use std::{collections::HashMap, ops::Not, path::PathBuf, sync::mpsc, time::Duration};
+use std::{collections::HashMap, ops::Not, path::PathBuf, time::Duration};
 
-use anyhow::{Context, bail};
+use anyhow::Context;
 use clap::builder::BoolishValueParser;
-use core_affinity::CoreId;
 use libafl::{
     Evaluator, Fuzzer, HasMetadata, HasNamedMetadata, NopInputFilter, StdFuzzerBuilder,
     corpus::{Corpus, HasCurrentCorpusId, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
@@ -32,16 +31,15 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     execution::{
-        FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor,
-        workspace_observer::WorkspaceObserver,
+        FuzzExecutionConfig, FuzzInput, LspExecutor, workspace_observer::WorkspaceObserver,
     },
-    fuzz_target::{self, StaticTargetBinaryInfo},
+    fuzz_target,
     lsp::GeneratorsConfig,
     lsp_input::{
         LspInput, LspInputBytesConverter, LspInputGenerator, LspInputMutator,
         messages::message_mutations,
     },
-    stages::{StopOnReceived, TimeoutStopStage},
+    stages::TimeoutStopStage,
     text_document::{
         generation::GrammarContextLookup, text_document_mutations,
         token_novelty::TokenNoveltyFeedback,
@@ -49,12 +47,12 @@ use lsp_fuzz::{
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;
-use tracing::{info, warn};
+use tracing::info;
 use tuple_list::tuple_list;
 
 use super::{GlobalOptions, parse_hash_map};
 use crate::{
-    fuzzing::{ExecutorOptions, FuzzerStateDir},
+    fuzzing::{ExecutorOptions, FuzzerStateDir, common},
     language_fragments::load_grammar_lookup,
 };
 
@@ -108,21 +106,7 @@ impl FuzzCommand {
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
-        info!("Analyzing fuzz target");
-        let binary_info = StaticTargetBinaryInfo::scan(&self.execution.lsp_executable)
-            .context("Analyzing fuzz target")?;
-        if !binary_info.is_afl_instrumented {
-            bail!("The fuzz target is not instrumented with AFL++");
-        }
-        if binary_info.is_persistent_mode {
-            info!("Persistent fuzzing detected.");
-        }
-        if binary_info.is_defer_fork_server {
-            info!("Deferred fork server detected.");
-        }
-        if binary_info.uses_address_sanitizer {
-            info!("Fuzz target is compiled with Address Sanitizer.");
-        }
+        let binary_info = common::analyze_fuzz_target(&self.execution.lsp_executable)?;
 
         let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
             .context("Dumping map size")?;
@@ -210,7 +194,7 @@ impl FuzzCommand {
 
         let mut fuzz_stages = {
             let mutation_stage = mutation_stage(&mut state, &grammar_ctx)?;
-            let trigger_stop = trigger_stop_stage()?;
+            let trigger_stop = common::trigger_stop_stage()?;
             let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
                 calibration_stage,
@@ -231,16 +215,7 @@ impl FuzzCommand {
                 .new_shmem(INPUT_SHM_SIZE)
                 .context("Creating shared memory for test case passing")?;
             let fuzz_input = FuzzInput::SharedMemory(test_case_shmem);
-            let target_info = FuzzTargetInfo {
-                path: execution_config.lsp_executable,
-                args: execution_config.target_args,
-                persistent_fuzzing: binary_info.is_persistent_mode,
-                defer_fork_server: binary_info.is_defer_fork_server,
-                crash_exit_code: execution_config.crash_exit_code,
-                timeout: Duration::from_millis(execution_config.exec_timeout).into(),
-                kill_signal: execution_config.kill_signal,
-                env: execution_config.target_env,
-            };
+            let target_info = common::create_target_info(&execution_config, &binary_info);
             let workspace_observer = WorkspaceObserver::new(temp_dir);
             let exec_config = FuzzExecutionConfig {
                 debug_child: execution_config.debug_child,
@@ -255,10 +230,7 @@ impl FuzzCommand {
             LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
 
-        if let Some(tokens) = tokens {
-            info!("Extracted {} UTF-8 token(s) from the target.", tokens.len());
-            state.add_metadata(tokens);
-        }
+        common::process_tokens(&mut state, tokens);
 
         let mut event_manager = {
             let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
@@ -275,14 +247,7 @@ impl FuzzCommand {
             self.generate_seeds,
         )?;
 
-        if let Some(id) = self.cpu_affinity {
-            let core_id = CoreId { id };
-            if core_affinity::set_for_current(core_id) {
-                info!("Set CPU affinity to core {id}");
-            } else {
-                warn!("Failed to set CPU affinity to core {id}");
-            }
-        }
+        common::set_cpu_affinity(self.cpu_affinity);
 
         let fuzz_result = fuzzer.fuzz_loop(
             &mut fuzz_stages,
@@ -303,24 +268,6 @@ impl FuzzCommand {
             err @ Err(_) => err.context("In fuzz loop"),
         }
     }
-}
-
-fn trigger_stop_stage<I>() -> Result<StopOnReceived<I>, anyhow::Error> {
-    let (tx, rx) = mpsc::channel();
-    let mut is_control_c_pressed = false;
-    ctrlc::try_set_handler(move || {
-        if is_control_c_pressed {
-            info!("Control-C pressed again. Exiting immediately.");
-            const EXIT_CODE: i32 = 128 + (nix::sys::signal::SIGINT as i32);
-            std::process::exit(EXIT_CODE);
-        }
-        is_control_c_pressed = true;
-        info!("Control-C pressed. The fuzzer will stop after this cycle.");
-        tx.send(()).expect("Failed to send stop signal");
-    })
-    .context("Setting Control-C handler")?;
-
-    Ok(StopOnReceived::new(rx))
 }
 
 fn mutation_stage<'g, Exec, EventMgr, State, Fuzzer>(

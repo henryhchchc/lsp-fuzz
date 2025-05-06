@@ -5,6 +5,8 @@ use nix::sys::signal::Signal;
 
 use crate::cli::{parse_hash_map, parse_size};
 
+pub mod common;
+
 #[derive(Debug, Clone)]
 pub struct FuzzerStateDir(PathBuf);
 
