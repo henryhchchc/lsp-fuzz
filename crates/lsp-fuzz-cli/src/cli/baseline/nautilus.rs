@@ -36,7 +36,7 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     baseline::{
-        BaselineByteConverter, BaselineGrammarMutator, BaselineInput, BaselineInputGenerator,
+        BaselineByteConverter, BaselineInput, BaselineInputGenerator, BaselineMessageMutator,
         BaselineSequenceMutator,
     },
     execution::{FuzzExecutionConfig, FuzzInput, FuzzTargetInfo, LspExecutor},
@@ -48,12 +48,14 @@ use tempfile::tempdir;
 use tracing::{info, warn};
 use tuple_list::tuple_list;
 
-use super::GlobalOptions;
-use crate::fuzzing::{ExecutorOptions, FuzzerStateDir};
+use crate::{
+    cli::GlobalOptions,
+    fuzzing::{ExecutorOptions, FuzzerStateDir},
+};
 
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
-pub(super) struct BaselineCommand {
+pub struct NautilusBaseline {
     /// Directory containing the fuzzer states.
     #[clap(long)]
     state: FuzzerStateDir,
@@ -93,8 +95,8 @@ pub(super) struct BaselineCommand {
     no_asan: bool,
 }
 
-impl BaselineCommand {
-    pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+impl NautilusBaseline {
+    pub fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
@@ -209,13 +211,13 @@ impl BaselineCommand {
 
         let mut fuzz_stages = {
             let mutations = tuple_list![
-                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
-                BaselineGrammarMutator::new(NautilusRecursionMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusRandomMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusSpliceMutator::new(&nautilus_ctx)),
+                BaselineMessageMutator::new(NautilusRecursionMutator::new(&nautilus_ctx)),
                 BaselineSequenceMutator::new(NautilusGenerator::new(&nautilus_ctx)),
             ];
 

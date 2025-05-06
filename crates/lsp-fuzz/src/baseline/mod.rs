@@ -67,22 +67,21 @@ where
 }
 
 #[derive(Debug, New, Clone)]
-pub struct BaselineGrammarMutator<MsgMut> {
+pub struct BaselineMessageMutator<MsgMut> {
     message_mutator: MsgMut,
 }
 
-impl<MsgMut> Named for BaselineGrammarMutator<MsgMut> {
+impl<MsgMut> Named for BaselineMessageMutator<MsgMut> {
     fn name(&self) -> &Cow<'static, str> {
         const NAME: Cow<'static, str> = Cow::Borrowed("BaselineGrammarMutator");
         &NAME
     }
 }
 
-impl<State, Inner, Message> Mutator<BaselineInput<Message>, State> for BaselineGrammarMutator<Inner>
+impl<State, Inner, Message> Mutator<BaselineInput<Message>, State> for BaselineMessageMutator<Inner>
 where
     State: HasRand,
     Inner: Mutator<Message, State>,
-    Message: Clone,
 {
     fn mutate(
         &mut self,
