@@ -34,6 +34,8 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     // Numbers
     add_rule("NUMBER", b"{DIGIT}");
     add_rule("NUMBER", b"{DIGIT}{NUMBER}");
+    add_rule("NUMBER", b"-{NUMBER}"); // Allow negative numbers
+    add_rule("NUMBER", b"{NUMBER}.{NUMBER}"); // Allow decimal numbers
     for i in 0..=9 {
         add_rule("DIGIT", &[b'0' + i]);
     }
@@ -190,30 +192,24 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
 
     // TextDocumentItem for didOpen
     add_rule("TEXT_DOCUMENT_ITEM", b"\\{\"uri\":\"{URI}\",\"languageId\":\"{LANGUAGE_ID}\",\"version\":{NUMBER},\"text\":\"{TEXT}\"\\}");
-    add_rule("URI", b"file:///path/to/file.{FILE_EXT}");
+    add_rule("URI", b"file:///{STRING_CONTENT}");
     add_rule("LANGUAGE_ID", b"rust");
     add_rule("LANGUAGE_ID", b"python");
     add_rule("LANGUAGE_ID", b"javascript");
     add_rule("LANGUAGE_ID", b"typescript");
     add_rule("LANGUAGE_ID", b"c");
     add_rule("LANGUAGE_ID", b"cpp");
-    add_rule("FILE_EXT", b"rs");
-    add_rule("FILE_EXT", b"py");
-    add_rule("FILE_EXT", b"js");
-    add_rule("FILE_EXT", b"ts");
-    add_rule("FILE_EXT", b"c");
-    add_rule("FILE_EXT", b"cpp");
     add_rule("TEXT", b"{STRING_CONTENT}");
 
     // Initialize params
     add_rule("INITIALIZE_PARAMS", b"\\{\"processId\":{NUMBER},\"rootUri\":\"file:///path/to/workspace\",\"capabilities\":{CLIENT_CAPABILITIES}\\}");
     add_rule(
         "CLIENT_CAPABILITIES",
-        b"\\{\"workspace\":{WORKSPACE_CAPABILITY},\"textDocument\":{TEXT_DOCUMENT_CAPABILITY}\\}",
+        b"\\{\"workspace\":{WORKSPACE_CAPABILITY},\"textDocument\":{TEXT_DOCUMENT_CAPABILITY},\"window\":{WINDOW_CAPABILITY},\"general\":{GENERAL_CAPABILITY}\\}",
     );
     add_rule(
         "WORKSPACE_CAPABILITY",
-        b"\\{\"applyEdit\":true,\"workspaceEdit\":{WORKSPACE_EDIT_CAPABILITY}\\}",
+        b"\\{\"applyEdit\":true,\"workspaceEdit\":{WORKSPACE_EDIT_CAPABILITY},\"didChangeConfiguration\":{DYNAMIC_REGISTRATION},\"didChangeWatchedFiles\":{DYNAMIC_REGISTRATION},\"symbol\":{SYMBOL_CAPABILITY},\"executeCommand\":{DYNAMIC_REGISTRATION},\"workspaceFolders\":true,\"configuration\":true\\}",
     );
     add_rule(
         "WORKSPACE_EDIT_CAPABILITY",
@@ -221,7 +217,7 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     );
     add_rule(
         "TEXT_DOCUMENT_CAPABILITY",
-        b"\\{\"synchronization\":{SYNC_CAPABILITY},\"completion\":{COMPLETION_CAPABILITY}\\}",
+        b"\\{\"synchronization\":{SYNC_CAPABILITY},\"completion\":{COMPLETION_CAPABILITY},\"hover\":{HOVER_CAPABILITY},\"signatureHelp\":{SIGNATURE_HELP_CAPABILITY},\"declaration\":{DECLARATION_CAPABILITY},\"definition\":{DEFINITION_CAPABILITY},\"typeDefinition\":{TYPE_DEFINITION_CAPABILITY},\"implementation\":{IMPLEMENTATION_CAPABILITY},\"references\":{REFERENCES_CAPABILITY},\"documentHighlight\":{DOCUMENT_HIGHLIGHT_CAPABILITY},\"documentSymbol\":{DOCUMENT_SYMBOL_CAPABILITY},\"codeAction\":{CODE_ACTION_CAPABILITY},\"codeLens\":{CODE_LENS_CAPABILITY},\"formatting\":{FORMATTING_CAPABILITY},\"rangeFormatting\":{RANGE_FORMATTING_CAPABILITY},\"onTypeFormatting\":{ON_TYPE_FORMATTING_CAPABILITY},\"rename\":{RENAME_CAPABILITY},\"publishDiagnostics\":{PUBLISH_DIAGNOSTICS_CAPABILITY},\"foldingRange\":{FOLDING_RANGE_CAPABILITY},\"selectionRange\":{SELECTION_RANGE_CAPABILITY},\"linkedEditingRange\":{LINKED_EDITING_RANGE_CAPABILITY},\"callHierarchy\":{CALL_HIERARCHY_CAPABILITY},\"semanticTokens\":{SEMANTIC_TOKENS_CAPABILITY},\"moniker\":{MONIKER_CAPABILITY},\"inlayHint\":{INLAY_HINT_CAPABILITY}\\}",
     );
     add_rule("SYNC_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"willSave\":true,\"willSaveWaitUntil\":true,\"didSave\":true\\}");
     add_rule(
@@ -237,6 +233,18 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     add_rule(
         "TEXT_DOCUMENT_PARAMS",
         b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER}\\}",
+    );
+    add_rule(
+        "VERSIONED_TEXT_DOCUMENT_IDENTIFIER",
+        b"\\{\"uri\":\"{URI}\",\"version\":{NUMBER}\\}",
+    );
+    add_rule(
+        "OPTIONAL_VERSIONED_TEXT_DOCUMENT_IDENTIFIER",
+        b"\\{\"uri\":\"{URI}\",\"version\":{NUMBER}\\}",
+    );
+    add_rule(
+        "OPTIONAL_VERSIONED_TEXT_DOCUMENT_IDENTIFIER",
+        b"\\{\"uri\":\"{URI}\",\"version\":null\\}",
     );
     add_rule(
         "TEXT_DOCUMENT_IDENTIFIER",
@@ -408,6 +416,84 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         b"\\{\"command\":\"{STRING_CONTENT}\",\"arguments\":[{JSON_VALUE}]\\}",
     );
 
+    for i in 1..=26 {
+        add_rule("SYMBOL_KIND", format!("{}", i).as_bytes());
+    }
+
+    for i in 1..=25 {
+        add_rule("COMPLETION_ITEM_KIND", format!("{}", i).as_bytes());
+    }
+
+    for i in 0..=2 {
+        add_rule("TEXT_DOCUMENT_SYNC_KIND", format!("{}", i).as_bytes());
+    }
+
+    for i in 1..=4 {
+        add_rule("DIAGNOSTIC_SEVERITY", format!("{}", i).as_bytes());
+    }
+
+    for i in 1..=2 {
+        add_rule("INSERT_TEXT_FORMAT", format!("{}", i).as_bytes());
+    }
+
+    for i in 1..=3 {
+        add_rule("DOCUMENT_HIGHLIGHT_KIND", format!("{}", i).as_bytes());
+    }
+
+    add_rule("CODE_ACTION_KIND", b"\"quickfix\"");
+    add_rule("CODE_ACTION_KIND", b"\"refactor\"");
+    add_rule("CODE_ACTION_KIND", b"\"refactor.extract\"");
+    add_rule("CODE_ACTION_KIND", b"\"refactor.inline\"");
+    add_rule("CODE_ACTION_KIND", b"\"refactor.rewrite\"");
+    add_rule("CODE_ACTION_KIND", b"\"source\"");
+    add_rule("CODE_ACTION_KIND", b"\"source.organizeImports\"");
+    add_rule("CODE_ACTION_KIND", b"\"source.fixAll\"");
+
+    add_rule("MARKUP_KIND", b"\"plaintext\"");
+    add_rule("MARKUP_KIND", b"\"markdown\"");
+
+    // Registration options
+    add_rule(
+        "TEXT_DOCUMENT_REGISTRATION_OPTIONS",
+        b"\\{\"documentSelector\":[{DOCUMENT_FILTER}]\\}",
+    );
+    add_rule(
+        "DOCUMENT_FILTER",
+        b"\\{\"language\":\"{LANGUAGE_ID}\",\"scheme\":\"{URI_SCHEME}\",\"pattern\":\"**/*.{FILE_EXT}\"\\}",
+    );
+    add_rule("URI_SCHEME", b"file");
+    add_rule("URI_SCHEME", b"untitled");
+    add_rule("URI_SCHEME", b"git");
+
+    add_rule(
+        "STATIC_REGISTRATION_OPTIONS",
+        b"\\{\"id\":\"{STRING_CONTENT}\"\\}",
+    );
+
+    add_rule(
+        "WORK_DONE_PROGRESS_OPTIONS",
+        b"\\{\"workDoneProgress\":true\\}",
+    );
+    add_rule(
+        "WORK_DONE_PROGRESS_OPTIONS",
+        b"\\{\"workDoneProgress\":false\\}",
+    );
+
+    add_rule(
+        "CODE_ACTION_REGISTRATION_OPTIONS",
+        b"\\{\"documentSelector\":[{DOCUMENT_FILTER}],\"codeActionKinds\":[{CODE_ACTION_KIND}]\\}",
+    );
+
+    add_rule(
+        "COMPLETION_REGISTRATION_OPTIONS",
+        b"\\{\"documentSelector\":[{DOCUMENT_FILTER}],\"triggerCharacters\":[\".\",[\":\"],[\"/\"]],\"allCommitCharacters\":[\".\",[\":\"],[\"/\"]],\"resolveProvider\":true\\}",
+    );
+
+    add_rule(
+        "SIGNATURE_HELP_REGISTRATION_OPTIONS",
+        b"\\{\"documentSelector\":[{DOCUMENT_FILTER}],\"triggerCharacters\":[\".\",[\":\"],[\"/\"]],\"retriggerCharacters\":[\".\",[\":\"],[\"/\"]]\\}",
+    );
+
     // Notification params
     add_rule(
         "DID_OPEN_PARAMS",
@@ -489,7 +575,6 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     );
 
     // Semantic tokens params
-    add_rule("SEMANTIC_TOKENS_PARAMS", b"{TEXT_DOCUMENT_PARAMS}");
     add_rule(
         "SEMANTIC_TOKENS_RANGE_PARAMS",
         b"\\{\"textDocument\":{TEXT_DOCUMENT_IDENTIFIER},\"range\":{RANGE}\\}",
@@ -522,6 +607,36 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         "LOG_TRACE_PARAMS",
         b"\\{\"message\":\"{STRING_CONTENT}\",\"verbose\":\"{STRING_CONTENT}\"\\}",
     );
+
+    // Workspace methods
+    add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/workspaceFolders\",\"params\":null\\}");
+    add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"workspace/configuration\",\"params\":{CONFIGURATION_PARAMS}\\}");
+
+    add_rule("NOTIFICATION", b"\\{\"jsonrpc\":\"2.0\",\"method\":\"workspace/didChangeWorkspaceFolders\",\"params\":{WORKSPACE_FOLDERS_CHANGE_EVENT}\\}");
+
+    // Text document methods
+    add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"textDocument/inlayHint\",\"params\":{INLAY_HINT_PARAMS}\\}");
+
+    // Parameter types for new methods
+    add_rule(
+        "CONFIGURATION_PARAMS",
+        b"\\{\"items\":[{CONFIGURATION_ITEM}]\\}",
+    );
+    add_rule(
+        "CONFIGURATION_ITEM",
+        b"\\{\"scopeUri\":\"{URI}\",\"section\":\"{STRING_CONTENT}\"\\}",
+    );
+
+    add_rule(
+        "WORKSPACE_FOLDERS_CHANGE_EVENT",
+        b"\\{\"added\":[{WORKSPACE_FOLDER}],\"removed\":[{WORKSPACE_FOLDER}]\\}",
+    );
+    add_rule(
+        "WORKSPACE_FOLDER",
+        b"\\{\"uri\":\"{URI}\",\"name\":\"{STRING_CONTENT}\"\\}",
+    );
+
+    add_rule("INLAY_HINT_PARAMS", b"{TEXT_DOCUMENT_POSITION_PARAMS}");
 
     // Notebook document params
     add_rule("NOTEBOOK_DOCUMENT_DID_OPEN_PARAMS", b"\\{\"notebookDocument\":{NOTEBOOK_DOCUMENT},\"cellTextDocuments\":[{TEXT_DOCUMENT_ITEM}]\\}");

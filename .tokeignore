@@ -1,1 +1,4 @@
 **/stolen/upstream/**
+crates/lsp-fuzz/src/lsp/metamodel/*.json
+crates/lsp-fuzz/src/lsp/metamodel/grammar.rs
+crates/lsp-fuzz-grammars/res/**
