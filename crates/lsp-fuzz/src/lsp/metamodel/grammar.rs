@@ -94,12 +94,6 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     add_rule("STRING_CONTENT", b"{CHAR}");
     add_rule("STRING_CONTENT", b"{CHAR}{STRING_CONTENT}");
 
-    // Common Parameters
-    add_rule("PARAMS", b"{INITIALIZE_PARAMS}");
-    add_rule("PARAMS", b"{TEXT_DOCUMENT_PARAMS}");
-    add_rule("PARAMS", b"{WORKSPACE_PARAMS}");
-    add_rule("PARAMS", b"null");
-
     // Basic message types
     add_rule("REQUEST", b"\\{\"jsonrpc\":\"2.0\",\"id\":{NUMBER},\"method\":\"initialize\",\"params\":{INITIALIZE_PARAMS}\\}");
     add_rule(
@@ -200,9 +194,10 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     add_rule("LANGUAGE_ID", b"c");
     add_rule("LANGUAGE_ID", b"cpp");
     add_rule("TEXT", b"{STRING_CONTENT}");
+    add_rule("FILE_EXT", b"{STRING_CONTENT}");
 
     // Initialize params
-    add_rule("INITIALIZE_PARAMS", b"\\{\"processId\":{NUMBER},\"rootUri\":\"file:///path/to/workspace\",\"capabilities\":{CLIENT_CAPABILITIES}\\}");
+    add_rule("INITIALIZE_PARAMS", b"\\{\"processId\":{NUMBER},\"rootUri\":\"{URI}\",\"capabilities\":{CLIENT_CAPABILITIES}\\}");
     add_rule(
         "CLIENT_CAPABILITIES",
         b"\\{\"workspace\":{WORKSPACE_CAPABILITY},\"textDocument\":{TEXT_DOCUMENT_CAPABILITY},\"window\":{WINDOW_CAPABILITY},\"general\":{GENERAL_CAPABILITY}\\}",
