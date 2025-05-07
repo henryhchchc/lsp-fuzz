@@ -111,7 +111,7 @@ impl NautilusBaseline {
         let coverage_map_shmem_id = coverage_shmem.id();
 
         let mut nautilus_ctx = NautilusContext {
-            ctx: lsp_fuzz::lsp::metamodel::get_grammar(),
+            ctx: lsp_fuzz::lsp::metamodel::get_nautilus_context(),
         };
         nautilus_ctx.ctx.initialize(65535);
 
