@@ -246,7 +246,7 @@ impl FuzzCommand {
             info!("Generating seeds");
             let mut generator = LspInputGenerator::new(&grammar_ctx);
             state
-                .generate_initial_inputs(
+                .generate_initial_inputs_forced(
                     &mut fuzzer,
                     &mut executor,
                     &mut generator,
