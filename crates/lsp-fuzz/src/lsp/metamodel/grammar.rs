@@ -206,7 +206,7 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         b"\\{\"workspace\":{WORKSPACE_CAPABILITY},\"textDocument\":{TEXT_DOCUMENT_CAPABILITY},\"window\":{WINDOW_CAPABILITY},\"general\":{GENERAL_CAPABILITY}\\}",
     );
     add_rule(
-        "WORKSPACE_CAPABILITY", 
+        "WORKSPACE_CAPABILITY",
         b"\\{\"applyEdit\":true,\"workspaceEdit\":{WORKSPACE_EDIT_CAPABILITY},\"didChangeConfiguration\":{DYNAMIC_REGISTRATION},\"didChangeWatchedFiles\":{FILE_WATCH_CAPABILITY},\"symbol\":{WORKSPACE_SYMBOL_CAPABILITY},\"executeCommand\":{DYNAMIC_REGISTRATION},\"workspaceFolders\":true,\"configuration\":true,\"fileOperations\":{FILE_OPERATIONS_CAPABILITY},\"semanticTokens\":{SEMANTIC_TOKENS_WORKSPACE_CAPABILITY},\"codeLens\":{CODE_LENS_WORKSPACE_CAPABILITY},\"inlayHint\":{INLAY_HINT_WORKSPACE_CAPABILITY}\\}",
     );
     add_rule(
@@ -251,27 +251,54 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         b"\\{\"synchronization\":{SYNC_CAPABILITY},\"completion\":{COMPLETION_CAPABILITY},\"hover\":{HOVER_CAPABILITY},\"signatureHelp\":{SIGNATURE_HELP_CAPABILITY},\"declaration\":{DECLARATION_CAPABILITY},\"definition\":{DEFINITION_CAPABILITY},\"typeDefinition\":{TYPE_DEFINITION_CAPABILITY},\"implementation\":{IMPLEMENTATION_CAPABILITY},\"references\":{REFERENCES_CAPABILITY},\"documentHighlight\":{DOCUMENT_HIGHLIGHT_CAPABILITY},\"documentSymbol\":{DOCUMENT_SYMBOL_CAPABILITY},\"codeAction\":{CODE_ACTION_CAPABILITY},\"codeLens\":{CODE_LENS_CAPABILITY},\"formatting\":{FORMATTING_CAPABILITY},\"rangeFormatting\":{RANGE_FORMATTING_CAPABILITY},\"onTypeFormatting\":{ON_TYPE_FORMATTING_CAPABILITY},\"rename\":{RENAME_CAPABILITY},\"publishDiagnostics\":{PUBLISH_DIAGNOSTICS_CAPABILITY},\"foldingRange\":{FOLDING_RANGE_CAPABILITY},\"selectionRange\":{SELECTION_RANGE_CAPABILITY},\"linkedEditingRange\":{LINKED_EDITING_RANGE_CAPABILITY},\"callHierarchy\":{CALL_HIERARCHY_CAPABILITY},\"semanticTokens\":{SEMANTIC_TOKENS_CAPABILITY},\"moniker\":{MONIKER_CAPABILITY},\"inlayHint\":{INLAY_HINT_CAPABILITY}\\}",
     );
     // Common capability types
-    add_rule("DYNAMIC_REGISTRATION", b"\\{\"dynamicRegistration\":true\\}");
-    add_rule("DYNAMIC_REGISTRATION", b"\\{\"dynamicRegistration\":false\\}");
-    
+    add_rule(
+        "DYNAMIC_REGISTRATION",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+    add_rule(
+        "DYNAMIC_REGISTRATION",
+        b"\\{\"dynamicRegistration\":false\\}",
+    );
+
     add_rule("WINDOW_CAPABILITY", b"\\{\"workDoneProgress\":true,\"showMessage\":{SHOW_MESSAGE_CAPABILITY},\"showDocument\":{SHOW_DOCUMENT_CAPABILITY}\\}");
-    add_rule("SHOW_MESSAGE_CAPABILITY", b"\\{\"messageActionItem\":{MESSAGE_ACTION_ITEM_CAPABILITY}\\}");
-    add_rule("MESSAGE_ACTION_ITEM_CAPABILITY", b"\\{\"additionalPropertiesSupport\":true\\}");
+    add_rule(
+        "SHOW_MESSAGE_CAPABILITY",
+        b"\\{\"messageActionItem\":{MESSAGE_ACTION_ITEM_CAPABILITY}\\}",
+    );
+    add_rule(
+        "MESSAGE_ACTION_ITEM_CAPABILITY",
+        b"\\{\"additionalPropertiesSupport\":true\\}",
+    );
     add_rule("SHOW_DOCUMENT_CAPABILITY", b"\\{\"support\":true\\}");
 
     add_rule("GENERAL_CAPABILITY", b"\\{\"staleRequestSupport\":{STALE_REQUEST_SUPPORT},\"regularExpressions\":{REGULAR_EXPRESSIONS_CAPABILITY},\"markdown\":{MARKDOWN_CAPABILITY},\"positionEncodings\":[\"utf-8\",\"utf-16\"]\\}");
-    add_rule("STALE_REQUEST_SUPPORT", b"\\{\"cancel\":true,\"retryOnContentModified\":[\"textDocument/semanticTokens/full\"]\\}");
-    add_rule("REGULAR_EXPRESSIONS_CAPABILITY", b"\\{\"engine\":\"ECMAScript\",\"version\":\"ES2020\"\\}");
-    add_rule("MARKDOWN_CAPABILITY", b"\\{\"parser\":\"marked\",\"version\":\"1.1.0\"\\}");
-    
+    add_rule(
+        "STALE_REQUEST_SUPPORT",
+        b"\\{\"cancel\":true,\"retryOnContentModified\":[\"textDocument/semanticTokens/full\"]\\}",
+    );
+    add_rule(
+        "REGULAR_EXPRESSIONS_CAPABILITY",
+        b"\\{\"engine\":\"ECMAScript\",\"version\":\"ES2020\"\\}",
+    );
+    add_rule(
+        "MARKDOWN_CAPABILITY",
+        b"\\{\"parser\":\"marked\",\"version\":\"1.1.0\"\\}",
+    );
+
     add_rule("WORKSPACE_SYMBOL_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"symbolKind\":{SYMBOL_KIND_CAPABILITY},\"tagSupport\":{TAG_SUPPORT_CAPABILITY},\"resolveSupport\":{RESOLVE_SUPPORT_CAPABILITY}\\}");
-    add_rule("SYMBOL_KIND_CAPABILITY", b"\\{\"valueSet\":[{SYMBOL_KIND}]\\}");
+    add_rule(
+        "SYMBOL_KIND_CAPABILITY",
+        b"\\{\"valueSet\":[{SYMBOL_KIND}]\\}",
+    );
     add_rule("TAG_SUPPORT_CAPABILITY", b"\\{\"valueSet\":[1,2]\\}");
-    add_rule("RESOLVE_SUPPORT_CAPABILITY", b"\\{\"properties\":[\"location.range\"]\\}");
+    add_rule(
+        "RESOLVE_SUPPORT_CAPABILITY",
+        b"\\{\"properties\":[\"location.range\"]\\}",
+    );
 
     // Text document synchronization capabilities
     add_rule("SYNC_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"willSave\":true,\"willSaveWaitUntil\":true,\"didSave\":true\\}");
-    
+
     // Completion capabilities
     add_rule(
         "COMPLETION_CAPABILITY",
@@ -281,13 +308,22 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         "COMPLETION_ITEM_CAPABILITY",
         b"\\{\"snippetSupport\":true,\"commitCharactersSupport\":true,\"documentationFormat\":[{MARKUP_KIND}],\"deprecatedSupport\":true,\"preselectSupport\":true,\"tagSupport\":{TAG_SUPPORT_CAPABILITY},\"insertReplaceSupport\":true,\"resolveSupport\":{COMPLETION_RESOLVE_SUPPORT},\"insertTextModeSupport\":{INSERT_TEXT_MODE_CAPABILITY},\"labelDetailsSupport\":true\\}",
     );
-    add_rule("COMPLETION_ITEM_KIND_CAPABILITY", b"\\{\"valueSet\":[{COMPLETION_ITEM_KIND}]\\}");
-    add_rule("COMPLETION_RESOLVE_SUPPORT", b"\\{\"properties\":[\"documentation\",\"detail\",\"additionalTextEdits\"]\\}");
+    add_rule(
+        "COMPLETION_ITEM_KIND_CAPABILITY",
+        b"\\{\"valueSet\":[{COMPLETION_ITEM_KIND}]\\}",
+    );
+    add_rule(
+        "COMPLETION_RESOLVE_SUPPORT",
+        b"\\{\"properties\":[\"documentation\",\"detail\",\"additionalTextEdits\"]\\}",
+    );
     add_rule("INSERT_TEXT_MODE_CAPABILITY", b"\\{\"valueSet\":[1,2]\\}");
-    
+
     // Hover capability
-    add_rule("HOVER_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"contentFormat\":[{MARKUP_KIND}]\\}");
-    
+    add_rule(
+        "HOVER_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true,\"contentFormat\":[{MARKUP_KIND}]\\}",
+    );
+
     // Signature help capability
     add_rule(
         "SIGNATURE_HELP_CAPABILITY",
@@ -297,32 +333,53 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         "SIGNATURE_INFORMATION_CAPABILITY",
         b"\\{\"documentationFormat\":[{MARKUP_KIND}],\"parameterInformation\":{PARAMETER_INFORMATION_CAPABILITY},\"activeParameterSupport\":true\\}",
     );
-    add_rule("PARAMETER_INFORMATION_CAPABILITY", b"\\{\"labelOffsetSupport\":true\\}");
-    
+    add_rule(
+        "PARAMETER_INFORMATION_CAPABILITY",
+        b"\\{\"labelOffsetSupport\":true\\}",
+    );
+
     // Declaration capability
-    add_rule("DECLARATION_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}");
-    
+    add_rule(
+        "DECLARATION_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}",
+    );
+
     // Definition capability
-    add_rule("DEFINITION_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}");
-    
+    add_rule(
+        "DEFINITION_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}",
+    );
+
     // Type definition capability
-    add_rule("TYPE_DEFINITION_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}");
-    
+    add_rule(
+        "TYPE_DEFINITION_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}",
+    );
+
     // Implementation capability
-    add_rule("IMPLEMENTATION_CAPABILITY", b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}");
-    
+    add_rule(
+        "IMPLEMENTATION_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true,\"linkSupport\":true\\}",
+    );
+
     // References capability
-    add_rule("REFERENCES_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "REFERENCES_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Document highlight capability
-    add_rule("DOCUMENT_HIGHLIGHT_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "DOCUMENT_HIGHLIGHT_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Document symbol capability
     add_rule(
         "DOCUMENT_SYMBOL_CAPABILITY",
         b"\\{\"dynamicRegistration\":true,\"symbolKind\":{SYMBOL_KIND_CAPABILITY},\"hierarchicalDocumentSymbolSupport\":true,\"tagSupport\":{TAG_SUPPORT_CAPABILITY},\"labelSupport\":true\\}",
     );
-    
+
     // Code action capability
     add_rule(
         "CODE_ACTION_CAPABILITY",
@@ -332,59 +389,95 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
         "CODE_ACTION_LITERAL_SUPPORT",
         b"\\{\"codeActionKind\":{CODE_ACTION_KIND_CAPABILITY}\\}",
     );
-    add_rule("CODE_ACTION_KIND_CAPABILITY", b"\\{\"valueSet\":[{CODE_ACTION_KIND}]\\}");
-    add_rule("CODE_ACTION_RESOLVE_SUPPORT", b"\\{\"properties\":[\"edit\"]\\}");
-    
+    add_rule(
+        "CODE_ACTION_KIND_CAPABILITY",
+        b"\\{\"valueSet\":[{CODE_ACTION_KIND}]\\}",
+    );
+    add_rule(
+        "CODE_ACTION_RESOLVE_SUPPORT",
+        b"\\{\"properties\":[\"edit\"]\\}",
+    );
+
     // Code lens capability
-    add_rule("CODE_LENS_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "CODE_LENS_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Document formatting capabilities
-    add_rule("FORMATTING_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    add_rule("RANGE_FORMATTING_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    add_rule("ON_TYPE_FORMATTING_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "FORMATTING_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+    add_rule(
+        "RANGE_FORMATTING_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+    add_rule(
+        "ON_TYPE_FORMATTING_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Rename capability
     add_rule(
         "RENAME_CAPABILITY",
         b"\\{\"dynamicRegistration\":true,\"prepareSupport\":true,\"prepareSupportDefaultBehavior\":1,\"honorsChangeAnnotations\":true\\}",
     );
-    
+
     // Publish diagnostics capability
     add_rule(
         "PUBLISH_DIAGNOSTICS_CAPABILITY",
         b"\\{\"relatedInformation\":true,\"tagSupport\":{DIAGNOSTIC_TAG_SUPPORT},\"versionSupport\":true,\"codeDescriptionSupport\":true,\"dataSupport\":true\\}",
     );
     add_rule("DIAGNOSTIC_TAG_SUPPORT", b"\\{\"valueSet\":[1,2]\\}");
-    
+
     // Folding range capability
     add_rule(
         "FOLDING_RANGE_CAPABILITY",
         b"\\{\"dynamicRegistration\":true,\"rangeLimit\":{NUMBER},\"lineFoldingOnly\":true,\"foldingRangeKind\":{FOLDING_RANGE_KIND_CAPABILITY},\"foldingRange\":{FOLDING_RANGE_CAPABILITY_PROPERTIES}\\}",
     );
-    add_rule("FOLDING_RANGE_KIND_CAPABILITY", b"\\{\"valueSet\":[\"comment\",\"imports\",\"region\"]\\}");
-    add_rule("FOLDING_RANGE_CAPABILITY_PROPERTIES", b"\\{\"collapsedText\":true\\}");
-    
+    add_rule(
+        "FOLDING_RANGE_KIND_CAPABILITY",
+        b"\\{\"valueSet\":[\"comment\",\"imports\",\"region\"]\\}",
+    );
+    add_rule(
+        "FOLDING_RANGE_CAPABILITY_PROPERTIES",
+        b"\\{\"collapsedText\":true\\}",
+    );
+
     // Selection range capability
-    add_rule("SELECTION_RANGE_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "SELECTION_RANGE_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Linked editing range capability
-    add_rule("LINKED_EDITING_RANGE_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "LINKED_EDITING_RANGE_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Call hierarchy capability
-    add_rule("CALL_HIERARCHY_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
+    add_rule(
+        "CALL_HIERARCHY_CAPABILITY",
+        b"\\{\"dynamicRegistration\":true\\}",
+    );
+
     // Semantic tokens capability
     add_rule(
         "SEMANTIC_TOKENS_CAPABILITY",
         b"\\{\"dynamicRegistration\":true,\"requests\":{SEMANTIC_TOKENS_REQUESTS},\"tokenTypes\":[\"namespace\",\"type\",\"class\",\"enum\",\"interface\",\"struct\",\"typeParameter\",\"parameter\",\"variable\",\"property\",\"enumMember\",\"event\",\"function\",\"method\",\"macro\",\"keyword\",\"modifier\",\"comment\",\"string\",\"number\",\"regexp\",\"operator\"],\"tokenModifiers\":[\"declaration\",\"definition\",\"readonly\",\"static\",\"deprecated\",\"abstract\",\"async\",\"modification\",\"documentation\",\"defaultLibrary\"],\"formats\":[\"relative\"],\"overlappingTokenSupport\":true,\"multilineTokenSupport\":true,\"serverCancelSupport\":true,\"augmentsSyntaxTokens\":true\\}",
     );
-    add_rule("SEMANTIC_TOKENS_REQUESTS", b"\\{\"range\":true,\"full\":{SEMANTIC_TOKENS_FULL}\\}");
+    add_rule(
+        "SEMANTIC_TOKENS_REQUESTS",
+        b"\\{\"range\":true,\"full\":{SEMANTIC_TOKENS_FULL}\\}",
+    );
     add_rule("SEMANTIC_TOKENS_FULL", b"\\{\"delta\":true\\}");
-    
+
     // Moniker capability
     add_rule("MONIKER_CAPABILITY", b"\\{\"dynamicRegistration\":true\\}");
-    
-    // Inlay hint capability  
+
+    // Inlay hint capability
     add_rule(
         "INLAY_HINT_CAPABILITY",
         b"\\{\"dynamicRegistration\":true,\"resolveSupport\":{INLAY_HINT_RESOLVE_SUPPORT}\\}",
@@ -579,27 +672,27 @@ fn get_grammar_rules() -> Vec<(&'static str, Vec<u8>)> {
     );
 
     for i in 1..=26 {
-        add_rule("SYMBOL_KIND", format!("{}", i).as_bytes());
+        add_rule("SYMBOL_KIND", format!("{i}").as_bytes());
     }
 
     for i in 1..=25 {
-        add_rule("COMPLETION_ITEM_KIND", format!("{}", i).as_bytes());
+        add_rule("COMPLETION_ITEM_KIND", format!("{i}").as_bytes());
     }
 
     for i in 0..=2 {
-        add_rule("TEXT_DOCUMENT_SYNC_KIND", format!("{}", i).as_bytes());
+        add_rule("TEXT_DOCUMENT_SYNC_KIND", format!("{i}").as_bytes());
     }
 
     for i in 1..=4 {
-        add_rule("DIAGNOSTIC_SEVERITY", format!("{}", i).as_bytes());
+        add_rule("DIAGNOSTIC_SEVERITY", format!("{i}").as_bytes());
     }
 
     for i in 1..=2 {
-        add_rule("INSERT_TEXT_FORMAT", format!("{}", i).as_bytes());
+        add_rule("INSERT_TEXT_FORMAT", format!("{i}").as_bytes());
     }
 
     for i in 1..=3 {
-        add_rule("DOCUMENT_HIGHLIGHT_KIND", format!("{}", i).as_bytes());
+        add_rule("DOCUMENT_HIGHLIGHT_KIND", format!("{i}").as_bytes());
     }
 
     add_rule("CODE_ACTION_KIND", b"\"quickfix\"");
