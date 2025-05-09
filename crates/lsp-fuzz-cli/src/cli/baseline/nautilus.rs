@@ -38,6 +38,7 @@ use lsp_fuzz::{
         BaselineByteConverter, BaselineInput, BaselineInputGenerator, BaselineMessageMutator,
         BaselineSequenceMutator,
     },
+    corpus::GeneratedStatsFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StopOnReceived, TimeoutStopStage},
@@ -137,6 +138,7 @@ impl NautilusBaseline {
         let mut feedback = feedback_or!(
             map_feedback,
             baseline_grammar_feedback,
+            GeneratedStatsFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
 
@@ -148,12 +150,15 @@ impl NautilusBaseline {
             )
         );
 
-        let corpus =
-            InMemoryOnDiskCorpus::no_meta(self.state.corpus_dir()).context("Creating corpus")?;
+        let corpus = InMemoryOnDiskCorpus::with_meta_format(
+            self.state.corpus_dir(),
+            Some(OnDiskMetadataFormat::Json),
+        )
+        .context("Creating corpus")?;
 
         let solutions = InMemoryOnDiskCorpus::with_meta_format(
             self.state.solution_dir(),
-            Some(OnDiskMetadataFormat::JsonGzip),
+            Some(OnDiskMetadataFormat::Json),
         )
         .context("Creating solution corpus")?;
 

@@ -26,6 +26,7 @@ use libafl_bolts::{
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
+    corpus::GeneratedStatsFeedback,
     execution::{
         FuzzExecutionConfig, FuzzInput, LspExecutor, workspace_observer::WorkspaceObserver,
     },
@@ -134,6 +135,7 @@ impl FuzzCommand {
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,
+            GeneratedStatsFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
 
@@ -145,12 +147,15 @@ impl FuzzCommand {
             )
         );
 
-        let corpus =
-            InMemoryOnDiskCorpus::no_meta(self.state.corpus_dir()).context("Creating corpus")?;
+        let corpus = InMemoryOnDiskCorpus::with_meta_format(
+            self.state.corpus_dir(),
+            Some(OnDiskMetadataFormat::Json),
+        )
+        .context("Creating corpus")?;
 
         let solutions = InMemoryOnDiskCorpus::with_meta_format(
             self.state.solution_dir(),
-            Some(OnDiskMetadataFormat::JsonGzip),
+            Some(OnDiskMetadataFormat::Json),
         )
         .context("Creating solution corpus")?;
 

@@ -4,22 +4,18 @@
 
 pub(crate) mod stolen;
 
-pub mod baseline;
-pub mod execution;
-pub mod lsp_input;
-pub mod stages;
-
-pub mod utf8;
-
-pub mod file_system;
-pub mod lsp;
-pub mod text_document;
-
-pub mod mutators;
-pub(crate) mod utils;
-
-pub mod debug;
-
 pub mod afl;
+pub mod baseline;
+pub mod corpus;
+pub mod debug;
+pub mod execution;
+pub mod file_system;
 pub mod fuzz_target;
+pub mod lsp;
+pub mod lsp_input;
 pub(crate) mod macros;
+pub mod mutators;
+pub mod stages;
+pub mod text_document;
+pub mod utf8;
+pub(crate) mod utils;

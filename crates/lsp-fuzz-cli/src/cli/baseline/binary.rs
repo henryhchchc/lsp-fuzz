@@ -31,6 +31,7 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     baseline::{BaselineByteConverter, BaselineMessageMutator, BaselineSequenceMutator},
+    corpus::GeneratedStatsFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StopOnReceived, TimeoutStopStage},
@@ -125,7 +126,11 @@ impl BinaryBaseline {
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
 
-        let mut feedback = feedback_or!(map_feedback, TimeFeedback::new(&time_observer));
+        let mut feedback = feedback_or!(
+            map_feedback,
+            GeneratedStatsFeedback::new(),
+            TimeFeedback::new(&time_observer)
+        );
 
         let mut objective = feedback_and_fast!(
             CrashFeedback::new(),
@@ -135,12 +140,15 @@ impl BinaryBaseline {
             )
         );
 
-        let corpus =
-            InMemoryOnDiskCorpus::no_meta(self.state.corpus_dir()).context("Creating corpus")?;
+        let corpus = InMemoryOnDiskCorpus::with_meta_format(
+            self.state.corpus_dir(),
+            Some(OnDiskMetadataFormat::Json),
+        )
+        .context("Creating corpus")?;
 
         let solutions = InMemoryOnDiskCorpus::with_meta_format(
             self.state.solution_dir(),
-            Some(OnDiskMetadataFormat::JsonGzip),
+            Some(OnDiskMetadataFormat::Json),
         )
         .context("Creating solution corpus")?;
 
