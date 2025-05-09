@@ -84,6 +84,7 @@ impl CodeContextRef for T {
     WillSaveTextDocumentParams,
     DocumentSymbolParams,
     DidSaveTextDocumentParams,
+    DocumentFormattingParams,
 )]
 impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {

@@ -36,7 +36,7 @@ lsp_messages! {
         // request::ApplyWorkspaceEdit,
         request::RangeFormatting,
         request::OnTypeFormatting,
-        // request::Formatting,
+        request::Formatting,
         request::Rename,
         request::DocumentColor,
         request::ColorPresentationRequest,

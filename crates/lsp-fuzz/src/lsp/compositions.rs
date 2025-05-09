@@ -147,6 +147,14 @@ compose! {
     }
 }
 
+compose! {
+    DocumentFormattingParams {
+        text_document: TextDocumentIdentifier,
+        options: FormattingOptions,
+        work_done_progress_params: WorkDoneProgressParams
+    }
+}
+
 #[trait_gen(T ->
     InlayHintParams,
 )]
