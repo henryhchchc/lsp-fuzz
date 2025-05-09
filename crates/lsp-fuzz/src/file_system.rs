@@ -31,6 +31,21 @@ impl<F> FileSystemDirectory<F> {
         self.inner.is_empty()
     }
 
+    pub fn get(&self, name: &str) -> Option<&FileSystemEntry<F>> {
+        if let Some((first_seg, remainder)) = name.split_once('/')
+            && let Some(dir_entry @ FileSystemEntry::Directory(inner_dir)) =
+                self.inner.get(first_seg)
+        {
+            if remainder.is_empty() {
+                Some(dir_entry)
+            } else {
+                inner_dir.get(remainder)
+            }
+        } else {
+            self.inner.get(name)
+        }
+    }
+
     pub fn iter(&self) -> FileSystemIter<'_, F> {
         let queue = self
             .inner
@@ -195,5 +210,75 @@ impl<'a, F> Iterator for FilesIterMut<'a, F> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_get_simple_access() {
+        let dir = FileSystemDirectory::<()>::from([
+            (Utf8Input::from("file1"), FileSystemEntry::File(())),
+            (Utf8Input::from("file2"), FileSystemEntry::File(())),
+        ]);
+
+        assert!(dir.get("file1").is_some());
+        assert!(dir.get("file1").unwrap().is_file());
+        assert!(dir.get("file2").is_some());
+        assert!(dir.get("file2").unwrap().is_file());
+        assert!(dir.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_get_nested_access() {
+        let nested_dir = FileSystemDirectory::<()>::from([(
+            Utf8Input::from("nested_file"),
+            FileSystemEntry::File(()),
+        )]);
+
+        let dir = FileSystemDirectory::<()>::from([
+            (
+                Utf8Input::from("subdir"),
+                FileSystemEntry::Directory(nested_dir),
+            ),
+            (Utf8Input::from("file"), FileSystemEntry::File(())),
+        ]);
+
+        assert!(dir.get("file").is_some());
+        assert!(dir.get("file").unwrap().is_file());
+
+        assert!(dir.get("subdir").is_some());
+        assert!(dir.get("subdir").unwrap().is_directory());
+
+        assert!(dir.get("subdir/nested_file").is_some());
+        assert!(dir.get("subdir/nested_file").unwrap().is_file());
+
+        assert!(dir.get("subdir/nonexistent").is_none());
+        assert!(dir.get("nonexistent/whatever").is_none());
+    }
+
+    #[test]
+    fn test_get_deeply_nested() {
+        let deepest = FileSystemDirectory::<()>::from([(
+            Utf8Input::from("target"),
+            FileSystemEntry::File(()),
+        )]);
+
+        let middle = FileSystemDirectory::<()>::from([(
+            Utf8Input::from("next"),
+            FileSystemEntry::Directory(deepest),
+        )]);
+
+        let dir = FileSystemDirectory::<()>::from([(
+            Utf8Input::from("first"),
+            FileSystemEntry::Directory(middle),
+        )]);
+
+        assert!(dir.get("first/next/target").is_some());
+        assert!(dir.get("first/next/target").unwrap().is_file());
+        assert!(dir.get("first/next/missing").is_none());
+        assert!(dir.get("first/missing/target").is_none());
     }
 }
