@@ -13,6 +13,7 @@ const-str.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
 dot-structures = "0.1.1"
+fastbloom.workspace = true
 fluent-uri = "0.3"
 graphviz-rust = { version = "0.9.3", default-features = false }
 indexmap.workspace = true

@@ -33,9 +33,10 @@ use lsp_fuzz::{
     lsp::GeneratorsConfig,
     lsp_input::{
         LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
+        ops_curiosity::CuriosityFeedback,
     },
     stages::TimeoutStopStage,
-    text_document::{text_document_mutations, token_novelty::TokenNoveltyFeedback},
+    text_document::text_document_mutations,
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;
@@ -129,7 +130,7 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&edges_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let novel_tokens = TokenNoveltyFeedback::new(20);
+        let novel_tokens = CuriosityFeedback::new();
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,

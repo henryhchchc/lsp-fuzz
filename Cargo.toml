@@ -18,6 +18,7 @@ indexmap = { version = "2", features = ["serde"] }
 memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
+fastbloom = { version = "0.9.0", features = ["serde"] }
 itertools = "0.*"
 libafl = { version = "0.*", features = [
     "errors_backtrace",

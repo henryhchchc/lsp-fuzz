@@ -4,7 +4,7 @@ use derive_more::{
     Debug,
     derive::{From, Into},
 };
-use indexmap::IndexSet;
+use indexmap::{Equivalent, IndexSet};
 use libafl::{
     corpus::CorpusId,
     inputs::{HasTargetBytes, Input},
@@ -64,6 +64,19 @@ impl DerefMut for Utf8Input {
 impl HasLen for Utf8Input {
     fn len(&self) -> usize {
         self.inner.len()
+    }
+}
+
+impl From<&str> for Utf8Input {
+    fn from(value: &str) -> Self {
+        let inner = value.to_owned();
+        Self { inner }
+    }
+}
+
+impl Equivalent<Utf8Input> for str {
+    fn equivalent(&self, key: &Utf8Input) -> bool {
+        self == key.inner.as_str()
     }
 }
 

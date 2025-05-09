@@ -38,6 +38,7 @@ use crate::{
 pub type FileContentInput = BytesInput;
 
 pub mod messages;
+pub mod ops_curiosity;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspaceEntry {
@@ -117,6 +118,35 @@ impl LspInput {
         let mut hasher = ahash::AHasher::default();
         self.workspace.hash(&mut hasher);
         hasher.finish()
+    }
+
+    /// Retrieves a text document from the workspace by its URI.
+    ///
+    /// This function looks up a text document in the workspace using the provided URI.
+    /// The URI must have the prefix specified by `LspInput::PROROCOL_PREFIX` as it maps to
+    /// the fuzzer's virtual file system.
+    ///
+    /// # Arguments
+    ///
+    /// * `uri` - The URI of the text document to retrieve
+    ///
+    /// # Returns
+    ///
+    /// * `Some(&TextDocument)` - The found text document
+    /// * `None` - If no text document exists at the given URI or if the entry is not a source file
+    ///
+    pub fn get_text_document(&self, uri: &lsp_types::Uri) -> Option<&TextDocument> {
+        let path = uri
+            .as_str()
+            .strip_prefix(LspInput::PROROCOL_PREFIX)
+            .expect("The URI must start with fuzzer uri");
+        if let Some(FileSystemEntry::File(WorkspaceEntry::SourceFile(doc))) =
+            self.workspace.get(path)
+        {
+            Some(doc)
+        } else {
+            None
+        }
     }
 }
 
