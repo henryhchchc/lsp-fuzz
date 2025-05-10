@@ -67,11 +67,23 @@ pub struct CoverageInput {
     stats: GeneratedStats,
 }
 
+impl CoverageInput {
+    fn generate_lcov(&self, lcov_dir: &Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub enum CoverageInputRepr {
     LspFuzz(LspInput),
     BaselineBin(BaselineInput<BytesInput>),
     BaselineGram(BaselineInput<NautilusInput>),
+}
+
+impl CoverageInputRepr {
+    fn generate_bytes(&self, workspace_dir: &Path) -> anyhow::Result<Vec<u8>> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
