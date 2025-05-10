@@ -1,17 +1,22 @@
-use std::{path::Path, sync::mpsc, time::Duration};
+use std::{hash::Hash, path::Path, sync::mpsc, time::Duration};
 
 use anyhow::Context;
 use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
-    corpus::{CachedOnDiskCorpus, OnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    corpus::{CachedOnDiskCorpus, HasTestcase, OnDiskCorpus, ondisk::OnDiskMetadataFormat},
     feedbacks::{
         ConstFeedback, CrashFeedback, FastAndFeedback, FastOrFeedback, Feedback, NewHashFeedback,
     },
     inputs::Input,
-    observers::AsanBacktraceObserver,
+    observers::{AsanBacktraceObserver, CanTrack},
+    schedulers::{
+        IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
+        powersched::{BaseSchedule, PowerSchedule},
+    },
+    state::{HasCorpus, HasRand},
 };
-use libafl_bolts::tuples::MatchName;
+use libafl_bolts::{HasLen, Named, tuples::MatchName};
 use lsp_fuzz::{
     execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
     utf8::UTF8Tokens,
@@ -20,12 +25,33 @@ use tracing::{info, warn};
 
 use crate::fuzzing::ExecutorOptions;
 
-pub fn objective<EM, I, OT, State>(
+pub fn scheduler<State, I, C, O>(
+    state: &mut State,
+    cov_observer: &C,
+    power_schedule: BaseSchedule,
+    cycle_power_schedule: bool,
+) -> impl Scheduler<I, State> + use<State, I, C, O>
+where
+    C: Named + CanTrack + AsRef<O>,
+    I: HasLen,
+    State: HasMetadata + HasCorpus<I> + HasRand + HasTestcase<I>,
+    O: Hash,
+{
+    let power_schedule = PowerSchedule::new(power_schedule);
+    let mut weighted_scheduler =
+        StdWeightedScheduler::with_schedule(state, cov_observer, Some(power_schedule));
+    if cycle_power_schedule {
+        weighted_scheduler = weighted_scheduler.cycling_scheduler();
+    }
+    IndexesLenTimeMinimizerScheduler::new(cov_observer, weighted_scheduler)
+}
+
+pub fn objective<EM, I, Observers, State>(
     asan_enabled: bool,
     asan_observer: &AsanBacktraceObserver,
-) -> impl Feedback<EM, I, OT, State> + use<EM, I, OT, State>
+) -> impl Feedback<EM, I, Observers, State> + use<EM, I, Observers, State>
 where
-    OT: MatchName,
+    Observers: MatchName,
     State: HasNamedMetadata,
 {
     FastAndFeedback::new(

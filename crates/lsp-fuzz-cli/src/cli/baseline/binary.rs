@@ -4,7 +4,8 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
     Fuzzer, NopInputFilter, StdFuzzerBuilder,
-    events::SimpleEventManager, feedback_or,
+    events::SimpleEventManager,
+    feedback_or,
     feedbacks::{MaxMapFeedback, TimeFeedback},
     generators::RandBytesGenerator,
     inputs::NopBytesConverter,
@@ -14,10 +15,7 @@ use libafl::{
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
-    schedulers::{
-        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
-        powersched::{BaseSchedule, PowerSchedule},
-    },
+    schedulers::powersched::BaseSchedule,
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{DEFAULT_MAX_SIZE, StdState},
 };
@@ -116,12 +114,12 @@ impl BinaryBaseline {
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
         let asan_enabled = binary_info.uses_address_sanitizer && self.no_asan.not();
-        let edges_observer = HitcountsMapObserver::new(coverage_map_observer).track_indices();
+        let cov_observer = HitcountsMapObserver::new(coverage_map_observer).track_indices();
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
 
-        let map_feedback = MaxMapFeedback::new(&edges_observer);
+        let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
 
         let mut feedback = feedback_or!(
@@ -144,18 +142,12 @@ impl BinaryBaseline {
 
         let mut tokens = self.no_auto_dict.not().then(UTF8Tokens::new);
 
-        let scheduler = {
-            let power_schedule = PowerSchedule::new(self.power_schedule);
-            let mut weighted_scheduler = StdWeightedScheduler::with_schedule(
-                &mut state,
-                &edges_observer,
-                Some(power_schedule),
-            );
-            if self.cycle_power_schedule {
-                weighted_scheduler = weighted_scheduler.cycling_scheduler();
-            }
-            IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler)
-        };
+        let scheduler = common::scheduler(
+            &mut state,
+            &cov_observer,
+            self.power_schedule,
+            self.cycle_power_schedule,
+        );
 
         let target_bytes_converter = BaselineByteConverter::new(NopBytesConverter::default());
 
@@ -203,8 +195,8 @@ impl BinaryBaseline {
                 debug_afl: execution_config.debug_afl,
                 fuzz_input,
                 auto_tokens: tokens.as_mut(),
-                coverage_shm_info: Some((coverage_map_shmem_id, edges_observer.as_ref().len())),
-                map_observer: edges_observer,
+                coverage_shm_info: Some((coverage_map_shmem_id, cov_observer.as_ref().len())),
+                map_observer: cov_observer,
                 asan_observer,
                 other_observers: tuple_list![time_observer],
             };
