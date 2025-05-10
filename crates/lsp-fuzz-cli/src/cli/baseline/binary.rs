@@ -183,16 +183,15 @@ impl BinaryBaseline {
             info!("Crash stack hashing will be enabled");
         }
         let mut executor = {
-            let execution_config = self.execution;
             const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
             let test_case_shmem = shmem_provider
                 .new_shmem(INPUT_SHM_SIZE)
                 .context("Creating shared memory for test case passing")?;
             let fuzz_input = FuzzInput::SharedMemory(test_case_shmem);
-            let target_info = common::create_target_info(&execution_config, &binary_info);
+            let target_info = common::create_target_info(&self.execution, &binary_info);
             let exec_config = FuzzExecutionConfig {
-                debug_child: execution_config.debug_child,
-                debug_afl: execution_config.debug_afl,
+                debug_child: self.execution.debug_child,
+                debug_afl: self.execution.debug_afl,
                 fuzz_input,
                 auto_tokens: tokens.as_mut(),
                 coverage_shm_info: Some((coverage_map_shmem_id, cov_observer.as_ref().len())),
