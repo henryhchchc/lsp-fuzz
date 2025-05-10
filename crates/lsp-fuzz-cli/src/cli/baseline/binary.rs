@@ -4,10 +4,8 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
     Fuzzer, NopInputFilter, StdFuzzerBuilder,
-    corpus::{InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
-    events::SimpleEventManager,
-    feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    events::SimpleEventManager, feedback_or,
+    feedbacks::{MaxMapFeedback, TimeFeedback},
     generators::RandBytesGenerator,
     inputs::NopBytesConverter,
     monitors::SimpleMonitor,
@@ -131,14 +129,7 @@ impl BinaryBaseline {
             GeneratedStatsFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
-
-        let mut objective = feedback_and_fast!(
-            CrashFeedback::new(),
-            feedback_or_fast!(
-                ConstFeedback::new(!asan_enabled),
-                NewHashFeedback::new(&asan_observer)
-            )
-        );
+        let mut objective = common::objective(asan_enabled, &asan_observer);
 
         let (corpus, solutions) =
             common::create_corpus(&self.state.corpus_dir(), &self.state.solution_dir())

@@ -3,10 +3,15 @@ use std::{path::Path, sync::mpsc, time::Duration};
 use anyhow::Context;
 use core_affinity::CoreId;
 use libafl::{
-    HasMetadata,
+    HasMetadata, HasNamedMetadata,
     corpus::{CachedOnDiskCorpus, OnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    feedbacks::{
+        ConstFeedback, CrashFeedback, FastAndFeedback, FastOrFeedback, Feedback, NewHashFeedback,
+    },
     inputs::Input,
+    observers::AsanBacktraceObserver,
 };
+use libafl_bolts::tuples::MatchName;
 use lsp_fuzz::{
     execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
     utf8::UTF8Tokens,
@@ -14,6 +19,23 @@ use lsp_fuzz::{
 use tracing::{info, warn};
 
 use crate::fuzzing::ExecutorOptions;
+
+pub fn objective<EM, I, OT, State>(
+    asan_enabled: bool,
+    asan_observer: &AsanBacktraceObserver,
+) -> impl Feedback<EM, I, OT, State> + use<EM, I, OT, State>
+where
+    OT: MatchName,
+    State: HasNamedMetadata,
+{
+    FastAndFeedback::new(
+        CrashFeedback::new(),
+        FastOrFeedback::new(
+            ConstFeedback::new(!asan_enabled),
+            NewHashFeedback::new(asan_observer),
+        ),
+    )
+}
 
 pub fn create_corpus<I>(
     corpus_path: &Path,

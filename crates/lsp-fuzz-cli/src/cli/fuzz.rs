@@ -5,9 +5,8 @@ use clap::builder::BoolishValueParser;
 use libafl::{
     Fuzzer, NopInputFilter, StdFuzzerBuilder,
     corpus::Corpus,
-    events::SimpleEventManager,
-    feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
+    events::SimpleEventManager, feedback_or,
+    feedbacks::{MaxMapFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::HavocScheduledMutator,
     observers::{
@@ -46,7 +45,10 @@ use tuple_list::tuple_list;
 
 use super::{GlobalOptions, parse_hash_map};
 use crate::{
-    fuzzing::{ExecutorOptions, FuzzerStateDir, common},
+    fuzzing::{
+        ExecutorOptions, FuzzerStateDir,
+        common::{self},
+    },
     language_fragments::load_grammar_lookup,
 };
 
@@ -139,13 +141,7 @@ impl FuzzCommand {
             TimeFeedback::new(&time_observer)
         );
 
-        let mut objective = feedback_and_fast!(
-            CrashFeedback::new(),
-            feedback_or_fast!(
-                ConstFeedback::new(!asan_enabled),
-                NewHashFeedback::new(&asan_observer)
-            )
-        );
+        let mut objective = common::objective(asan_enabled, &asan_observer);
 
         let (corpus, solutions) =
             common::create_corpus(&self.state.corpus_dir(), &self.state.solution_dir())
