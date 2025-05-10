@@ -4,7 +4,7 @@ use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
     Fuzzer, NopInputFilter, StdFuzzerBuilder,
-    corpus::{Corpus, InMemoryOnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    corpus::Corpus,
     events::SimpleEventManager,
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, NewHashFeedback, TimeFeedback},
@@ -147,17 +147,9 @@ impl FuzzCommand {
             )
         );
 
-        let corpus = InMemoryOnDiskCorpus::with_meta_format(
-            self.state.corpus_dir(),
-            Some(OnDiskMetadataFormat::Json),
-        )
-        .context("Creating corpus")?;
-
-        let solutions = InMemoryOnDiskCorpus::with_meta_format(
-            self.state.solution_dir(),
-            Some(OnDiskMetadataFormat::Json),
-        )
-        .context("Creating solution corpus")?;
+        let (corpus, solutions) =
+            common::create_corpus(&self.state.corpus_dir(), &self.state.solution_dir())
+                .context("Creating corpus")?;
 
         let random_seed = global_options
             .random_seed

@@ -2,7 +2,11 @@ use std::{path::Path, sync::mpsc, time::Duration};
 
 use anyhow::Context;
 use core_affinity::CoreId;
-use libafl::HasMetadata;
+use libafl::{
+    HasMetadata,
+    corpus::{CachedOnDiskCorpus, OnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    inputs::Input,
+};
 use lsp_fuzz::{
     execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
     utf8::UTF8Tokens,
@@ -10,6 +14,27 @@ use lsp_fuzz::{
 use tracing::{info, warn};
 
 use crate::fuzzing::ExecutorOptions;
+
+pub fn create_corpus<I>(
+    corpus_path: &Path,
+    solution_path: &Path,
+) -> anyhow::Result<(CachedOnDiskCorpus<I>, OnDiskCorpus<I>)>
+where
+    I: Input,
+{
+    const CACHE_LEN: usize = 4096;
+    let corpus = CachedOnDiskCorpus::with_meta_format(
+        corpus_path,
+        CACHE_LEN,
+        Some(OnDiskMetadataFormat::Json),
+    )
+    .context("Creating corpus")?;
+
+    let solutions = OnDiskCorpus::with_meta_format(solution_path, OnDiskMetadataFormat::Json)
+        .context("Creating solution corpus")?;
+
+    Ok((corpus, solutions))
+}
 
 /// Creates a target info struct from execution options and binary info.
 pub fn create_target_info(

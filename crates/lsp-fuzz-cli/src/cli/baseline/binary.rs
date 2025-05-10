@@ -140,17 +140,9 @@ impl BinaryBaseline {
             )
         );
 
-        let corpus = InMemoryOnDiskCorpus::with_meta_format(
-            self.state.corpus_dir(),
-            Some(OnDiskMetadataFormat::Json),
-        )
-        .context("Creating corpus")?;
-
-        let solutions = InMemoryOnDiskCorpus::with_meta_format(
-            self.state.solution_dir(),
-            Some(OnDiskMetadataFormat::Json),
-        )
-        .context("Creating solution corpus")?;
+        let (corpus, solutions) =
+            common::create_corpus(&self.state.corpus_dir(), &self.state.solution_dir())
+                .context("Creating corpus")?;
 
         let random_seed = global_options
             .random_seed
