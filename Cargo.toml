@@ -27,6 +27,7 @@ libafl = { version = "0.*", features = [
 ] }
 libafl_bolts = { version = "0.*" }
 libcasr = { version = "2", features = ["serde"] }
+lcov = "0.8.1"
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev", features = [
     "hash",
 ] }
@@ -45,6 +46,7 @@ tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0"
 tokio-util = { version = "0", features = ["full"] }
+tempfile = "3"
 tree-sitter = { version = "0.25" }
 tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
