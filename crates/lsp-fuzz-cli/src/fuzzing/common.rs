@@ -70,7 +70,7 @@ pub fn create_corpus<I>(
 where
     I: Input,
 {
-    const CACHE_LEN: usize = 16384;
+    const CACHE_LEN: usize = 1024;
     let corpus = CachedOnDiskCorpus::with_meta_format(
         corpus_path,
         CACHE_LEN,
