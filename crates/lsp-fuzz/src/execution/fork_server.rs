@@ -183,7 +183,7 @@ pub struct NeoForkServerOptions<'f> {
     /// Whether to use deferred fork server initialization
     pub deferred: bool,
     /// Optional shared memory ID and size for coverage map
-    pub coverage_map_info: Option<(ShMemId, usize)>,
+    pub coverage_map_info: (ShMemId, usize),
     /// Whether to enable AFL debug mode
     pub afl_debug: bool,
     /// Whether to show stdout/stderr from the target
@@ -208,7 +208,7 @@ impl NeoForkServer {
             memlimit,
             persistent_fuzzing,
             deferred,
-            coverage_map_info,
+            coverage_map_info: (shm_id, map_size),
             afl_debug,
             debug_output,
             kill_signal,
@@ -233,12 +233,9 @@ impl NeoForkServer {
             .stdout(stdout)
             .stderr(stderr);
 
-        // Set up coverage map shared memory if provided
-        if let Some((shm_id, map_size)) = coverage_map_info {
-            command.env("__AFL_SHM_ID", shm_id.to_string());
-            command.env("__AFL_SHM_ID_SIZE", map_size.to_string());
-            command.env("AFL_MAP_SIZE", map_size.to_string());
-        }
+        command.env("__AFL_SHM_ID", shm_id.to_string());
+        command.env("__AFL_SHM_ID_SIZE", map_size.to_string());
+        command.env("AFL_MAP_SIZE", map_size.to_string());
 
         // Configure debug and fuzzing options
         if debug_output {

@@ -99,7 +99,7 @@ pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
     pub debug_afl: bool,
     pub fuzz_input: FuzzInput<SHM>,
     pub auto_tokens: Option<&'a mut UTF8Tokens>,
-    pub coverage_shm_info: Option<(ShMemId, usize)>,
+    pub coverage_shm_info: (ShMemId, usize),
     pub map_observer: MO,
     pub asan_observer: Option<AsanBacktraceObserver>,
     pub other_observers: OBS,

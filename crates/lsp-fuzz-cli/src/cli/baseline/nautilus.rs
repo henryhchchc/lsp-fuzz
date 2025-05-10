@@ -211,7 +211,7 @@ impl NautilusBaseline {
                 debug_afl: self.execution.debug_afl,
                 fuzz_input,
                 auto_tokens: tokens.as_mut(),
-                coverage_shm_info: Some((coverage_map_shmem_id, cov_observer.as_ref().len())),
+                coverage_shm_info: (coverage_map_shmem_id, cov_observer.as_ref().len()),
                 map_observer: cov_observer,
                 asan_observer,
                 other_observers: tuple_list![time_observer],
