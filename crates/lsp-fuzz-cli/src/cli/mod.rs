@@ -1,4 +1,5 @@
 mod baseline;
+mod corpus_coverage;
 mod export;
 mod fuzz;
 mod mine_grammar_fragments;
@@ -8,6 +9,7 @@ use std::{cmp::max, collections::HashMap, str::FromStr};
 
 use anyhow::{Context, bail};
 use baseline::{binary::BinaryBaseline, nautilus::NautilusBaseline};
+use corpus_coverage::CorpusCoverage;
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use mine_grammar_fragments::MineGrammarFragments;
@@ -38,6 +40,7 @@ impl Cli {
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
+            Command::CorpusCoverage(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -76,6 +79,7 @@ enum Command {
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
+    CorpusCoverage(CorpusCoverage),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

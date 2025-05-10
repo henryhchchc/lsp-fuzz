@@ -24,6 +24,10 @@ impl FuzzerStateDir {
     pub fn solution_dir(&self) -> PathBuf {
         self.0.join("solutions")
     }
+
+    pub fn coverage_dir(&self) -> PathBuf {
+        self.0.join("coverage")
+    }
 }
 
 #[derive(Debug, clap::Parser)]

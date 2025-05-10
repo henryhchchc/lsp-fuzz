@@ -1,4 +1,8 @@
-use std::{borrow::Cow, num::NonZeroUsize};
+use std::{
+    borrow::Cow,
+    hash::{DefaultHasher, Hash, Hasher},
+    num::NonZeroUsize,
+};
 
 use derive_new::new as New;
 use libafl::{
@@ -9,6 +13,8 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, Named, rands::Rand};
 use serde::{Deserialize, Serialize};
+
+use crate::lsp_input::LspInput;
 
 const MAX_MESSAGES: usize = 20;
 
@@ -40,7 +46,16 @@ impl<Message: HasLen> HasLen for BaselineInput<Message> {
     }
 }
 
-impl<Message: Input> Input for BaselineInput<Message> {}
+impl<Message: Input> Input for BaselineInput<Message> {
+    fn generate_name(&self, id: Option<libafl::corpus::CorpusId>) -> String {
+        let id_str = id.map(|it| it.to_string()).unwrap_or_else(|| {
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            format!("h_{}", hasher.finish())
+        });
+        format!("{}{}", LspInput::NAME_PREFIX, id_str)
+    }
+}
 
 #[derive(Debug, New)]
 pub struct BaselineByteConverter<MessageConverter> {
