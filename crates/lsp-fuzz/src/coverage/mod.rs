@@ -68,10 +68,13 @@ impl CoverageDataGenerator {
         input_bytes: &[u8],
         llvm_profile_raw: &str,
     ) -> Result<(), anyhow::Error> {
+        let working_dir = TempDir::new().context("Creating temp working dir")?;
         let mut process = Command::new(&self.executable)
             .args(&self.args)
             .env("LLVM_PROFILE_FILE", llvm_profile_raw)
-            .current_dir("/dev/shm/")
+            // We must take the reference here
+            // Otherwirse it gets dropped inside and the directory is deleted.
+            .current_dir(&working_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

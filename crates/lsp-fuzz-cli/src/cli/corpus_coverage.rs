@@ -58,7 +58,7 @@ where
         info!("Loading corpus");
         let covereage_inputs: Vec<CoverageInput<I>> =
             load_corpus(&self.state.corpus_dir()).context("Loading corpus")?;
-        fs::create_dir(self.state.corpus_dir()).context("Creating coverage dir")?;
+        fs::create_dir_all(self.state.coverage_dir()).context("Creating coverage dir")?;
         info!(
             "Generating coverage reports for {}",
             self.target_executable.display()
