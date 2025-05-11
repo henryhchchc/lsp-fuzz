@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     fs,
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::Context;
 use derive_new::new as New;
-use itertools::Itertools;
 use libafl::{
     corpus::CorpusId,
     generators::NautilusContext,
@@ -67,44 +66,24 @@ where
             CoverageDataGenerator::new(self.target_executable, self.target_args);
         let temp_dir = TempDir::new().context("Creating temp_dir")?;
         let input_bytes_conv = ExperimentalCovByteGen::new(temp_dir);
-        let input_by_gen_time = covereage_inputs
-            .into_iter()
-            .into_group_map_by(|it| it.time / 60);
-        (0..(24 * 60))
+
+        covereage_inputs
             .into_par_iter()
-            .map(|minute| -> anyhow::Result<_> {
-                if let Some(inputs) = input_by_gen_time.get(&minute) {
-                    info!("Minute: {minute}, inputs: {}", inputs.len());
-                    let mut existing_data = None;
-                    for chunk in inputs.iter().chunks(10).into_iter() {
-                        let cov_raw_data_dir =
-                            TempDir::new().context("Crateing raw data tempdir")?;
-                        let raw_data_files: Vec<_> = chunk
-                            .collect_vec()
-                            .into_par_iter()
-                            .map(|it| -> anyhow::Result<_> {
-                                let input_bytes = input_bytes_conv.generate_bytes(it);
-                                let raw_data_path =
-                                    cov_raw_data_dir.path().join(it.raw_prof_data_file_name());
-                                coverage_data_generator
-                                    .run_target_with_coverage(&input_bytes, &raw_data_path)?;
-                                Ok(raw_data_path)
-                            })
-                            .try_collect_par()
-                            .context("Running target")?;
-                        let cov_data = self.state.coverage_dir().join(format!("{minute}.profdata"));
-                        coverage_data_generator
-                            .merge_llvm_raw_prof_data(
-                                raw_data_files.into_iter().chain(existing_data),
-                                &cov_data,
-                            )
-                            .context("Merging coverage data")?;
-                        existing_data = Some(cov_data);
-                    }
-                }
+            .try_for_each(|input| -> anyhow::Result<_> {
+                let tmp_raw_data = TempDir::new().context("Creating temp raw profile data dir")?;
+                let profile_data = tmp_raw_data.path().join("coverage.profraw");
+                let input_bytes = input_bytes_conv.generate_bytes(&input);
+                coverage_data_generator
+                    .run_target_with_coverage(&input_bytes, &profile_data)
+                    .context("Running target")?;
+                coverage_data_generator
+                    .merge_llvm_raw_prof_data(
+                        [profile_data],
+                        &self.state.coverage_dir().join(input.prof_data_file_name()),
+                    )
+                    .context("Merging coverage data")?;
                 Ok(())
-            })
-            .try_collect_par::<Vec<_>>()?;
+            })?;
 
         Ok(())
     }
@@ -119,9 +98,18 @@ pub struct CoverageInput<I> {
     content: I,
 }
 
+impl<I> Display for CoverageInput<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "id_{}_time_{}_exec_{}", self.id.0, self.time, self.exec)
+    }
+}
+
 impl<I> CoverageInput<I> {
-    pub fn raw_prof_data_file_name(&self) -> String {
-        format!("coverage.{}.profraw", self.id.0)
+    pub fn prof_data_file_name(&self) -> String {
+        format!(
+            "id_{}_time_{}_exec_{}.profdata",
+            self.id.0, self.time, self.exec
+        )
     }
 }
 
