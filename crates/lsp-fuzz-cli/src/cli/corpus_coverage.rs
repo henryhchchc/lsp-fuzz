@@ -70,6 +70,7 @@ where
         covereage_inputs
             .into_par_iter()
             .try_for_each(|input| -> anyhow::Result<_> {
+                info!("Measuring coverage for {}", input);
                 let tmp_raw_data = TempDir::new().context("Creating temp raw profile data dir")?;
                 let profile_data = tmp_raw_data.path().join("coverage.profraw");
                 let input_bytes = input_bytes_conv.generate_bytes(&input);
