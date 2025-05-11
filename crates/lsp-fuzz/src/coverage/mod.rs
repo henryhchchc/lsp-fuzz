@@ -65,7 +65,7 @@ impl CoverageDataGenerator {
         Ok(())
     }
 
-    fn run_llvm_cov(&self, llvm_profile_data: String) -> Result<lcov::Report, anyhow::Error> {
+    pub fn run_llvm_cov(&self, llvm_profile_data: String) -> Result<lcov::Report, anyhow::Error> {
         let mut child = Command::new("llvm-cov")
             .args([
                 "export",

@@ -15,7 +15,10 @@ use libafl::{
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
-    schedulers::powersched::BaseSchedule,
+    schedulers::{
+        IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
+        powersched::{BaseSchedule, PowerSchedule},
+    },
     stages::{CalibrationStage, StdPowerMutationalStage},
     state::{DEFAULT_MAX_SIZE, StdState},
 };
@@ -142,12 +145,17 @@ impl BinaryBaseline {
 
         let mut tokens = self.no_auto_dict.not().then(UTF8Tokens::new);
 
-        let scheduler = common::scheduler(
-            &mut state,
-            &cov_observer,
-            self.power_schedule,
-            self.cycle_power_schedule,
-        );
+        let scheduler = {
+            let mut weighted_scheduler = StdWeightedScheduler::with_schedule(
+                &mut state,
+                &cov_observer,
+                Some(PowerSchedule::new(self.power_schedule)),
+            );
+            if self.cycle_power_schedule {
+                weighted_scheduler = weighted_scheduler.cycling_scheduler();
+            }
+            IndexesLenTimeMinimizerScheduler::new(&cov_observer, weighted_scheduler)
+        };
 
         let target_bytes_converter = BaselineByteConverter::new(NopBytesConverter::default());
 
