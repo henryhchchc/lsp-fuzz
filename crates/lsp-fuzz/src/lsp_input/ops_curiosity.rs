@@ -228,9 +228,8 @@ pub struct ObservedOpsBehaviors {
 
 impl Default for ObservedOpsBehaviors {
     fn default() -> Self {
-        Self {
-            inner: BloomFilter::with_false_pos(0.0001).expected_items(1_000_000),
-        }
+        let inner = BloomFilter::with_false_pos(0.0001).expected_items(1_000_000);
+        Self { inner }
     }
 }
 

@@ -8,12 +8,14 @@ anyhow.workspace = true
 core_affinity = "0.8"
 clap.workspace = true
 ctrlc.workspace = true
+derive-new.workspace = true
 itertools.workspace = true
 libafl = { workspace = true, features = ["clap"] }
 libafl_bolts.workspace = true
 libcasr.workspace = true
 lsp-fuzz = { path = "../lsp-fuzz" }
 lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
+lcov.workspace = true
 nix.workspace = true
 serde.workspace = true
 serde_cbor = "0.11"

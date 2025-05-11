@@ -12,6 +12,8 @@ use baseline::{binary::BinaryBaseline, nautilus::NautilusBaseline};
 use corpus_coverage::CorpusCoverage;
 use export::ExportCommand;
 use fuzz::FuzzCommand;
+use libafl::inputs::{BytesInput, NautilusInput};
+use lsp_fuzz::{baseline::BaselineInput, lsp_input::LspInput};
 use mine_grammar_fragments::MineGrammarFragments;
 use reproduce::{reproduce_all::ReproduceAll, reproduce_one::ReproduceOne};
 use tracing::level_filters::LevelFilter;
@@ -40,7 +42,9 @@ impl Cli {
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
-            Command::CorpusCoverage(cmd) => cmd.run(self.global_options),
+            Command::CorpusCoverageLspFuzz(cmd) => cmd.run(self.global_options),
+            Command::CorpusCoverageBaselineBinary(cmd) => cmd.run(self.global_options),
+            Command::CorpusCoverageBaselineGrammar(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -79,7 +83,9 @@ enum Command {
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
-    CorpusCoverage(CorpusCoverage),
+    CorpusCoverageLspFuzz(CorpusCoverage<LspInput>),
+    CorpusCoverageBaselineBinary(CorpusCoverage<BaselineInput<BytesInput>>),
+    CorpusCoverageBaselineGrammar(CorpusCoverage<BaselineInput<NautilusInput>>),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

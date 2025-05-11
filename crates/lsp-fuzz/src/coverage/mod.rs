@@ -1,18 +1,18 @@
 use std::{
-    fs::{self, File},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fs::{self},
+    io::{self, BufReader, Write},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
 use anyhow::Context;
-use libafl::inputs::InputToBytes;
+use derive_new::new as New;
 use tempfile::TempDir;
 
 const RAW_COVERAGE_DATA_FILE_EXT: &str = "profraw";
 const MERGED_COVERAGE_DATA_FILE_EXT: &str = "profdata";
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct CoverageDataGenerator {
     executable: PathBuf,
     args: Vec<String>,
@@ -33,17 +33,8 @@ impl CoverageDataGenerator {
     /// # Returns
     ///
     /// Returns `Ok(())` if the coverage measurement is successful, or an error if something goes wrong.
-    pub fn input_coverage_measure<I, IB>(
-        &self,
-        input: &I,
-        converter: &mut IB,
-        coverage_data_path: &Path,
-    ) -> anyhow::Result<()>
-    where
-        IB: InputToBytes<I>,
-    {
+    pub fn input_coverage_measure(&self, input_bytes: &[u8]) -> anyhow::Result<lcov::Report> {
         let temp_dir = TempDir::new().context("Creating tempdir")?;
-        let bytes = converter.to_bytes(input);
 
         let llvm_profile_raw = format!(
             "{}/coverage.{}",
@@ -63,7 +54,7 @@ impl CoverageDataGenerator {
             .context("Spawning target")?;
 
         let mut stdin = process.stdin.take().expect("We set it to pipe");
-        match stdin.write_all(&bytes) {
+        match stdin.write_all(input_bytes) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::BrokenPipe => {
                 // This probably means that the target is dead.
@@ -86,9 +77,7 @@ impl CoverageDataGenerator {
             .context("Running llvm-profdata")?;
 
         // Export coverage data to lcov format
-        let lcov_output_path = coverage_data_path.with_extension("lcov");
-        let lcov_file = File::create(&lcov_output_path).context("Creating lcov output file")?;
-        Command::new("llvm-cov")
+        let mut child = Command::new("llvm-cov")
             .args([
                 "export",
                 &self.executable.to_string_lossy(),
@@ -96,10 +85,17 @@ impl CoverageDataGenerator {
                 &llvm_profile_data,
                 "--format=lcov",
             ])
-            .stdout(lcov_file)
-            .status()
-            .context("Running llvm-cov export to lcov")?;
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .context("Spawn llvm-cov export to lcov")?;
 
-        Ok(())
+        let stdout = child.stdout.take().expect("We set it to pipe");
+        let lcov_reader = lcov::Reader::new(BufReader::new(stdout));
+        let report = lcov::Report::from_reader(lcov_reader).context("Parsing lcov report")?;
+        let llvm_cov_status = child.wait().context("Waiting llvm-cov")?;
+        anyhow::ensure!(llvm_cov_status.success(), "llvm-cov failed");
+        Ok(report)
     }
 }

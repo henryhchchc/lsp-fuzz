@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, SerdeAny, Clone)]
 pub struct GeneratedStats {
-    generated_time: Duration,
-    generated_exec: u64,
+    pub generated_time: Duration,
+    pub generated_exec: u64,
 }
 
 #[derive(Debug, New)]
