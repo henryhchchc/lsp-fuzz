@@ -12,7 +12,7 @@ pub mod node_filters;
 pub mod node_generators;
 pub mod text_document_selectors;
 
-const MAX_DOCUMENT_SIZE: usize = libafl::state::DEFAULT_MAX_SIZE;
+pub const MAX_DOCUMENT_SIZE: usize = 100_000;
 
 #[derive(Debug)]
 pub struct ReplaceNodeMutation<'a, TS, NodeSel, NodeGen, State> {
