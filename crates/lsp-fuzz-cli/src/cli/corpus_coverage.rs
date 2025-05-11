@@ -44,10 +44,6 @@ pub struct CorpusCoverage<I> {
     #[clap(long, short)]
     target_args: Vec<String>,
 
-    /// The path to the output file.
-    #[clap(long, short)]
-    output_file: PathBuf,
-
     #[clap(skip)]
     _input: PhantomData<I>,
 }
