@@ -67,12 +67,10 @@ impl CoverageDataGenerator {
         input_bytes: &[u8],
         llvm_profile_raw: &str,
     ) -> Result<(), anyhow::Error> {
-        let working_dir = TempDir::new().context("Creating working dir")?;
-        anyhow::ensure!(fs::exists(&self.executable)?, "Target does not exists");
         let mut process = Command::new(&self.executable)
             .args(&self.args)
             .env("LLVM_PROFILE_FILE", llvm_profile_raw)
-            .current_dir(working_dir)
+            .current_dir("/dev/shm/")
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
