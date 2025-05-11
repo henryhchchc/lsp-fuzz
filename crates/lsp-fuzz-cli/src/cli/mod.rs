@@ -66,7 +66,7 @@ impl GlobalOptions {
 
     pub fn parallel_workers(&self) -> usize {
         self.parallel_workers
-            .unwrap_or_else(|| max(1, num_cpus::get() * 3 / 4))
+            .unwrap_or_else(|| max(1, num_cpus::get() / 2))
     }
 }
 
