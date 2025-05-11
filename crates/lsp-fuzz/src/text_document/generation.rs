@@ -6,7 +6,10 @@ use libafl_bolts::rands::Rand;
 use lsp_fuzz_grammars::Language;
 use serde::{Deserialize, Serialize};
 
-use super::grammar::{DerivationSequence, Grammar, Symbol, Terminal};
+use super::{
+    grammar::{DerivationSequence, Grammar, Symbol, Terminal},
+    mutations::MAX_DOCUMENT_SIZE,
+};
 use crate::utils::RandExt;
 
 #[derive(Debug, Serialize, Deserialize, libafl_bolts::SerdeAny)]
@@ -202,7 +205,9 @@ where
         node_kind: &str,
         grammar_context: &'a GrammarContext,
     ) -> Option<&'a [u8]> {
-        let fragments = grammar_context.node_fragments(node_kind);
+        let fragments = grammar_context
+            .node_fragments(node_kind)
+            .filter(|&it| it.len() < MAX_DOCUMENT_SIZE / 4);
         state.rand_mut().choose(fragments)
     }
 
