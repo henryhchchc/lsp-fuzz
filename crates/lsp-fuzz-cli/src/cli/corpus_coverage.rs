@@ -81,6 +81,7 @@ where
                         .into_iter()
                         .map(|it| it.collect_vec())
                         .collect();
+                    let mut existing_data = None;
                     for chunk in chunks {
                         let cov_raw_data_dir =
                             TempDir::new().context("Crateing raw data tempdir")?;
@@ -100,8 +101,12 @@ where
                             .context("Running target")?;
                         let cov_data = self.state.coverage_dir().join(format!("{minute}.profdata"));
                         coverage_data_generator
-                            .merge_llvm_raw_prof_data(raw_data_files, &cov_data)
+                            .merge_llvm_raw_prof_data(
+                                raw_data_files.into_iter().chain(existing_data),
+                                &cov_data,
+                            )
                             .context("Merging coverage data")?;
+                        existing_data = Some(cov_data);
                     }
                 }
                 Ok(())

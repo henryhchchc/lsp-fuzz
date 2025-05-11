@@ -9,9 +9,6 @@ use std::{
 use anyhow::Context;
 use derive_new::new as New;
 use tempfile::TempDir;
-use tracing::info;
-
-const RAW_COVERAGE_DATA_FILE_EXT: &str = "profraw";
 
 #[derive(Debug, New)]
 pub struct CoverageDataGenerator {
