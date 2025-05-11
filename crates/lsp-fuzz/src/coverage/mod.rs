@@ -1,13 +1,16 @@
 use std::{
+    ffi::OsStr,
     fs::{self},
     io::{self, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
 use anyhow::Context;
 use derive_new::new as New;
+use libafl::corpus::CorpusId;
 use tempfile::TempDir;
+use tracing::info;
 
 const RAW_COVERAGE_DATA_FILE_EXT: &str = "profraw";
 const MERGED_COVERAGE_DATA_FILE_EXT: &str = "profdata";
@@ -33,26 +36,49 @@ impl CoverageDataGenerator {
     /// # Returns
     ///
     /// Returns `Ok(())` if the coverage measurement is successful, or an error if something goes wrong.
-    pub fn input_coverage_measure(&self, input_bytes: &[u8]) -> anyhow::Result<lcov::Report> {
+    pub fn generate_llvm_profdata<I>(&self, inputs: I, merged_file: &Path) -> anyhow::Result<()>
+    where
+        I: IntoIterator<Item = (CorpusId, Vec<u8>)>,
+    {
         let temp_dir = TempDir::new().context("Creating tempdir")?;
 
-        let llvm_profile_raw = format!(
-            "{}/coverage.{}",
-            temp_dir.path().display(),
-            RAW_COVERAGE_DATA_FILE_EXT
-        );
-        let working_dir = temp_dir.path().join("working_dir");
-        fs::create_dir_all(&working_dir).context("Creating working dir")?;
+        for (CorpusId(id), input) in inputs {
+            let llvm_profile_raw = format!(
+                "{}/coverage.{id}.{}",
+                temp_dir.path().display(),
+                RAW_COVERAGE_DATA_FILE_EXT
+            );
+            info!("Generating {llvm_profile_raw}");
+            self.run_target_with_coverage(&input, &llvm_profile_raw)?;
+            info!("Merging {llvm_profile_raw} into {}", merged_file.display());
+            Command::new("llvm-profdata")
+                .args(["merge", "-sparse"])
+                .arg("-o")
+                .arg(merged_file)
+                .arg(merged_file)
+                .arg(llvm_profile_raw)
+                .status()
+                .context("Running llvm-profdata")?;
+        }
+
+        Ok(())
+    }
+
+    fn run_target_with_coverage(
+        &self,
+        input_bytes: &[u8],
+        llvm_profile_raw: &str,
+    ) -> Result<(), anyhow::Error> {
+        let working_dir = TempDir::new().context("Creating working dir")?;
         let mut process = Command::new(&self.executable)
             .args(&self.args)
             .current_dir(working_dir)
-            .env("LLVM_PROFILE_FILE", &llvm_profile_raw)
+            .env("LLVM_PROFILE_FILE", llvm_profile_raw)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
             .context("Spawning target")?;
-
         let mut stdin = process.stdin.take().expect("We set it to pipe");
         match stdin.write_all(input_bytes) {
             Ok(()) => {}
@@ -63,20 +89,14 @@ impl CoverageDataGenerator {
         }
         process.wait().context("Waiting for target")?;
 
-        let llvm_profile_data = format!(
-            "{}/coverage.{}",
-            temp_dir.path().display(),
-            MERGED_COVERAGE_DATA_FILE_EXT
+        anyhow::ensure!(
+            fs::exists(llvm_profile_raw).context("Checking LLVM raw profile data")?,
+            "LLVM raw profile data not found."
         );
-        Command::new("llvm-profdata")
-            .args(["merge", "-sparse"])
-            .arg(llvm_profile_raw)
-            .arg("-o")
-            .arg(&llvm_profile_data)
-            .status()
-            .context("Running llvm-profdata")?;
+        Ok(())
+    }
 
-        // Export coverage data to lcov format
+    fn run_llvm_cov(&self, llvm_profile_data: String) -> Result<lcov::Report, anyhow::Error> {
         let mut child = Command::new("llvm-cov")
             .args([
                 "export",

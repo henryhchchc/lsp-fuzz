@@ -24,7 +24,10 @@ use rayon::prelude::*;
 use tempfile::TempDir;
 use tracing::info;
 
-use crate::{cli::GlobalOptions, fuzzing::FuzzerStateDir};
+use crate::{
+    cli::GlobalOptions,
+    fuzzing::{FuzzerStateDir, common::ParTryCollect},
+};
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]
@@ -47,7 +50,7 @@ pub struct CorpusCoverage<I> {
 
 impl<I> CorpusCoverage<I>
 where
-    I: Input + Clone + Send,
+    I: Input + Clone + Send + Sync,
     ExperimentalCovByteGen: CovInputBytesGenerator<I>,
 {
     pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
@@ -57,19 +60,25 @@ where
         info!("Generating lcov reports");
         let coverage_data_generator =
             CoverageDataGenerator::new(self.target_executable, self.target_args);
+        let temp_dir = TempDir::new().context("Creating temp_dir")?;
+        let input_bytes_conv = ExperimentalCovByteGen::new(temp_dir);
         let input_by_gen_time = covereage_inputs
             .into_iter()
             .into_group_map_by(|it| it.time / 60);
-        for i in 0..(24 * 60) {
-            let inputs = input_by_gen_time
-                .get(&i)
-                .map(|it| it.len())
-                .unwrap_or_default();
-            info!("Minute: {i}, inputs: {inputs}");
-        }
-
-        let temp_dir = TempDir::new().context("Creating temp_dir")?;
-        let input_bytes_conv = ExperimentalCovByteGen::new(temp_dir);
+        (0..(24 * 60))
+            .into_par_iter()
+            .map(|minute| -> anyhow::Result<_> {
+                if let Some(inputs) = input_by_gen_time.get(&minute) {
+                    info!("Minute: {minute}, inputs: {}", inputs.len());
+                    let cov_data = self.state.coverage_dir().join(format!("{minute}.profdata"));
+                    let input_info = inputs
+                        .iter()
+                        .map(|it| (it.id, input_bytes_conv.generate_bytes(it)));
+                    coverage_data_generator.generate_llvm_profdata(input_info, &cov_data)?;
+                }
+                Ok(())
+            })
+            .try_collect_par::<Vec<_>>()?;
 
         Ok(())
     }
@@ -167,14 +176,5 @@ where
         })
         .par_bridge()
         .map(|it| load_cov_input(corpus_dir, it))
-        .try_fold_with(Vec::default(), |mut acc, item| -> anyhow::Result<_> {
-            let item = item?;
-            acc.push(item);
-            Ok(acc)
-        })
-        .try_reduce_with(|mut lhs, rhs| {
-            lhs.extend(rhs);
-            Ok(lhs)
-        })
-        .unwrap_or_else(|| Ok(Vec::default()))
+        .try_collect_par()
 }

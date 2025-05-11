@@ -1,4 +1,4 @@
-use std::{hash::Hash, path::Path, sync::mpsc, time::Duration};
+use std::{hash::Hash, iter, path::Path, sync::mpsc, time::Duration};
 
 use anyhow::Context;
 use core_affinity::CoreId;
@@ -21,6 +21,7 @@ use lsp_fuzz::{
     execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
     utf8::UTF8Tokens,
 };
+use rayon::prelude::*;
 use tracing::{info, warn};
 
 use crate::fuzzing::ExecutorOptions;
@@ -160,4 +161,28 @@ pub fn analyze_fuzz_target(target_path: &Path) -> Result<StaticTargetBinaryInfo,
     }
 
     Ok(binary_info)
+}
+
+pub trait ParTryCollect<T, E>: ParallelIterator {
+    fn try_collect_par<C>(self) -> Result<C, E>
+    where
+        C: Default + IntoIterator<Item = T> + FromIterator<T> + Send,
+        E: Send;
+}
+
+impl<Iter, T, E> ParTryCollect<T, E> for Iter
+where
+    Iter: ParallelIterator<Item = Result<T, E>>,
+{
+    fn try_collect_par<C>(self) -> Result<C, E>
+    where
+        C: Default + IntoIterator<Item = T> + FromIterator<T> + Send,
+        E: Send,
+    {
+        self.try_fold(C::default, |acc, item| {
+            Ok(acc.into_iter().chain(iter::once(item?)).collect())
+        })
+        .try_reduce_with(|lhs, rhs| Ok(lhs.into_iter().chain(rhs).collect()))
+        .unwrap_or_else(|| Ok(C::default()))
+    }
 }
