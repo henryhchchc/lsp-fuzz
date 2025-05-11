@@ -32,7 +32,7 @@ use lsp_fuzz::{
         BaselineByteConverter, BaselineInput, BaselineInputGenerator, BaselineMessageMutator,
         BaselineSequenceMutator,
     },
-    corpus::GeneratedStatsFeedback,
+    corpus::TestCaseFileNameFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StopOnReceived, TimeoutStopStage},
@@ -132,7 +132,7 @@ impl NautilusBaseline {
         let mut feedback = feedback_or!(
             map_feedback,
             baseline_grammar_feedback,
-            GeneratedStatsFeedback::new(),
+            TestCaseFileNameFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
 
@@ -222,7 +222,7 @@ impl NautilusBaseline {
         common::process_tokens(&mut state, tokens);
 
         let mut event_manager = {
-            let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
+            let monitor = SimpleMonitor::new(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
 

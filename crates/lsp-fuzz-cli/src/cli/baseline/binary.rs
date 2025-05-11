@@ -27,7 +27,7 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     baseline::{BaselineByteConverter, BaselineMessageMutator, BaselineSequenceMutator},
-    corpus::GeneratedStatsFeedback,
+    corpus::TestCaseFileNameFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StopOnReceived, TimeoutStopStage},
@@ -124,7 +124,7 @@ impl BinaryBaseline {
 
         let mut feedback = feedback_or!(
             map_feedback,
-            GeneratedStatsFeedback::new(),
+            TestCaseFileNameFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
         let mut objective = common::objective(asan_enabled, &asan_observer);
@@ -205,7 +205,7 @@ impl BinaryBaseline {
         common::process_tokens(&mut state, tokens);
 
         let mut event_manager = {
-            let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
+            let monitor = SimpleMonitor::new(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
 

@@ -23,7 +23,7 @@ use libafl_bolts::{
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
-    corpus::GeneratedStatsFeedback,
+    corpus::TestCaseFileNameFeedback,
     execution::{
         FuzzExecutionConfig, FuzzInput, LspExecutor, workspace_observer::WorkspaceObserver,
     },
@@ -135,7 +135,7 @@ impl FuzzCommand {
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,
-            GeneratedStatsFeedback::new(),
+            TestCaseFileNameFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
 
@@ -221,7 +221,7 @@ impl FuzzCommand {
         common::process_tokens(&mut state, tokens);
 
         let mut event_manager = {
-            let monitor = SimpleMonitor::with_user_monitor(|it| info!("{}", it));
+            let monitor = SimpleMonitor::new(|it| info!("{}", it));
             SimpleEventManager::new(monitor)
         };
 

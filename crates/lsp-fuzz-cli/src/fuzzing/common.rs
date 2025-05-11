@@ -4,7 +4,7 @@ use anyhow::Context;
 use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
-    corpus::{CachedOnDiskCorpus, HasTestcase, OnDiskCorpus, ondisk::OnDiskMetadataFormat},
+    corpus::{CachedOnDiskCorpus, HasTestcase, OnDiskCorpus},
     feedbacks::{
         ConstFeedback, CrashFeedback, FastAndFeedback, FastOrFeedback, Feedback, NewHashFeedback,
     },
@@ -71,14 +71,11 @@ where
     I: Input,
 {
     const CACHE_LEN: usize = 4096;
-    let corpus = CachedOnDiskCorpus::with_meta_format(
-        corpus_path,
-        CACHE_LEN,
-        Some(OnDiskMetadataFormat::Json),
-    )
-    .context("Creating corpus")?;
+    let corpus =
+        CachedOnDiskCorpus::with_meta_format_and_prefix(corpus_path, CACHE_LEN, None, None, false)
+            .context("Creating corpus")?;
 
-    let solutions = OnDiskCorpus::with_meta_format(solution_path, OnDiskMetadataFormat::Json)
+    let solutions = OnDiskCorpus::with_meta_format_and_prefix(solution_path, None, None, false)
         .context("Creating solution corpus")?;
 
     Ok((corpus, solutions))

@@ -1,7 +1,5 @@
 use std::{
     fmt::Debug,
-    fs::File,
-    io::BufReader,
     marker::PhantomData,
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -11,15 +9,14 @@ use anyhow::Context;
 use derive_new::new as New;
 use itertools::Itertools;
 use libafl::{
+    corpus::CorpusId,
     generators::NautilusContext,
     inputs::{
         BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
     },
 };
-use libafl_bolts::serdeany::SerdeAnyMap;
 use lsp_fuzz::{
     baseline::{BaselineByteConverter, BaselineInput},
-    corpus::GeneratedStats,
     coverage::CoverageDataGenerator,
     lsp_input::{LspInput, LspInputBytesConverter},
 };
@@ -60,14 +57,9 @@ where
         info!("Generating lcov reports");
         let coverage_data_generator =
             CoverageDataGenerator::new(self.target_executable, self.target_args);
-        let first_gen_time = covereage_inputs
-            .iter()
-            .map(|it| it.stats.generated_time)
-            .min()
-            .context("No inputs")?;
         let input_by_gen_time = covereage_inputs
             .into_iter()
-            .into_group_map_by(|it| (it.stats.generated_time - first_gen_time).as_secs() / 60);
+            .into_group_map_by(|it| it.time / 60);
         for i in 0..(24 * 60) {
             let inputs = input_by_gen_time
                 .get(&i)
@@ -85,9 +77,10 @@ where
 
 #[derive(Debug, Clone)]
 pub struct CoverageInput<I> {
-    id: String,
-    input: I,
-    stats: GeneratedStats,
+    id: CorpusId,
+    time: u64,
+    exec: u64,
+    content: I,
 }
 
 pub trait CovInputBytesGenerator<I> {
@@ -102,14 +95,14 @@ pub struct ExperimentalCovByteGen {
 impl CovInputBytesGenerator<LspInput> for ExperimentalCovByteGen {
     fn generate_bytes(&self, input: &CoverageInput<LspInput>) -> Vec<u8> {
         let mut converter = LspInputBytesConverter::new(self.temp_dir.path().to_owned());
-        converter.to_bytes(&input.input).to_vec()
+        converter.to_bytes(&input.content).to_vec()
     }
 }
 
 impl CovInputBytesGenerator<BaselineInput<BytesInput>> for ExperimentalCovByteGen {
     fn generate_bytes(&self, input: &CoverageInput<BaselineInput<BytesInput>>) -> Vec<u8> {
         let mut converter = BaselineByteConverter::new(NopBytesConverter::default());
-        converter.to_bytes(&input.input).to_vec()
+        converter.to_bytes(&input.content).to_vec()
     }
 }
 
@@ -125,8 +118,19 @@ impl CovInputBytesGenerator<BaselineInput<NautilusInput>> for ExperimentalCovByt
         });
         let mut converter =
             BaselineByteConverter::new(NautilusBytesConverter::new(nautilus_context));
-        converter.to_bytes(&input.input).to_vec()
+        converter.to_bytes(&input.content).to_vec()
     }
+}
+
+fn inter_metadata(file_name: &str) -> Option<(CorpusId, u64, u64)> {
+    // "id_{id}_time_{time}_exec_{exec}"
+    let strip_id = file_name.strip_prefix("id_")?;
+    let (id, remaining) = strip_id.split_once("_time_")?;
+    let (time, exec) = remaining.split_once("_exec_")?;
+    let id = id.parse().ok()?;
+    let time = time.parse().ok()?;
+    let exec = exec.parse().ok()?;
+    Some((CorpusId(id), time, exec))
 }
 
 fn load_cov_input<I>(corpus_dir: &Path, input_file_name: String) -> anyhow::Result<CoverageInput<I>>
@@ -135,17 +139,12 @@ where
 {
     let input_path = corpus_dir.join(&input_file_name);
     let input = I::from_file(input_path).context("Loading input")?;
-    let metadata_reader = File::open(corpus_dir.join(format!(".{input_file_name}.metadata")))
-        .context("Opening metadata file")?;
-    let metadata_reader = BufReader::new(metadata_reader);
-    let mut metadata_map: SerdeAnyMap =
-        serde_json::from_reader(metadata_reader).context("Deserializing metadata")?;
-    let stats: GeneratedStats = *metadata_map.remove().context("Getting GeneratedStats")?;
-
+    let (id, time, exec) = inter_metadata(&input_file_name).context("Inter metadata")?;
     Ok(CoverageInput {
-        id: input_file_name,
-        input,
-        stats,
+        id,
+        content: input,
+        time,
+        exec,
     })
 }
 
@@ -155,14 +154,11 @@ where
 {
     corpus_dir
         .read_dir()
-        .context("Reading solution directory")?
+        .context("Reading corpus directory")?
         .map(Result::unwrap)
         .filter(|it| {
             it.metadata().is_ok_and(|it| it.is_file())
-                && it
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(LspInput::NAME_PREFIX)
+                && it.file_name().to_string_lossy().starts_with("id_")
         })
         .map(|it| {
             it.file_name()

@@ -3,34 +3,27 @@ use std::{borrow::Cow, time::Duration};
 use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
-    HasMetadata,
+    corpus::{Corpus, CorpusId},
     feedbacks::{Feedback, StateInitializer},
-    state::{HasExecutions, HasStartTime},
+    state::{HasCorpus, HasExecutions, HasStartTime},
 };
-use libafl_bolts::{Named, SerdeAny, current_time};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize, SerdeAny, Clone)]
-pub struct GeneratedStats {
-    pub generated_time: Duration,
-    pub generated_exec: u64,
-}
+use libafl_bolts::{Named, current_time};
 
 #[derive(Debug, New)]
-pub struct GeneratedStatsFeedback;
+pub struct TestCaseFileNameFeedback;
 
-impl Named for GeneratedStatsFeedback {
+impl Named for TestCaseFileNameFeedback {
     fn name(&self) -> &Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("GeneratedStatsFeedback");
+        static NAME: Cow<'static, str> = Cow::Borrowed("TestCaseFileNameFeedback");
         &NAME
     }
 }
 
-impl<State> StateInitializer<State> for GeneratedStatsFeedback {}
+impl<State> StateInitializer<State> for TestCaseFileNameFeedback {}
 
-impl<State, EM, I, OT> Feedback<EM, I, OT, State> for GeneratedStatsFeedback
+impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback
 where
-    State: HasExecutions + HasStartTime,
+    State: HasExecutions + HasStartTime + HasCorpus<I>,
 {
     fn is_interesting(
         &mut self,
@@ -50,11 +43,12 @@ where
         _observers: &OT,
         testcase: &mut libafl::corpus::Testcase<I>,
     ) -> Result<(), libafl::Error> {
-        let metadata = GeneratedStats {
-            generated_exec: *state.executions(),
-            generated_time: current_time() - *state.start_time(),
-        };
-        testcase.add_metadata(metadata);
+        let CorpusId(id) = state.corpus().peek_free_id();
+        let time = (current_time() - *state.start_time()).as_secs();
+        let exec = *state.executions();
+
+        let file_name = format!("id_{id}_time_{time}_exec_{exec}");
+        *testcase.filename_mut() = Some(file_name);
         Ok(())
     }
 }
