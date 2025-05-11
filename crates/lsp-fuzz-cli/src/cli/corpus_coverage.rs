@@ -75,27 +75,20 @@ where
             .map(|minute| -> anyhow::Result<_> {
                 if let Some(inputs) = input_by_gen_time.get(&minute) {
                     info!("Minute: {minute}, inputs: {}", inputs.len());
-                    let chunks: Vec<_> = inputs
-                        .iter()
-                        .chunks(10)
-                        .into_iter()
-                        .map(|it| it.collect_vec())
-                        .collect();
                     let mut existing_data = None;
-                    for chunk in chunks {
+                    for chunk in inputs.iter().chunks(10).into_iter() {
                         let cov_raw_data_dir =
                             TempDir::new().context("Crateing raw data tempdir")?;
                         let raw_data_files: Vec<_> = chunk
+                            .collect_vec()
                             .into_par_iter()
                             .map(|it| -> anyhow::Result<_> {
                                 let input_bytes = input_bytes_conv.generate_bytes(it);
-                                let llvm_profile_raw =
+                                let raw_data_path =
                                     cov_raw_data_dir.path().join(it.raw_prof_data_file_name());
-                                coverage_data_generator.run_target_with_coverage(
-                                    &input_bytes,
-                                    llvm_profile_raw.as_os_str(),
-                                )?;
-                                Ok(llvm_profile_raw)
+                                coverage_data_generator
+                                    .run_target_with_coverage(&input_bytes, &raw_data_path)?;
+                                Ok(raw_data_path)
                             })
                             .try_collect_par()
                             .context("Running target")?;

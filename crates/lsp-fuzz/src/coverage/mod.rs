@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs::{self},
     io::{self, BufReader, Write},
     path::{Path, PathBuf},
@@ -17,7 +16,11 @@ pub struct CoverageDataGenerator {
 }
 
 impl CoverageDataGenerator {
-    pub fn merge_llvm_raw_prof_data<I>(&self, inputs: I, merged_file: &Path) -> anyhow::Result<()>
+    pub fn merge_llvm_raw_prof_data<I>(
+        &self,
+        data_files: I,
+        merged_file: &Path,
+    ) -> anyhow::Result<()>
     where
         I: IntoIterator<Item = PathBuf>,
     {
@@ -25,7 +28,7 @@ impl CoverageDataGenerator {
             .args(["merge", "-sparse"])
             .arg("-o")
             .arg(merged_file)
-            .args(inputs.into_iter())
+            .args(data_files.into_iter())
             .status()
             .context("Running llvm-profdata")?;
         Ok(())
@@ -34,7 +37,7 @@ impl CoverageDataGenerator {
     pub fn run_target_with_coverage(
         &self,
         input_bytes: &[u8],
-        llvm_profile_raw: &OsStr,
+        llvm_profile_raw: &Path,
     ) -> Result<(), anyhow::Error> {
         let working_dir = TempDir::new().context("Creating temp working dir")?;
         let mut process = Command::new(&self.executable)
