@@ -10,7 +10,7 @@ use libafl::{
 use libafl_bolts::{Named, SerdeAny, current_time};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, SerdeAny)]
+#[derive(Debug, Serialize, Deserialize, SerdeAny, Clone)]
 pub struct GeneratedStats {
     generated_time: Duration,
     generated_exec: u64,

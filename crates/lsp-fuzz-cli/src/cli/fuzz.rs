@@ -131,7 +131,7 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let novel_tokens = CuriosityFeedback::new();
+        let novel_tokens = CuriosityFeedback::new(20);
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,

@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     hash::{Hash, Hasher},
+    iter,
     option::Option,
 };
 
@@ -26,7 +27,9 @@ use crate::{
 };
 
 #[derive(Debug, New)]
-pub struct CuriosityFeedback;
+pub struct CuriosityFeedback {
+    max_syn_depth: usize,
+}
 
 impl Named for CuriosityFeedback {
     fn name(&self) -> &Cow<'static, str> {
@@ -60,7 +63,8 @@ where
         let observed_ops: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
-        let behavior_data = analyze_behavior_data(input).afl_context("Analyzing behavior data")?;
+        let behavior_data = analyze_behavior_data(input, self.max_syn_depth)
+            .afl_context("Analyzing behavior data")?;
         let is_interesting = behavior_data
             .into_iter()
             // The merge operation must be on the left hand side to make sure it is always performed.
@@ -69,19 +73,22 @@ where
     }
 }
 
-fn analyze_behavior_data(input: &LspInput) -> Result<HashSet<OpsBehaviorData>, libafl::Error> {
+fn analyze_behavior_data(
+    input: &LspInput,
+    max_syn_depth: usize,
+) -> Result<HashSet<OpsBehaviorData>, libafl::Error> {
     let mut data = HashSet::new();
     for op in input.messages.iter() {
         if let Some(doc) = op.document()
             && let Some(doc) = input.get_text_document(&doc.uri)
         {
             if let Some(position) = op.position()
-                && let Some(ops_data) = digest_ops_data(op, doc, position)
+                && let Some(ops_data) = digest_ops_data(op, doc, position, max_syn_depth)
             {
                 data.insert(ops_data);
             }
             if let Some(range) = op.range()
-                && let Some(ops_data) = digest_range_data(op, doc, range)
+                && let Some(ops_data) = digest_range_data(op, doc, range, max_syn_depth)
             {
                 data.insert(ops_data);
             }
@@ -95,6 +102,7 @@ fn digest_ops_data(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     position: &lsp_types::Position,
+    max_syn_depth: usize,
 ) -> Option<OpsBehaviorData> {
     let ts_point = tree_sitter::Point {
         row: position.line as usize,
@@ -107,7 +115,7 @@ fn digest_ops_data(
         && node.child_count() == 0
     {
         let mut hasher = AHasher::default();
-        hash_node_path(node, &mut hasher);
+        hash_node_path(node, max_syn_depth, &mut hasher)?;
         let syntactic_signature = hasher.finish();
         let language = doc.language();
         let ops_method = op.method();
@@ -125,6 +133,7 @@ fn digest_range_data(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     range: &lsp_types::Range,
+    max_syn_depth: usize,
 ) -> Option<OpsBehaviorData> {
     let start = tree_sitter::Point {
         row: range.start.line as usize,
@@ -140,7 +149,7 @@ fn digest_range_data(
         .descendant_for_point_range(start, end)
     {
         let mut hasher = AHasher::default();
-        hash_node_path(node, &mut hasher);
+        hash_node_path(node, max_syn_depth, &mut hasher)?;
         let mut curaor = node.walk();
         for child in node.children(&mut curaor) {
             if child.range().start_point <= start && child.range().end_point <= end {
@@ -161,11 +170,19 @@ fn digest_range_data(
     }
 }
 
-fn hash_node_path<H: Hasher>(node: tree_sitter::Node<'_>, hasher: &mut H) {
-    let mut next_visit = Some(node);
-    while let Some(node) = next_visit {
-        node.grammar_id().hash(hasher);
-        next_visit = node.parent();
+fn hash_node_path<H: Hasher>(
+    node: tree_sitter::Node<'_>,
+    max_syn_depth: usize,
+    hasher: &mut H,
+) -> Option<()> {
+    let syn_signature: Vec<_> = iter::successors(Some(node), |it| it.parent())
+        .map(|node| node.grammar_id())
+        .collect();
+    if syn_signature.len() > max_syn_depth {
+        None
+    } else {
+        syn_signature.into_iter().for_each(|it| it.hash(hasher));
+        Some(())
     }
 }
 
