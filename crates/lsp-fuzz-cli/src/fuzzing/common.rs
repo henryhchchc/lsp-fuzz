@@ -4,7 +4,7 @@ use anyhow::Context;
 use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
-    corpus::{CachedOnDiskCorpus, HasTestcase, OnDiskCorpus},
+    corpus::{CachedOnDiskCorpus, HasTestcase, InMemoryOnDiskCorpus, OnDiskCorpus},
     feedbacks::{
         ConstFeedback, CrashFeedback, FastAndFeedback, FastOrFeedback, Feedback, NewHashFeedback,
     },

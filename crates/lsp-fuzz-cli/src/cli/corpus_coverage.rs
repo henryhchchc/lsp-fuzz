@@ -50,7 +50,7 @@ pub struct CorpusCoverage<I> {
 
 impl<I> CorpusCoverage<I>
 where
-    I: Input + Clone + Send + Sync,
+    I: Input + Send + Sync,
     ExperimentalCovByteGen: CovInputBytesGenerator<I>,
 {
     pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
@@ -87,7 +87,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CoverageInput<I> {
     id: CorpusId,
     time: u64,
