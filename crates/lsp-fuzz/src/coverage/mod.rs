@@ -40,6 +40,7 @@ impl CoverageDataGenerator {
     {
         let temp_dir = TempDir::new().context("Creating tempdir")?;
 
+        let mut is_first = true;
         for (CorpusId(id), input) in inputs {
             let llvm_profile_raw = format!(
                 "{}/coverage.{id}.{}",
@@ -49,15 +50,17 @@ impl CoverageDataGenerator {
             info!("Generating {llvm_profile_raw}");
             self.run_target_with_coverage(&input, &llvm_profile_raw)?;
             info!("Merging {llvm_profile_raw} into {}", merged_file.display());
-            Command::new("llvm-profdata")
-                .args(["merge", "-sparse"])
-                .arg("-o")
-                .arg(merged_file)
-                .arg(merged_file)
-                .arg(&llvm_profile_raw)
+            let mut cmd = Command::new("llvm-profdata");
+
+            cmd.args(["merge", "-sparse"]).arg("-o").arg(merged_file);
+            if !is_first {
+                cmd.arg(merged_file);
+            }
+            cmd.arg(&llvm_profile_raw)
                 .status()
                 .context("Running llvm-profdata")?;
             fs::remove_file(&llvm_profile_raw).context("Removing temp raw data")?;
+            is_first = false;
         }
 
         Ok(())
