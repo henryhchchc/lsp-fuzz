@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs::{self},
     io::{self, BufReader, Write},
     path::{Path, PathBuf},
@@ -13,7 +12,6 @@ use tempfile::TempDir;
 use tracing::info;
 
 const RAW_COVERAGE_DATA_FILE_EXT: &str = "profraw";
-const MERGED_COVERAGE_DATA_FILE_EXT: &str = "profdata";
 
 #[derive(Debug, New)]
 pub struct CoverageDataGenerator {
@@ -73,8 +71,8 @@ impl CoverageDataGenerator {
         anyhow::ensure!(fs::exists(&self.executable)?, "Target does not exists");
         let mut process = Command::new(&self.executable)
             .args(&self.args)
-            .current_dir(working_dir)
             .env("LLVM_PROFILE_FILE", llvm_profile_raw)
+            .current_dir(working_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
