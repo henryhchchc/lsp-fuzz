@@ -75,11 +75,34 @@ where
             .map(|minute| -> anyhow::Result<_> {
                 if let Some(inputs) = input_by_gen_time.get(&minute) {
                     info!("Minute: {minute}, inputs: {}", inputs.len());
-                    let cov_data = self.state.coverage_dir().join(format!("{minute}.profdata"));
-                    let input_info = inputs
+                    let chunks: Vec<_> = inputs
                         .iter()
-                        .map(|it| (it.id, input_bytes_conv.generate_bytes(it)));
-                    coverage_data_generator.generate_llvm_profdata(input_info, &cov_data)?;
+                        .chunks(10)
+                        .into_iter()
+                        .map(|it| it.collect_vec())
+                        .collect();
+                    for chunk in chunks {
+                        let cov_raw_data_dir =
+                            TempDir::new().context("Crateing raw data tempdir")?;
+                        let raw_data_files: Vec<_> = chunk
+                            .into_par_iter()
+                            .map(|it| -> anyhow::Result<_> {
+                                let input_bytes = input_bytes_conv.generate_bytes(it);
+                                let llvm_profile_raw =
+                                    cov_raw_data_dir.path().join(it.raw_prof_data_file_name());
+                                coverage_data_generator.run_target_with_coverage(
+                                    &input_bytes,
+                                    llvm_profile_raw.as_os_str(),
+                                )?;
+                                Ok(llvm_profile_raw)
+                            })
+                            .try_collect_par()
+                            .context("Running target")?;
+                        let cov_data = self.state.coverage_dir().join(format!("{minute}.profdata"));
+                        coverage_data_generator
+                            .merge_llvm_raw_prof_data(raw_data_files, &cov_data)
+                            .context("Merging coverage data")?;
+                    }
                 }
                 Ok(())
             })
@@ -93,8 +116,15 @@ where
 pub struct CoverageInput<I> {
     id: CorpusId,
     time: u64,
+    #[allow(unused, reason = "For completeness")]
     exec: u64,
     content: I,
+}
+
+impl<I> CoverageInput<I> {
+    pub fn raw_prof_data_file_name(&self) -> String {
+        format!("coverage.{}.profraw", self.id.0)
+    }
 }
 
 pub trait CovInputBytesGenerator<I> {
