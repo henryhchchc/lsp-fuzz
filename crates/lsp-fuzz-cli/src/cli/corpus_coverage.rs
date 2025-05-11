@@ -1,5 +1,6 @@
 use std::{
     fmt::Debug,
+    fs,
     marker::PhantomData,
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -57,6 +58,7 @@ where
         info!("Loading corpus");
         let covereage_inputs: Vec<CoverageInput<I>> =
             load_corpus(&self.state.corpus_dir()).context("Loading corpus")?;
+        fs::create_dir(self.state.corpus_dir()).context("Creating coverage dir")?;
         info!(
             "Generating coverage reports for {}",
             self.target_executable.display()

@@ -54,9 +54,10 @@ impl CoverageDataGenerator {
                 .arg("-o")
                 .arg(merged_file)
                 .arg(merged_file)
-                .arg(llvm_profile_raw)
+                .arg(&llvm_profile_raw)
                 .status()
                 .context("Running llvm-profdata")?;
+            fs::remove_file(&llvm_profile_raw).context("Removing temp raw data")?;
         }
 
         Ok(())
