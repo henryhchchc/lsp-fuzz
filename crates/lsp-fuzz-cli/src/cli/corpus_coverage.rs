@@ -57,7 +57,10 @@ where
         info!("Loading corpus");
         let covereage_inputs: Vec<CoverageInput<I>> =
             load_corpus(&self.state.corpus_dir()).context("Loading corpus")?;
-        info!("Generating lcov reports");
+        info!(
+            "Generating coverage reports for {}",
+            self.target_executable.display()
+        );
         let coverage_data_generator =
             CoverageDataGenerator::new(self.target_executable, self.target_args);
         let temp_dir = TempDir::new().context("Creating temp_dir")?;
