@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Not, path::PathBuf, time::Duration};
+use std::{borrow::Cow, fs::OpenOptions, io::BufWriter, ops::Not, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
@@ -35,7 +35,7 @@ use lsp_fuzz::{
     corpus::TestCaseFileNameFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
-    stages::{StopOnReceived, TimeoutStopStage},
+    stages::{StatsStage, StopOnReceived, TimeoutStopStage},
     utf8::UTF8Tokens,
 };
 use tempfile::tempdir;
@@ -129,6 +129,14 @@ impl NautilusBaseline {
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let baseline_grammar_feedback = BaselineNautilusFeedback::new(&nautilus_ctx);
+        let stats_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.state.stats_file())
+            .context("Creating stats file")?;
+        let stats_writer = BufWriter::new(stats_file);
+        let stats_stage = StatsStage::new(stats_writer, &map_feedback);
         let mut feedback = feedback_or!(
             map_feedback,
             baseline_grammar_feedback,
@@ -190,6 +198,7 @@ impl NautilusBaseline {
             tuple_list![
                 calibration_stage,
                 mutation_stage,
+                stats_stage,
                 timeout_stop,
                 trigger_stop,
             ]

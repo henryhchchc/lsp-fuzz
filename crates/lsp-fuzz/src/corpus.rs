@@ -1,15 +1,13 @@
-use std::{borrow::Cow, cell::RefCell};
+use std::borrow::Cow;
 
 use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
-    corpus::{Corpus, CorpusId, InMemoryOnDiskCorpus, Testcase},
+    corpus::{Corpus, CorpusId, Testcase},
     feedbacks::{Feedback, StateInitializer},
-    inputs::Input,
     state::{HasCorpus, HasExecutions, HasStartTime},
 };
 use libafl_bolts::{Named, current_time};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, New)]
 pub struct TestCaseFileNameFeedback;

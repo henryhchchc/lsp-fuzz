@@ -29,10 +29,6 @@ impl FuzzerStateDir {
         self.0.join("coverage")
     }
 
-    pub fn plot_file(&self) -> PathBuf {
-        self.0.join("plot_data")
-    }
-
     pub fn stats_file(&self) -> PathBuf {
         self.0.join("stats")
     }

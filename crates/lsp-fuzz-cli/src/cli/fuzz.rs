@@ -1,4 +1,6 @@
-use std::{collections::HashMap, ops::Not, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap, fs::OpenOptions, io::BufWriter, ops::Not, path::PathBuf, time::Duration,
+};
 
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
@@ -33,7 +35,7 @@ use lsp_fuzz::{
         LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
         ops_curiosity::CuriosityFeedback,
     },
-    stages::TimeoutStopStage,
+    stages::{StatsStage, TimeoutStopStage},
     text_document::text_document_mutations,
     utf8::UTF8Tokens,
 };
@@ -132,6 +134,15 @@ impl FuzzCommand {
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let novel_tokens = CuriosityFeedback::new(20);
+        let stats_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.state.stats_file())
+            .context("Creating stats file")?;
+        let stats_writer = BufWriter::new(stats_file);
+        let stats_stage = StatsStage::new(stats_writer, &map_feedback);
+
         let mut feedback = feedback_or!(
             map_feedback,
             novel_tokens,
@@ -188,6 +199,7 @@ impl FuzzCommand {
             tuple_list![
                 calibration_stage,
                 mutation_stage,
+                stats_stage,
                 timeout_stop,
                 trigger_stop,
             ]
