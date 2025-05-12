@@ -53,12 +53,23 @@ pub struct GeneratorsConfig {
     pub invalid_code: bool,
 }
 
-impl Default for GeneratorsConfig {
-    fn default() -> Self {
+impl GeneratorsConfig {
+    pub fn full() -> Self {
         Self {
             invalid_ranges: true,
             invalid_positions: true,
             invalid_code: true,
+            tab_size: TabSizeGen {
+                candidates: vec![0, 1, 2, 4, 8],
+                rand_prob: 0.2,
+            },
+        }
+    }
+    pub fn no_error_injection() -> Self {
+        Self {
+            invalid_ranges: false,
+            invalid_positions: false,
+            invalid_code: false,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,

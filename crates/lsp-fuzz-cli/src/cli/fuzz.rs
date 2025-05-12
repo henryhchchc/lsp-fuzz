@@ -9,7 +9,7 @@ use libafl::{
     corpus::Corpus,
     events::SimpleEventManager,
     feedback_or,
-    feedbacks::{MaxMapFeedback, TimeFeedback},
+    feedbacks::{ConstFeedback, FastAndFeedback, MaxMapFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::HavocScheduledMutator,
     observers::{
@@ -46,7 +46,7 @@ use tuple_list::tuple_list;
 use super::{GlobalOptions, parse_hash_map};
 use crate::{
     fuzzing::{
-        ExecutorOptions, FuzzerStateDir,
+        AblationMode, ExecutorOptions, FuzzerStateDir,
         common::{self},
     },
     language_fragments::load_grammar_lookup,
@@ -93,6 +93,9 @@ pub(super) struct FuzzCommand {
     #[clap(long)]
     no_asan: bool,
 
+    #[clap(long, value_enum, default_value_t = AblationMode::Full)]
+    ablation_mode: AblationMode,
+
     #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
     language_fragments: HashMap<Language, PathBuf>,
 }
@@ -134,7 +137,13 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let novel_tokens = CuriosityFeedback::new(20);
+        let curiosity_feedback = FastAndFeedback::new(
+            match self.ablation_mode {
+                AblationMode::NoCuriosity => ConstFeedback::False,
+                _ => ConstFeedback::True,
+            },
+            CuriosityFeedback::new(20),
+        );
         let stats_file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -146,7 +155,7 @@ impl FuzzCommand {
 
         let mut feedback = feedback_or!(
             map_feedback,
-            novel_tokens,
+            curiosity_feedback,
             TestCaseFileNameFeedback::new(),
             TimeFeedback::new(&time_observer)
         );
@@ -183,7 +192,10 @@ impl FuzzCommand {
 
         let mut fuzz_stages = {
             let mutation_stage = {
-                let generators_config = GeneratorsConfig::default();
+                let generators_config = match self.ablation_mode {
+                    AblationMode::Full | AblationMode::NoCuriosity => GeneratorsConfig::full(),
+                    AblationMode::NoErrorInjection => GeneratorsConfig::no_error_injection(),
+                };
                 let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(
                     text_document_mutations(&grammar_ctx, &generators_config),
                     4,
