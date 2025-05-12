@@ -7,18 +7,22 @@ use libafl::{
     mutators::MutatorsTuple,
     state::{HasMaxSize, HasRand},
 };
-use libafl_bolts::{HasLen, ownedref::OwnedSlice, tuples::NamedTuple};
+use libafl_bolts::{
+    HasLen,
+    ownedref::OwnedSlice,
+    tuples::{Merge, NamedTuple},
+};
 use lsp_fuzz_grammars::Language;
 use mutations::{
-    ReplaceNodeMutation,
+    NodeContentMutation, NodeTruncation, NodeUTF8Mutation, ReplaceNodeMutation,
     node_filters::HighlightedNodes,
-    node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar},
+    node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar, MismatchedNode},
     text_document_selectors::RandomDoc,
 };
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
-use crate::{lsp::GeneratorsConfig, lsp_input::LspInput};
+use crate::{lsp::GeneratorsConfig, lsp_input::LspInput, utils::EitherTuple};
 
 pub mod generation;
 pub mod grammar;
@@ -198,38 +202,66 @@ impl HasLen for TextDocument {
     }
 }
 
-type ReplaceNodeInRandomRoc<'a, State, NodeSel, NodeGen> =
-    ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen, State>;
+type ReplaceNodeInRandomRoc<'a, NodeSel, NodeGen> =
+    ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen>;
+type NodeMutationInRandomDoc<'a, Mut, NodeSel> = NodeContentMutation<'a, Mut, RandomDoc, NodeSel>;
 
 pub fn text_document_mutations<'g, State>(
     grammar_lookup: &'g GrammarContextLookup,
-    _genearators_config: &GeneratorsConfig,
+    genearators_config: &GeneratorsConfig,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'g, State>
 where
     State: HasRand + HasMaxSize + HasMetadata,
 {
     use mutations::node_filters::NodesThat;
+
     let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
-    tuple_list![
+    let terminal_node = NodesThat::new(|it: &tree_sitter::Node<'_>| it.child_count() == 0);
+    let remove_comment = ReplaceNodeInRandomRoc::new(
+        grammar_lookup,
+        HighlightedNodes::new("comment".to_owned()),
+        EmptyNode,
+    );
+    let correct_code_mutations = tuple_list![
         ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
-        ReplaceNodeInRandomRoc::new(
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
+        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
+        remove_comment.clone(),
+        remove_comment.clone(),
+        remove_comment,
+    ];
+    if genearators_config.invalid_code {
+        let recover_from_error = ReplaceNodeInRandomRoc::new(
             grammar_lookup,
             NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
-            EmptyNode
-        ),
-        ReplaceNodeInRandomRoc::new(
+            ChooseFromDerivations,
+        );
+        let produce_missing_node = ReplaceNodeInRandomRoc::new(
             grammar_lookup,
             NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_missing()),
-            ChooseFromDerivations
-        ),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, EmptyNode),
-        ReplaceNodeInRandomRoc::new(
-            grammar_lookup,
-            HighlightedNodes::new("comment".to_owned()),
-            EmptyNode
-        ),
-    ]
+            ChooseFromDerivations,
+        );
+        let generate_mismatched =
+            ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, MismatchedNode);
+        let terminal_truncation =
+            NodeMutationInRandomDoc::new(NodeTruncation, grammar_lookup, terminal_node);
+        let utf8_mutation =
+            NodeMutationInRandomDoc::new(NodeUTF8Mutation, grammar_lookup, terminal_node);
+        let incorrect_code_mutations = tuple_list![
+            recover_from_error,
+            produce_missing_node,
+            generate_mismatched,
+            terminal_truncation,
+            utf8_mutation,
+            ReplaceNodeInRandomRoc::new(grammar_lookup, terminal_node, EmptyNode),
+        ];
+        EitherTuple::Left(correct_code_mutations.merge(incorrect_code_mutations))
+    } else {
+        EitherTuple::Right(correct_code_mutations)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -38,3 +38,7 @@ pub trait NodeGenerator<State> {
         state: &mut State,
     ) -> Option<Vec<u8>>;
 }
+
+pub trait NodeContentMutator<State> {
+    fn mutate(&self, content: &mut Vec<u8>, state: &mut State);
+}

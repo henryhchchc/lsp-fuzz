@@ -7,7 +7,7 @@ use lsp_types::Uri;
 use super::TextDocumentSelector;
 use crate::{lsp_input::LspInput, text_document::TextDocument};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RandomDoc;
 
 impl<State> TextDocumentSelector<State> for RandomDoc

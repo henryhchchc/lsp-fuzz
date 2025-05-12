@@ -1,8 +1,9 @@
 #![allow(dead_code, reason = "This is an utility module.")]
 
-use std::{fmt::Display, num::NonZero};
+use std::{borrow::Cow, fmt::Display, num::NonZero};
 
-use libafl_bolts::rands::Rand;
+use libafl::mutators::MutatorsTuple;
+use libafl_bolts::{HasLen, rands::Rand, tuples::NamedTuple};
 
 pub(crate) trait OptionExt<T> {
     fn get_or_try_insert_with<F, E>(&mut self, generator: F) -> Result<&mut T, E>
@@ -109,5 +110,96 @@ where
         range_lookup
             .into_iter()
             .find_map(|(range, item)| range.contains(&chosen_point).then_some(item))
+    }
+}
+
+#[derive(Debug)]
+pub enum EitherTuple<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<L, R> HasLen for EitherTuple<L, R>
+where
+    L: HasLen,
+    R: HasLen,
+{
+    fn len(&self) -> usize {
+        match self {
+            EitherTuple::Left(l) => l.len(),
+            EitherTuple::Right(r) => r.len(),
+        }
+    }
+}
+
+impl<L, R> NamedTuple for EitherTuple<L, R>
+where
+    L: NamedTuple,
+    R: NamedTuple,
+{
+    fn name(&self, index: usize) -> Option<&Cow<'static, str>> {
+        match self {
+            EitherTuple::Left(l) => l.name(index),
+            EitherTuple::Right(r) => r.name(index),
+        }
+    }
+
+    fn names(&self) -> Vec<Cow<'static, str>> {
+        match self {
+            EitherTuple::Left(l) => l.names(),
+            EitherTuple::Right(r) => r.names(),
+        }
+    }
+}
+
+impl<L, R, I, State> MutatorsTuple<I, State> for EitherTuple<L, R>
+where
+    L: MutatorsTuple<I, State>,
+    R: MutatorsTuple<I, State>,
+{
+    fn mutate_all(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+        match self {
+            EitherTuple::Left(l) => l.mutate_all(state, input),
+            EitherTuple::Right(r) => r.mutate_all(state, input),
+        }
+    }
+
+    fn post_exec_all(
+        &mut self,
+        state: &mut State,
+        new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        match self {
+            EitherTuple::Left(l) => l.post_exec_all(state, new_corpus_id),
+            EitherTuple::Right(r) => r.post_exec_all(state, new_corpus_id),
+        }
+    }
+
+    fn get_and_mutate(
+        &mut self,
+        index: libafl::mutators::MutationId,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+        match self {
+            EitherTuple::Left(l) => l.get_and_mutate(index, state, input),
+            EitherTuple::Right(r) => r.get_and_mutate(index, state, input),
+        }
+    }
+
+    fn get_and_post_exec(
+        &mut self,
+        index: usize,
+        state: &mut State,
+        corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        match self {
+            EitherTuple::Left(l) => l.get_and_post_exec(index, state, corpus_id),
+            EitherTuple::Right(r) => r.get_and_post_exec(index, state, corpus_id),
+        }
     }
 }
