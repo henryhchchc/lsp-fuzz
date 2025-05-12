@@ -99,6 +99,7 @@ pub(super) struct FuzzCommand {
 
 impl FuzzCommand {
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+        self.state.create().context("Crating state dir")?;
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 

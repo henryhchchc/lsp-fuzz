@@ -18,8 +18,8 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, Named, tuples::MatchName};
 use lsp_fuzz::{
-    execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo, stages::StopOnReceived,
-    utf8::UTF8Tokens,
+    corpus::ProperCachedCorpus, execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo,
+    stages::StopOnReceived, utf8::UTF8Tokens,
 };
 use rayon::prelude::*;
 use tracing::{info, warn};
@@ -67,12 +67,15 @@ where
 pub fn create_corpus<I>(
     corpus_path: &Path,
     solution_path: &Path,
-) -> anyhow::Result<(InMemoryOnDiskCorpus<I>, OnDiskCorpus<I>)>
+) -> anyhow::Result<(ProperCachedCorpus<I>, OnDiskCorpus<I>)>
 where
     I: Input,
 {
-    let corpus = InMemoryOnDiskCorpus::with_meta_format_and_prefix(corpus_path, None, None, false)
-        .context("Creating corpus")?;
+    const CACHE_SIZE: usize = 4096;
+    let inner_corpus =
+        InMemoryOnDiskCorpus::with_meta_format_and_prefix(corpus_path, None, None, false)
+            .context("Creating corpus")?;
+    let corpus = ProperCachedCorpus::new(inner_corpus, CACHE_SIZE);
 
     let solutions = OnDiskCorpus::with_meta_format_and_prefix(solution_path, None, None, false)
         .context("Creating solution corpus")?;

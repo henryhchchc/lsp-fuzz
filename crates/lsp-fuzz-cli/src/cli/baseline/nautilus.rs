@@ -91,6 +91,8 @@ pub struct NautilusBaseline {
 
 impl NautilusBaseline {
     pub fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
+        self.state.create().context("Crating state dir")?;
+
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 

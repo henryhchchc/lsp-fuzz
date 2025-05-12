@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fs, io, path::PathBuf};
 
 use clap::builder::BoolishValueParser;
 use nix::sys::signal::Signal;
@@ -17,6 +17,10 @@ impl<P: Into<PathBuf>> From<P> for FuzzerStateDir {
 }
 
 impl FuzzerStateDir {
+    pub fn create(&self) -> io::Result<()> {
+        fs::create_dir_all(&self.0)
+    }
+
     pub fn corpus_dir(&self) -> PathBuf {
         self.0.join("corpus")
     }
