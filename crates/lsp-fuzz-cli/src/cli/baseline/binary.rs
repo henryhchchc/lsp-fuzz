@@ -87,7 +87,7 @@ pub struct BinaryBaseline {
     no_asan: bool,
 
     #[clap(long)]
-    seed: PathBuf,
+    seeds: PathBuf,
 
     /// Maximum size of generated inputs in bytes.
     #[clap(long, default_value_t = 8192)]
@@ -229,7 +229,7 @@ impl BinaryBaseline {
         common::set_cpu_affinity(self.cpu_affinity);
 
         let seed_files: Vec<_> = self
-            .seed
+            .seeds
             .read_dir()
             .context("Readind seed dir")?
             .map(Result::unwrap)
