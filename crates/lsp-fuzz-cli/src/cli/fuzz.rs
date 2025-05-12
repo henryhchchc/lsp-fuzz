@@ -137,13 +137,11 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let curiosity_feedback = FastAndFeedback::new(
-            match self.ablation_mode {
-                AblationMode::NoCuriosity => ConstFeedback::False,
-                _ => ConstFeedback::True,
-            },
-            CuriosityFeedback::new(20),
-        );
+        let curiosity_gate = match self.ablation_mode {
+            AblationMode::Full | AblationMode::NoErrorInjection => ConstFeedback::True,
+            AblationMode::NoCuriosity => ConstFeedback::False,
+        };
+        let curiosity_feedback = FastAndFeedback::new(curiosity_gate, CuriosityFeedback::new(20));
         let stats_file = OpenOptions::new()
             .write(true)
             .create(true)
