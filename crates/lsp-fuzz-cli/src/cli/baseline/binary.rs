@@ -3,12 +3,14 @@ use std::{fs::OpenOptions, io::BufWriter, ops::Not, path::PathBuf, time::Duratio
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
-    Fuzzer, NopInputFilter, StdFuzzerBuilder,
+    Evaluator, Fuzzer, NopInputFilter, StdFuzzerBuilder,
     events::SimpleEventManager,
     feedback_or,
     feedbacks::{MaxMapFeedback, TimeFeedback},
     generators::RandBytesGenerator,
-    inputs::NopBytesConverter,
+    inputs::{
+        BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
+    },
     monitors::SimpleMonitor,
     mutators::{HavocScheduledMutator, havoc_mutations_no_crossover},
     nonzero,
@@ -26,7 +28,9 @@ use libafl_bolts::{
     tuples::{Map, MappingFunctor, Prepend},
 };
 use lsp_fuzz::{
-    baseline::{BaselineByteConverter, BaselineMessageMutator, BaselineSequenceMutator},
+    baseline::{
+        BaselineByteConverter, BaselineInput, BaselineMessageMutator, BaselineSequenceMutator,
+    },
     corpus::TestCaseFileNameFeedback,
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
@@ -81,6 +85,9 @@ pub struct BinaryBaseline {
 
     #[clap(long)]
     no_asan: bool,
+
+    #[clap(long)]
+    seed: PathBuf,
 
     /// Maximum size of generated inputs in bytes.
     #[clap(long, default_value_t = 8192)]
@@ -221,7 +228,35 @@ impl BinaryBaseline {
 
         common::set_cpu_affinity(self.cpu_affinity);
 
-        // [TODO] Load seeds
+        let seed_files: Vec<_> = self
+            .seed
+            .read_dir()
+            .context("Readind seed dir")?
+            .map(Result::unwrap)
+            .filter_map(|it| it.metadata().unwrap().is_file().then_some(it.path()))
+            .collect();
+
+        let mut nautilus_ctx = libafl::generators::NautilusContext {
+            ctx: lsp_fuzz::lsp::metamodel::get_nautilus_context(),
+        };
+        nautilus_ctx.ctx.initialize(65535);
+        let mut seed_converter = NautilusBytesConverter::new(&nautilus_ctx);
+
+        for seed_path in seed_files {
+            let nautilus_seed = BaselineInput::<NautilusInput>::from_file(seed_path)?;
+            let binary_seed = BaselineInput::new(
+                nautilus_seed
+                    .messages()
+                    .map(|msg| {
+                        let bytes = seed_converter.to_bytes(msg).to_vec();
+                        BytesInput::new(bytes)
+                    })
+                    .collect(),
+            );
+            fuzzer
+                .add_input(&mut state, &mut executor, &mut event_manager, binary_seed)
+                .context("Adding seed")?;
+        }
 
         let fuzz_result = fuzzer.fuzz_loop(
             &mut fuzz_stages,

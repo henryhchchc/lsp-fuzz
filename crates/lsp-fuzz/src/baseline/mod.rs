@@ -18,7 +18,7 @@ use crate::lsp_input::LspInput;
 
 const MAX_MESSAGES: usize = 20;
 
-#[derive(Debug, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Serialize, Deserialize, New)]
 pub struct BaselineInput<Message> {
     messages: Vec<Message>,
 }
