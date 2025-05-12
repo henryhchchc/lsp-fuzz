@@ -170,18 +170,9 @@ impl BinaryBaseline {
             let mutation_stage = StdPowerMutationalStage::new(mutator);
             let trigger_stop = trigger_stop_stage()?;
             let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
-            let stats_stage = AflStatsStage::builder()
-                .banner("Baseline-Binary".to_owned())
-                .version(env!("CARGO_PKG_VERSION").to_owned())
-                .map_observer(&cov_observer)
-                .stats_file(self.state.stats_file())
-                .plot_file(self.state.plot_file())
-                .build()
-                .context("Creating AFL Stats stage")?;
             tuple_list![
                 calibration_stage,
                 mutation_stage,
-                stats_stage,
                 timeout_stop,
                 trigger_stop,
             ]

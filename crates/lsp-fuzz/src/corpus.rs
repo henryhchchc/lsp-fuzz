@@ -1,13 +1,15 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::RefCell};
 
 use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
-    corpus::{Corpus, CorpusId},
+    corpus::{Corpus, CorpusId, InMemoryOnDiskCorpus, Testcase},
     feedbacks::{Feedback, StateInitializer},
+    inputs::Input,
     state::{HasCorpus, HasExecutions, HasStartTime},
 };
 use libafl_bolts::{Named, current_time};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, New)]
 pub struct TestCaseFileNameFeedback;
@@ -41,7 +43,7 @@ where
         state: &mut State,
         _manager: &mut EM,
         _observers: &OT,
-        testcase: &mut libafl::corpus::Testcase<I>,
+        testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.corpus().peek_free_id();
         let time = (current_time() - *state.start_time()).as_secs();
