@@ -67,14 +67,12 @@ where
 pub fn create_corpus<I>(
     corpus_path: &Path,
     solution_path: &Path,
-) -> anyhow::Result<(CachedOnDiskCorpus<I>, OnDiskCorpus<I>)>
+) -> anyhow::Result<(InMemoryOnDiskCorpus<I>, OnDiskCorpus<I>)>
 where
     I: Input,
 {
-    const CACHE_LEN: usize = 4096;
-    let corpus =
-        CachedOnDiskCorpus::with_meta_format_and_prefix(corpus_path, CACHE_LEN, None, None, false)
-            .context("Creating corpus")?;
+    let corpus = InMemoryOnDiskCorpus::with_meta_format_and_prefix(corpus_path, None, None, false)
+        .context("Creating corpus")?;
 
     let solutions = OnDiskCorpus::with_meta_format_and_prefix(solution_path, None, None, false)
         .context("Creating solution corpus")?;
