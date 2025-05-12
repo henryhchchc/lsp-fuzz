@@ -8,7 +8,7 @@ use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
     HasMetadata,
-    corpus::{Corpus, CorpusId, HasTestcase, InMemoryOnDiskCorpus, Testcase},
+    corpus::{Corpus, CorpusId, HasTestcase, Testcase},
     feedbacks::{Feedback, StateInitializer},
     state::{HasCorpus, HasExecutions, HasStartTime},
 };
@@ -62,17 +62,17 @@ where
 }
 
 #[derive(Debug, Serialize, Deserialize, SerdeAny, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct TestCaseCorpusId(CorpusId);
+struct CacheCorpusId(CorpusId);
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProperCachedCorpus<I> {
-    inner: InMemoryOnDiskCorpus<I>,
+pub struct ProperCachedCorpus<Inner> {
+    inner: Inner,
     cache_size: usize,
     cached_test_case_ids: RefCell<VecDeque<CorpusId>>,
 }
 
-impl<I> ProperCachedCorpus<I> {
-    pub fn new(inner: InMemoryOnDiskCorpus<I>, cache_size: usize) -> Self {
+impl<Inner> ProperCachedCorpus<Inner> {
+    pub fn new(inner: Inner, cache_size: usize) -> Self {
         let cached_test_case_ids = RefCell::new(VecDeque::with_capacity(cache_size));
         Self {
             inner,
@@ -80,11 +80,34 @@ impl<I> ProperCachedCorpus<I> {
             cached_test_case_ids,
         }
     }
+
+    fn fun_name<I>(&self, testcase: &mut Testcase<I>) -> Result<(), libafl::Error>
+    where
+        Inner: Corpus<I>,
+    {
+        let &CacheCorpusId(id) = testcase.metadata().afl_context("Getting id metadata")?;
+        let mut borrowed_num = 0;
+        while self.cached_test_case_ids.borrow().len() >= self.cache_size {
+            let to_evic = self.cached_test_case_ids.borrow_mut().pop_front().unwrap();
+
+            if let Ok(mut borrowed) = self.inner.get_from_all(to_evic)?.try_borrow_mut() {
+                *borrowed.input_mut() = None;
+            } else {
+                self.cached_test_case_ids.borrow_mut().push_back(to_evic);
+                borrowed_num += 1;
+                if self.cache_size == borrowed_num {
+                    break;
+                }
+            }
+        }
+        self.cached_test_case_ids.borrow_mut().push_back(id);
+        Ok(())
+    }
 }
 
-impl<I> Corpus<I> for ProperCachedCorpus<I>
+impl<Inner, I> Corpus<I> for ProperCachedCorpus<Inner>
 where
-    InMemoryOnDiskCorpus<I>: Corpus<I>,
+    Inner: Corpus<I>,
 {
     fn count(&self) -> usize {
         self.inner.count()
@@ -101,7 +124,7 @@ where
     fn add(&mut self, testcase: Testcase<I>) -> Result<CorpusId, libafl::Error> {
         let id = self.inner.add(testcase)?;
         let mut test_case = self.get(id).expect("We added it just now").borrow_mut();
-        test_case.add_metadata(TestCaseCorpusId(id));
+        test_case.add_metadata(CacheCorpusId(id));
         Ok(id)
     }
 
@@ -111,7 +134,7 @@ where
             .get_from_all(id)
             .expect("We added it just now")
             .borrow_mut();
-        test_case.add_metadata(TestCaseCorpusId(id));
+        test_case.add_metadata(CacheCorpusId(id));
         Ok(id)
     }
 
@@ -120,7 +143,7 @@ where
         id: CorpusId,
         mut testcase: Testcase<I>,
     ) -> Result<Testcase<I>, libafl::Error> {
-        testcase.add_metadata(TestCaseCorpusId(id));
+        testcase.add_metadata(CacheCorpusId(id));
         self.inner.replace(id, testcase)
     }
 
@@ -171,22 +194,7 @@ where
     fn load_input_into(&self, testcase: &mut Testcase<I>) -> Result<(), libafl::Error> {
         if testcase.input().is_none() {
             self.inner.load_input_into(testcase)?;
-            let &TestCaseCorpusId(id) = testcase.metadata().afl_context("Getting id metadata")?;
-            let mut borrowed_num = 0;
-            while self.cached_test_case_ids.borrow().len() >= self.cache_size {
-                let to_evic = self.cached_test_case_ids.borrow_mut().pop_front().unwrap();
-
-                if let Ok(mut borrowed) = self.inner.get_from_all(to_evic)?.try_borrow_mut() {
-                    *borrowed.input_mut() = None;
-                } else {
-                    self.cached_test_case_ids.borrow_mut().push_back(to_evic);
-                    borrowed_num += 1;
-                    if self.cache_size == borrowed_num {
-                        break;
-                    }
-                }
-            }
-            self.cached_test_case_ids.borrow_mut().push_back(id);
+            self.fun_name(testcase)?;
         }
         Ok(())
     }
@@ -196,9 +204,9 @@ where
     }
 }
 
-impl<I> HasTestcase<I> for ProperCachedCorpus<I>
+impl<Inner, I> HasTestcase<I> for ProperCachedCorpus<Inner>
 where
-    InMemoryOnDiskCorpus<I>: HasTestcase<I>,
+    Inner: HasTestcase<I>,
 {
     fn testcase(&self, id: CorpusId) -> Result<Ref<'_, Testcase<I>>, libafl::Error> {
         self.inner.testcase(id)

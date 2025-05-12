@@ -67,7 +67,7 @@ where
 pub fn create_corpus<I>(
     corpus_path: &Path,
     solution_path: &Path,
-) -> anyhow::Result<(ProperCachedCorpus<I>, OnDiskCorpus<I>)>
+) -> anyhow::Result<(ProperCachedCorpus<InMemoryOnDiskCorpus<I>>, OnDiskCorpus<I>)>
 where
     I: Input,
 {
