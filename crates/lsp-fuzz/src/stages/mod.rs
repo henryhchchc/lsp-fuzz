@@ -234,6 +234,8 @@ impl<W, O, I> StatsStage<W, O, I> {
         writeln!(
             self.stats_writer,
             "{corpus_count},{time},{exec},{edges_found}"
-        )
+        )?;
+        self.stats_writer.flush()?;
+        Ok(())
     }
 }
