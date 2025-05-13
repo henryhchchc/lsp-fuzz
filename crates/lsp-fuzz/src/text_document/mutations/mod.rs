@@ -181,8 +181,10 @@ where
     State: HasRand,
 {
     fn mutate(&self, content: &mut Vec<u8>, state: &mut State) {
-        let truncate_positioin = state.rand_mut().below_or_zero(content.len());
-        content.truncate(truncate_positioin);
+        let mut string = String::from_utf8_lossy(content).into_owned();
+        let truncate_positioin = state.rand_mut().below_or_zero(string.chars().count());
+        string.truncate(truncate_positioin);
+        *content = string.into_bytes()
     }
 }
 
