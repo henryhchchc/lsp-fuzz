@@ -1,64 +1,65 @@
-use std::{borrow::Cow, collections::BTreeSet, marker::PhantomData, num::NonZero, sync::OnceLock};
+use std::{borrow::Cow, marker::PhantomData, num::NonZero, sync::OnceLock};
 
 use derive_new::new as New;
 use libafl::{
-    mutators::{ComposedByMutations, MutationResult, Mutator, MutatorsTuple},
+    corpus::CorpusId,
+    mutators::{ComposedByMutations, MutationResult, Mutator},
     state::HasRand,
 };
 use libafl_bolts::{Named, rands::Rand};
 
+pub trait WithProbability {
+    fn with_probability(self, probability: f64) -> ProbabilityMutator<Self>
+    where
+        Self: Sized;
+}
+
+impl<M> WithProbability for M {
+    fn with_probability(self, probability: f64) -> ProbabilityMutator<Self>
+    where
+        Self: Sized,
+    {
+        ProbabilityMutator::new(self, probability)
+    }
+}
+
 #[derive(Debug, New)]
-pub struct ShortCurcuitMutator<I, MT, State> {
-    mutators: MT,
-    _phantom: PhantomData<(I, State)>,
+pub struct ProbabilityMutator<Inner> {
+    inner: Inner,
+    probability: f64,
 }
 
-impl<I, MT, State> Named for ShortCurcuitMutator<I, MT, State> {
-    fn name(&self) -> &Cow<'static, str> {
-        static NAME: Cow<'static, str> = Cow::Borrowed("ShortCurcuitMutator");
-        &NAME
-    }
-}
-
-impl<I, MT, State> ComposedByMutations for ShortCurcuitMutator<I, MT, State> {
-    type Mutations = MT;
-
-    fn mutations(&self) -> &Self::Mutations {
-        &self.mutators
-    }
-
-    fn mutations_mut(&mut self) -> &mut Self::Mutations {
-        &mut self.mutators
-    }
-}
-
-impl<I, MT, State> Mutator<I, State> for ShortCurcuitMutator<I, MT, State>
+impl<Inner> Named for ProbabilityMutator<Inner>
 where
-    I: Clone,
-    MT: MutatorsTuple<I, State>,
+    Inner: Named,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        self.inner.name()
+    }
+}
+
+impl<Inner, State, I> Mutator<I, State> for ProbabilityMutator<Inner>
+where
     State: HasRand,
+    Inner: Mutator<I, State>,
 {
     fn mutate(
         &mut self,
         state: &mut State,
         input: &mut I,
     ) -> Result<MutationResult, libafl::Error> {
-        let mut rand = state.rand_mut();
-        let mut mutator_idx: BTreeSet<_> = (0..self.mutators.len()).collect();
-        while let Some(&idx) = rand.choose(mutator_idx.iter()) {
-            mutator_idx.remove(&idx);
-            match self.mutators.get_and_mutate(idx.into(), state, input)? {
-                MutationResult::Mutated => return Ok(MutationResult::Mutated),
-                MutationResult::Skipped => rand = state.rand_mut(),
-            }
+        // make it faster by skipping the rand generation if prob is zero
+        if self.probability == 0.0 || !state.rand_mut().coinflip(self.probability) {
+            Ok(MutationResult::Skipped)
+        } else {
+            self.inner.mutate(state, input)
         }
-        Ok(MutationResult::Skipped)
     }
 
     fn post_exec(
         &mut self,
         _state: &mut State,
-        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+        _new_corpus_id: Option<CorpusId>,
     ) -> Result<(), libafl::Error> {
         Ok(())
     }
@@ -104,7 +105,7 @@ where
     fn post_exec(
         &mut self,
         _state: &mut State,
-        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+        _new_corpus_id: Option<CorpusId>,
     ) -> Result<(), libafl::Error> {
         Ok(())
     }
@@ -147,7 +148,7 @@ where
     fn post_exec(
         &mut self,
         _state: &mut State,
-        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+        _new_corpus_id: Option<CorpusId>,
     ) -> Result<(), libafl::Error> {
         Ok(())
     }
@@ -211,7 +212,7 @@ where
     fn post_exec(
         &mut self,
         _state: &mut State,
-        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+        _new_corpus_id: Option<CorpusId>,
     ) -> Result<(), libafl::Error> {
         Ok(())
     }

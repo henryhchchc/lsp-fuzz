@@ -50,7 +50,7 @@ pub struct GeneratorsConfig {
     pub invalid_ranges: bool,
     pub tab_size: TabSizeGen,
     pub invalid_positions: bool,
-    pub invalid_code: bool,
+    pub invalid_code_frequency: f64,
 }
 
 impl GeneratorsConfig {
@@ -58,7 +58,7 @@ impl GeneratorsConfig {
         Self {
             invalid_ranges: true,
             invalid_positions: true,
-            invalid_code: true,
+            invalid_code_frequency: 0.2,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,
@@ -69,7 +69,7 @@ impl GeneratorsConfig {
         Self {
             invalid_ranges: false,
             invalid_positions: false,
-            invalid_code: false,
+            invalid_code_frequency: 0.0,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,

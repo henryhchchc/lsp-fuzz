@@ -22,7 +22,7 @@ use mutations::{
 use serde::{Deserialize, Serialize};
 use tuple_list::tuple_list;
 
-use crate::{lsp::GeneratorsConfig, lsp_input::LspInput, utils::EitherTuple};
+use crate::{lsp::GeneratorsConfig, lsp_input::LspInput, mutators::WithProbability};
 
 pub mod generation;
 pub mod grammar;
@@ -233,7 +233,7 @@ where
         remove_comment.clone(),
         remove_comment,
     ];
-    if genearators_config.invalid_code {
+    let incorrect_code_mutations = {
         let recover_from_error = ReplaceNodeInRandomRoc::new(
             grammar_lookup,
             NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
@@ -248,20 +248,23 @@ where
             ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, MismatchedNode);
         let terminal_truncation =
             NodeMutationInRandomDoc::new(NodeTruncation, grammar_lookup, terminal_node);
-        let utf8_mutation =
+        let terminal_char_mutation =
             NodeMutationInRandomDoc::new(NodeUTF8Mutation, grammar_lookup, terminal_node);
-        let incorrect_code_mutations = tuple_list![
+        let drop_terminal = ReplaceNodeInRandomRoc::new(grammar_lookup, terminal_node, EmptyNode);
+
+        tuple_list![
             recover_from_error,
             produce_missing_node,
-            generate_mismatched,
-            terminal_truncation,
-            utf8_mutation,
-            ReplaceNodeInRandomRoc::new(grammar_lookup, terminal_node, EmptyNode),
-        ];
-        EitherTuple::Left(correct_code_mutations.merge(incorrect_code_mutations))
-    } else {
-        EitherTuple::Right(correct_code_mutations)
-    }
+            generate_mismatched.with_probability(genearators_config.invalid_code_frequency),
+            terminal_truncation.with_probability(genearators_config.invalid_code_frequency),
+            terminal_char_mutation.with_probability(genearators_config.invalid_code_frequency),
+            drop_terminal
+                .clone()
+                .with_probability(genearators_config.invalid_code_frequency),
+            drop_terminal.with_probability(genearators_config.invalid_code_frequency),
+        ]
+    };
+    correct_code_mutations.merge(incorrect_code_mutations)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
