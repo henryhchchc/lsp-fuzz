@@ -58,7 +58,7 @@ impl GeneratorsConfig {
         Self {
             invalid_ranges: true,
             invalid_positions: true,
-            invalid_code_frequency: 0.2,
+            invalid_code_frequency: 0.1,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,
