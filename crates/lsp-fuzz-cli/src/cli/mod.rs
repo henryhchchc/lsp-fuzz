@@ -15,7 +15,9 @@ use fuzz::FuzzCommand;
 use libafl::inputs::{BytesInput, NautilusInput};
 use lsp_fuzz::{baseline::BaselineInput, lsp_input::LspInput};
 use mine_grammar_fragments::MineGrammarFragments;
-use reproduce::{reproduce_all::ReproduceAll, reproduce_one::ReproduceOne};
+use reproduce::{
+    reproduce_all::ReproduceAll, reproduce_baseline::ReproduceBaseline, reproduce_one::ReproduceOne,
+};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -45,6 +47,7 @@ impl Cli {
             Command::CorpusCoverageLspFuzz(cmd) => cmd.run(self.global_options),
             Command::CorpusCoverageBaselineBinary(cmd) => cmd.run(self.global_options),
             Command::CorpusCoverageBaselineGrammar(cmd) => cmd.run(self.global_options),
+            Command::ReproduceBaseline(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -83,6 +86,7 @@ enum Command {
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
+    ReproduceBaseline(ReproduceBaseline),
     CorpusCoverageLspFuzz(CorpusCoverage<LspInput>),
     CorpusCoverageBaselineBinary(CorpusCoverage<BaselineInput<BytesInput>>),
     CorpusCoverageBaselineGrammar(CorpusCoverage<BaselineInput<NautilusInput>>),

@@ -23,6 +23,7 @@ use serde::Serialize;
 use tracing::{info, warn};
 
 pub mod reproduce_all;
+pub mod reproduce_baseline;
 pub mod reproduce_one;
 
 fn json_rpc_messages<'a>(
@@ -147,7 +148,7 @@ fn reproduce(
     let (crashing_request_idx, crashing_request) = crashing_request.unzip();
     Ok(Some(ReproductionInfo {
         input_id,
-        input,
+        input: Some(input),
         crashing_request_idx,
         crashing_request,
         asan_summary,
@@ -215,7 +216,7 @@ fn asan_options(asan_log_file: &Path) -> Vec<Cow<'_, str>> {
 #[derive(Debug, Serialize)]
 pub struct ReproductionInfo {
     pub input_id: String,
-    pub input: LspInput,
+    pub input: Option<LspInput>,
     pub crashing_request_idx: Option<usize>,
     pub crashing_request: Option<JsonRPCMessage>,
     pub asan_summary: String,
