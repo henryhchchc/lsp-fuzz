@@ -139,7 +139,7 @@ impl FuzzCommand {
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let curiosity_gate = match self.ablation_mode {
-            AblationMode::Full | AblationMode::NoErrorInjection => ConstFeedback::True,
+            AblationMode::Full | AblationMode::NoContextAwareness => ConstFeedback::True,
             AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
         };
         let ops_behavior_observer = OpsBehaviorObserver::new("OpsBehavior", 20);
@@ -197,8 +197,8 @@ impl FuzzCommand {
             let mutation_stage = {
                 let generators_config = match self.ablation_mode {
                     AblationMode::Full | AblationMode::NoCuriosity => GeneratorsConfig::full(),
-                    AblationMode::NoErrorInjection | AblationMode::AllOff => {
-                        GeneratorsConfig::no_error_injection()
+                    AblationMode::NoContextAwareness | AblationMode::AllOff => {
+                        GeneratorsConfig::no_context_awareness()
                     }
                 };
                 let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(

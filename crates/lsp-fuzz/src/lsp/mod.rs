@@ -67,11 +67,11 @@ impl GeneratorsConfig {
             },
         }
     }
-    pub fn no_error_injection() -> Self {
+    pub fn no_context_awareness() -> Self {
         Self {
-            invalid_ranges: false,
-            invalid_positions: false,
-            ctx_awareness: true,
+            invalid_ranges: true,
+            invalid_positions: true,
+            ctx_awareness: false,
             invalid_code_frequency: 0.0,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],

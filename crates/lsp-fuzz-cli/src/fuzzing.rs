@@ -82,6 +82,6 @@ pub struct ExecutorOptions {
 pub enum AblationMode {
     Full,
     NoCuriosity,
-    NoErrorInjection,
+    NoContextAwareness,
     AllOff,
 }
