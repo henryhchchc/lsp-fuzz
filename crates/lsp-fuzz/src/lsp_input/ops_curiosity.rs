@@ -8,14 +8,17 @@ use std::{
 
 use ahash::{AHasher, HashSet, HashSetExt};
 use derive_more::derive::{Deref, DerefMut};
-use derive_new::new as New;
 use fastbloom::BloomFilter;
 use libafl::{
     HasMetadata, SerdeAny,
     feedbacks::{Feedback, StateInitializer},
+    observers::{Observer, ObserversTuple},
     state::HasCorpus,
 };
-use libafl_bolts::Named;
+use libafl_bolts::{
+    Named,
+    tuples::{Handle, Handled, MatchNameRef},
+};
 use serde::{Deserialize, Serialize};
 
 use super::{GrammarBasedMutation, Language};
@@ -26,9 +29,17 @@ use crate::{
     utils::AflContext,
 };
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct CuriosityFeedback {
-    max_syn_depth: usize,
+    observer_handle: Handle<OpsBehaviorObserver>,
+}
+
+impl CuriosityFeedback {
+    pub fn new(observer: &OpsBehaviorObserver) -> Self {
+        Self {
+            observer_handle: observer.handle(),
+        }
+    }
 }
 
 impl Named for CuriosityFeedback {
@@ -51,25 +62,50 @@ where
 impl<EM, OBS, State> Feedback<EM, LspInput, OBS, State> for CuriosityFeedback
 where
     State: HasMetadata + HasCorpus<LspInput>,
+    OBS: ObserversTuple<LspInput, State>,
 {
     fn is_interesting(
         &mut self,
         state: &mut State,
         _manager: &mut EM,
-        input: &LspInput,
-        _observers: &OBS,
+        _input: &LspInput,
+        observers: &OBS,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<bool, libafl::Error> {
-        let observed_ops: &mut ObservedOpsBehaviors = state
+        let metadata: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
-        let behavior_data = analyze_behavior_data(input, self.max_syn_depth)
-            .afl_context("Analyzing behavior data")?;
-        let is_interesting = behavior_data
-            .into_iter()
-            // The merge operation must be on the left hand side to make sure it is always performed.
-            .fold(false, move |acc, ref it| observed_ops.merge(it) || acc);
+        let observer = observers
+            .get(&self.observer_handle)
+            .afl_context("OpsBehaviorObserver not found")?;
+
+        let behavior_data = observer
+            .observed_behavior()
+            .afl_context("Observer did not observe any behavior.")?;
+        let is_interesting = behavior_data.iter().any(|it| !metadata.contains(it));
         Ok(is_interesting)
+    }
+
+    fn append_metadata(
+        &mut self,
+        state: &mut State,
+        _manager: &mut EM,
+        observers: &OBS,
+        _testcase: &mut libafl::corpus::Testcase<LspInput>,
+    ) -> Result<(), libafl::Error> {
+        let metadata: &mut ObservedOpsBehaviors = state
+            .metadata_mut()
+            .expect("We inserted that at the beginning");
+        let observer = observers
+            .get(&self.observer_handle)
+            .afl_context("OpsBehaviorObserver not found")?;
+        let behavior_data = observer
+            .observed_behavior()
+            .afl_context("Observer did not observe any behavior.")?;
+        behavior_data.iter().for_each(|it| {
+            metadata.merge(it);
+        });
+        Ok(())
     }
 }
 
@@ -236,6 +272,56 @@ impl Default for ObservedOpsBehaviors {
 impl ObservedOpsBehaviors {
     pub fn merge(&mut self, new_data: &OpsBehaviorData) -> bool {
         !self.inner.insert(new_data)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OpsBehaviorObserver {
+    name: Cow<'static, str>,
+    max_syn_depth: usize,
+    #[serde(skip)]
+    observed_behavior: Option<HashSet<OpsBehaviorData>>,
+}
+
+impl OpsBehaviorObserver {
+    pub fn new<N>(name: N, max_syn_depth: usize) -> Self
+    where
+        N: Into<Cow<'static, str>>,
+    {
+        Self {
+            name: name.into(),
+            max_syn_depth,
+            observed_behavior: None,
+        }
+    }
+
+    pub const fn observed_behavior(&self) -> Option<&HashSet<OpsBehaviorData>> {
+        self.observed_behavior.as_ref()
+    }
+}
+
+impl Named for OpsBehaviorObserver {
+    fn name(&self) -> &Cow<'static, str> {
+        &self.name
+    }
+}
+
+impl<State> Observer<LspInput, State> for OpsBehaviorObserver {
+    fn pre_exec(&mut self, _state: &mut State, _input: &LspInput) -> Result<(), libafl::Error> {
+        self.observed_behavior = None;
+        Ok(())
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        input: &LspInput,
+        _exit_kind: &libafl::executors::ExitKind,
+    ) -> Result<(), libafl::Error> {
+        let data = analyze_behavior_data(input, self.max_syn_depth)
+            .afl_context("Analyzing behavior data")?;
+        self.observed_behavior = Some(data);
+        Ok(())
     }
 }
 

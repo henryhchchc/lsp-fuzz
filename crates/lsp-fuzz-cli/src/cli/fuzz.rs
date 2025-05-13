@@ -32,8 +32,9 @@ use lsp_fuzz::{
     fuzz_target,
     lsp::GeneratorsConfig,
     lsp_input::{
-        LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
-        ops_curiosity::CuriosityFeedback,
+        LspInputBytesConverter, LspInputGenerator, LspInputMutator,
+        messages::message_mutations,
+        ops_curiosity::{CuriosityFeedback, OpsBehaviorObserver},
     },
     stages::{StatsStage, TimeoutStopStage},
     text_document::text_document_mutations,
@@ -141,7 +142,11 @@ impl FuzzCommand {
             AblationMode::Full | AblationMode::NoErrorInjection => ConstFeedback::True,
             AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
         };
-        let curiosity_feedback = EagerAndFeedback::new(curiosity_gate, CuriosityFeedback::new(20));
+        let ops_behavior_observer = OpsBehaviorObserver::new("OpsBehavior", 20);
+        let curiosity_feedback = EagerAndFeedback::new(
+            curiosity_gate,
+            CuriosityFeedback::new(&ops_behavior_observer),
+        );
         let stats_file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -238,7 +243,11 @@ impl FuzzCommand {
                 coverage_shm_info: (coverage_map_shmem_id, cov_observer.as_ref().len()),
                 map_observer: cov_observer,
                 asan_observer,
-                other_observers: tuple_list![workspace_observer, time_observer],
+                other_observers: tuple_list![
+                    workspace_observer,
+                    ops_behavior_observer,
+                    time_observer
+                ],
             };
             LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
