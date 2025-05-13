@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -163,6 +164,12 @@ fn reproduce_baseline(
         Ok(_) => {}
         Err(err) if err.kind() == ErrorKind::BrokenPipe => {}
         err => err?,
+    }
+    if child.try_wait().context("Trying to wait target")?.is_none() {
+        std::thread::sleep(Duration::from_secs(15));
+        if child.try_wait().context("Trying to wait target")?.is_none() {
+            child.kill().context("Killing child")?;
+        }
     }
     let status = child.wait().context("Waiting for target to exit")?;
     info!("Target exited with status: {:?}", status);
