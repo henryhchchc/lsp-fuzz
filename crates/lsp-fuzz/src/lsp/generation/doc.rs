@@ -1,7 +1,8 @@
-use std::{marker::PhantomData, result::Result};
+use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
 
 use derive_new::new as New;
 use libafl::state::HasRand;
+use libafl_bolts::rands::Rand;
 use lsp_types::TextDocumentIdentifier;
 
 use super::{GenerationError, LspParamsGenerator};
@@ -38,15 +39,43 @@ where
     }
 }
 
+#[derive(Debug, New)]
+pub struct MeaninglessTextDocumentIdentifierGenerator;
+
+impl<State> LspParamsGenerator<State> for MeaninglessTextDocumentIdentifierGenerator
+where
+    State: HasRand,
+{
+    type Output = TextDocumentIdentifier;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let uri_content = state.rand_mut().below_or_zero(65536);
+        let uri = lsp_types::Uri::from(
+            fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).unwrap(),
+        );
+        Ok(Self::Output { uri })
+    }
+}
+
 impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
 where
     State: HasRand,
 {
-    type Generator = TextDocumentIdentifierGenerator<RandomDoc>;
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = TextDocumentIdentifier>>;
 
     fn generators(
-        _config: &crate::lsp::GeneratorsConfig,
+        config: &crate::lsp::GeneratorsConfig,
     ) -> impl IntoIterator<Item = Self::Generator> {
-        [TextDocumentIdentifierGenerator::<RandomDoc>::new()]
+        let mut generators: Vec<Self::Generator> = Vec::new();
+        if config.ctx_awareness {
+            generators.push(Rc::new(TextDocumentIdentifierGenerator::<RandomDoc>::new()));
+        } else {
+            generators.push(Rc::new(MeaninglessTextDocumentIdentifierGenerator::new()));
+        }
+        generators
     }
 }
