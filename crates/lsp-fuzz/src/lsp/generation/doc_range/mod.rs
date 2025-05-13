@@ -1,7 +1,8 @@
-use std::{marker::PhantomData, result::Result};
+use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
 
 use derive_new::new as New;
 use libafl::state::HasRand;
+use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier};
 
 use super::{GenerationError, LspParamsGenerator};
@@ -20,7 +21,7 @@ mod range_selectors;
 pub struct Selection(pub TextDocumentIdentifier, pub Range);
 
 #[derive(Debug, New)]
-pub struct RangeInDocGenerator<State, D> {
+pub struct RangeInDocGenerator<State, D = RandomDoc> {
     range_selector: fn(&mut State, &TextDocument) -> Range,
     _phantom: PhantomData<D>,
 }
@@ -30,6 +31,9 @@ impl<State, D> Clone for RangeInDocGenerator<State, D> {
         Self::new(self.range_selector)
     }
 }
+
+#[derive(Debug, New)]
+pub struct InvalidSelectionGenerator;
 
 impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>
 where
@@ -50,11 +54,45 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for Selection
+impl<State> LspParamsGenerator<State> for InvalidSelectionGenerator
 where
     State: HasRand,
 {
-    type Generator = RangeInDocGenerator<State, RandomDoc>;
+    type Output = Selection;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let generate = |state: &mut State, _input: &LspInput| -> Option<Selection> {
+            let uri_content = state.rand_mut().below_or_zero(65536);
+            let random_uri = lsp_types::Uri::from(
+                fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
+            );
+            let random_pos = |state: &mut State| -> lsp_types::Position {
+                lsp_types::Position {
+                    line: state.rand_mut().below_or_zero(1024) as u32,
+                    character: state.rand_mut().below_or_zero(1024) as u32,
+                }
+            };
+            let start = random_pos(state);
+            let end = random_pos(state);
+
+            Some(Selection(
+                TextDocumentIdentifier { uri: random_uri },
+                Range { start, end },
+            ))
+        };
+        generate(state, input).ok_or(GenerationError::NothingGenerated)
+    }
+}
+
+impl<State> HasPredefinedGenerators<State> for Selection
+where
+    State: HasRand + 'static,
+{
+    type Generator = Rc<dyn LspParamsGenerator<State, Output = Selection>>;
 
     fn generators(
         config: &crate::lsp::GeneratorsConfig,
@@ -62,25 +100,68 @@ where
     where
         State: HasRand,
     {
-        let range_sels = if config.invalid_ranges {
-            [
-                range_selectors::whole_range,
-                range_selectors::random_range,
-                range_selectors::random_range,
-                range_selectors::after_range,
-                range_selectors::inverted_range,
-                range_selectors::random_subtree,
-            ]
+        let mut generators: Vec<Self::Generator> = Vec::new();
+
+        type RINDGen<State> = RangeInDocGenerator<State, RandomDoc>;
+        if config.ctx_awareness {
+            generators.extend(
+                [
+                    RINDGen::new(range_selectors::whole_range),
+                    RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_subtree),
+                    RINDGen::new(range_selectors::random_subtree),
+                    RINDGen::new(range_selectors::random_subtree),
+                    RINDGen::new(range_selectors::random_subtree),
+                    RINDGen::new(range_selectors::random_subtree),
+                ]
+                .map(Rc::new)
+                .map(|it| it as _),
+            );
+            if config.invalid_ranges {
+                generators.extend(
+                    [
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_valid_range),
+                        RINDGen::new(range_selectors::random_valid_range),
+                        RINDGen::new(range_selectors::after_range),
+                        RINDGen::new(range_selectors::inverted_range),
+                    ]
+                    .map(Rc::new)
+                    .map(|it| it as _),
+                );
+            }
         } else {
-            [
-                range_selectors::whole_range,
-                range_selectors::random_range,
-                range_selectors::random_range,
-                range_selectors::random_range,
-                range_selectors::random_range,
-                range_selectors::random_subtree,
-            ]
+            generators.extend(
+                [
+                    RINDGen::new(range_selectors::random_invalid_range::<2048, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
+                ]
+                .map(Rc::new)
+                .map(|it| it as _),
+            );
+            generators.extend(
+                [
+                    InvalidSelectionGenerator::new(),
+                    InvalidSelectionGenerator::new(),
+                    InvalidSelectionGenerator::new(),
+                    InvalidSelectionGenerator::new(),
+                    InvalidSelectionGenerator::new(),
+                ]
+                .map(Rc::new)
+                .map(|it| it as _),
+            );
         };
-        range_sels.map(RangeInDocGenerator::new)
+
+        generators
     }
 }

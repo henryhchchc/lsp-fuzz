@@ -19,7 +19,7 @@ pub(super) fn whole_range<State>(_: &mut State, doc: &TextDocument) -> Range {
     lsp_whole_range(doc)
 }
 
-pub(super) fn random_range<State: HasRand>(state: &mut State, doc: &TextDocument) -> Range {
+pub(super) fn random_valid_range<State: HasRand>(state: &mut State, doc: &TextDocument) -> Range {
     let rand = state.rand_mut();
     let lines: Vec<_> = doc.lines().collect();
     let start_line_idx = rand.below_or_zero(lines.len());
@@ -33,6 +33,22 @@ pub(super) fn random_range<State: HasRand>(state: &mut State, doc: &TextDocument
     let end = Position {
         line: end_line_idx as u32,
         character: rand.below_or_zero(end_line.len()) as u32,
+    };
+    Range { start, end }
+}
+
+pub(super) fn random_invalid_range<const MAX_RAND: usize, State: HasRand>(
+    state: &mut State,
+    _doc: &TextDocument,
+) -> Range {
+    let rand = state.rand_mut();
+    let start = Position {
+        line: rand.below_or_zero(MAX_RAND) as u32,
+        character: rand.below_or_zero(MAX_RAND) as u32,
+    };
+    let end = Position {
+        line: rand.below_or_zero(MAX_RAND) as u32,
+        character: rand.below_or_zero(MAX_RAND) as u32,
     };
     Range { start, end }
 }

@@ -67,19 +67,23 @@ where
         let term_start_pos = TerminalStartPosition::new();
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
-
+        let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let mut generators = Vec::new();
-        generators.extend([
-            Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-            term_start.clone(),
-            term_start.clone(),
-            term_start.clone(),
-            steer.clone(),
-            steer.clone(),
-            steer.clone(),
-        ]);
+        if config.ctx_awareness {
+            generators.extend([
+                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
+                term_start.clone(),
+                term_start.clone(),
+                term_start.clone(),
+                steer.clone(),
+                steer.clone(),
+                steer.clone(),
+            ]);
+        } else {
+            generators.push(random_position.clone());
+        }
         if config.invalid_positions {
-            generators.push(Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024))));
+            generators.push(random_position);
         }
         generators
     }
