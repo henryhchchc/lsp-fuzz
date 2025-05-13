@@ -81,7 +81,7 @@ impl<Inner> ProperCachedCorpus<Inner> {
         }
     }
 
-    fn fun_name<I>(&self, testcase: &mut Testcase<I>) -> Result<(), libafl::Error>
+    fn adjust_cache<I>(&self, testcase: &mut Testcase<I>) -> Result<(), libafl::Error>
     where
         Inner: Corpus<I>,
     {
@@ -194,7 +194,7 @@ where
     fn load_input_into(&self, testcase: &mut Testcase<I>) -> Result<(), libafl::Error> {
         if testcase.input().is_none() {
             self.inner.load_input_into(testcase)?;
-            self.fun_name(testcase)?;
+            self.adjust_cache(testcase)?;
         }
         Ok(())
     }
