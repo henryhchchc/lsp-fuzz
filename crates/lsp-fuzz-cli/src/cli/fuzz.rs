@@ -9,7 +9,7 @@ use libafl::{
     corpus::Corpus,
     events::SimpleEventManager,
     feedback_or,
-    feedbacks::{ConstFeedback, FastAndFeedback, MaxMapFeedback, TimeFeedback},
+    feedbacks::{ConstFeedback, EagerAndFeedback, MaxMapFeedback, TimeFeedback},
     monitors::SimpleMonitor,
     mutators::HavocScheduledMutator,
     observers::{
@@ -141,7 +141,7 @@ impl FuzzCommand {
             AblationMode::Full | AblationMode::NoErrorInjection => ConstFeedback::True,
             AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
         };
-        let curiosity_feedback = FastAndFeedback::new(curiosity_gate, CuriosityFeedback::new(20));
+        let curiosity_feedback = EagerAndFeedback::new(curiosity_gate, CuriosityFeedback::new(20));
         let stats_file = OpenOptions::new()
             .write(true)
             .create(true)

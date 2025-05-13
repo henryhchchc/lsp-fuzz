@@ -244,6 +244,12 @@ mod tests {
     use lsp_fuzz_grammars::Language;
 
     #[test]
+    fn bloom_filter() {
+        let mut bloom = fastbloom::BloomFilter::with_false_pos(0.01).expected_items(10);
+        assert!(!bloom.insert(&233));
+    }
+
+    #[test]
     fn node_hashing() {
         let rust_code = r#"
         fn main() {
