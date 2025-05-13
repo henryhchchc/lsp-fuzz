@@ -140,11 +140,11 @@ where
         } else {
             generators.extend(
                 [
-                    RINDGen::new(range_selectors::random_invalid_range::<2048, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<1024, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
+                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
                 ]
                 .map(Rc::new)
                 .map(|it| it as _),

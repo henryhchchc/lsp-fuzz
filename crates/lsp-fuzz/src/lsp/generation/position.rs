@@ -1,6 +1,8 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::{marker::PhantomData, rc::Rc, str::FromStr};
 
+use derive_new::new as New;
 use libafl::{HasMetadata, state::HasRand};
+use libafl_bolts::rands::Rand;
 use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
 use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
@@ -68,6 +70,8 @@ where
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
+        let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
+
         let mut generators = Vec::new();
         if config.ctx_awareness {
             generators.extend([
@@ -79,12 +83,52 @@ where
                 steer.clone(),
                 steer.clone(),
             ]);
+            if config.invalid_positions {
+                generators.push(random_position);
+            }
         } else {
             generators.push(random_position.clone());
+            generators.push(invalid_pos.clone());
+            generators.push(invalid_pos.clone());
+            generators.push(invalid_pos.clone());
+            generators.push(invalid_pos.clone());
         }
-        if config.invalid_positions {
-            generators.push(random_position);
-        }
+
         generators
+    }
+}
+
+#[derive(Debug, New)]
+pub struct InvalidDocPositionGenerator;
+
+impl<State> LspParamsGenerator<State> for InvalidDocPositionGenerator
+where
+    State: HasRand,
+{
+    type Output = TextDocumentPositionParams;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let generate =
+            |state: &mut State, _input: &LspInput| -> Option<TextDocumentPositionParams> {
+                let uri_content = state.rand_mut().below_or_zero(65536);
+                let random_uri = lsp_types::Uri::from(
+                    fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
+                );
+
+                let position = lsp_types::Position {
+                    line: state.rand_mut().below_or_zero(65536) as u32,
+                    character: state.rand_mut().below_or_zero(65536) as u32,
+                };
+
+                Some(TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri: random_uri },
+                    position,
+                })
+            };
+        generate(state, input).ok_or(GenerationError::NothingGenerated)
     }
 }
