@@ -52,7 +52,8 @@ impl ReproduceAll {
                 .to_str()
                 .context("The file name is not valid UTF-8")?
                 .to_owned();
-            let lsp_input = LspInput::from_file(&input_file).context("Loading input file")?;
+            let lsp_input = LspInput::from_file(&input_file)
+                .with_context(|| format!("Loading input file: {}", input_file.display()))?;
             info!("Reproducing crash for input {}", input_id);
             reproduce(
                 input_id,
