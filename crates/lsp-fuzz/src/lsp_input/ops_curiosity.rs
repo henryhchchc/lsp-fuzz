@@ -154,6 +154,8 @@ fn digest_ops_data(
         .parse_tree()
         .root_node()
         .descendant_for_point_range(ts_point, ts_point)
+        && !node.has_error()
+        && !node.is_missing()
     {
         let language = doc.language();
         let node_kind = node.kind_id();
@@ -190,7 +192,11 @@ fn digest_range_data(
     {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.range().start_point <= start && child.range().end_point <= end {
+            if child.range().start_point <= start
+                && child.range().end_point <= end
+                && !node.has_error()
+                && !node.is_missing()
+            {
                 let language = doc.language();
                 let ops_method = op.method();
                 let node_kind = child.kind_id();
