@@ -139,7 +139,7 @@ impl FuzzCommand {
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let curiosity_gate = match self.ablation_mode {
             AblationMode::Full | AblationMode::NoErrorInjection => ConstFeedback::True,
-            AblationMode::NoCuriosity => ConstFeedback::False,
+            AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
         };
         let curiosity_feedback = FastAndFeedback::new(curiosity_gate, CuriosityFeedback::new(20));
         let stats_file = OpenOptions::new()
@@ -192,7 +192,9 @@ impl FuzzCommand {
             let mutation_stage = {
                 let generators_config = match self.ablation_mode {
                     AblationMode::Full | AblationMode::NoCuriosity => GeneratorsConfig::full(),
-                    AblationMode::NoErrorInjection => GeneratorsConfig::no_error_injection(),
+                    AblationMode::NoErrorInjection | AblationMode::AllOff => {
+                        GeneratorsConfig::no_error_injection()
+                    }
                 };
                 let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(
                     text_document_mutations(&grammar_ctx, &generators_config),

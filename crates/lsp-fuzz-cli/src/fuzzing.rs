@@ -83,4 +83,5 @@ pub enum AblationMode {
     Full,
     NoCuriosity,
     NoErrorInjection,
+    AllOff,
 }
