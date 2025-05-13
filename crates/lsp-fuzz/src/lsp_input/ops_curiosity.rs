@@ -123,10 +123,9 @@ fn analyze_behavior_data(
             {
                 data.insert(ops_data);
             }
-            if let Some(range) = op.range()
-                && let Some(ops_data) = digest_range_data(op, doc, range, max_syn_depth)
-            {
-                data.insert(ops_data);
+            if let Some(range) = op.range() {
+                let ops_data = digest_range_data(op, doc, range, max_syn_depth);
+                data.extend(ops_data);
             }
         }
     }
@@ -134,11 +133,18 @@ fn analyze_behavior_data(
     Ok(data)
 }
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct OpsBehaviorData {
+    language: Language,
+    node_kind: u16,
+    ops_method: &'static str,
+}
+
 fn digest_ops_data(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     position: &lsp_types::Position,
-    max_syn_depth: usize,
+    _max_syn_depth: usize,
 ) -> Option<OpsBehaviorData> {
     let ts_point = tree_sitter::Point {
         row: position.line as usize,
@@ -148,16 +154,13 @@ fn digest_ops_data(
         .parse_tree()
         .root_node()
         .descendant_for_point_range(ts_point, ts_point)
-        && node.child_count() == 0
     {
-        let mut hasher = AHasher::default();
-        hash_node_path(node, max_syn_depth, &mut hasher)?;
-        let syntactic_signature = hasher.finish();
         let language = doc.language();
+        let node_kind = node.kind_id();
         let ops_method = op.method();
         Some(OpsBehaviorData {
             language,
-            syntactic_signature,
+            node_kind,
             ops_method,
         })
     } else {
@@ -169,8 +172,9 @@ fn digest_range_data(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     range: &lsp_types::Range,
-    max_syn_depth: usize,
-) -> Option<OpsBehaviorData> {
+    _max_syn_depth: usize,
+) -> HashSet<OpsBehaviorData> {
+    let mut data = HashSet::new();
     let start = tree_sitter::Point {
         row: range.start.line as usize,
         column: range.start.character as usize,
@@ -184,29 +188,24 @@ fn digest_range_data(
         .root_node()
         .descendant_for_point_range(start, end)
     {
-        let mut hasher = AHasher::default();
-        hash_node_path(node, max_syn_depth, &mut hasher)?;
-        let mut curaor = node.walk();
-        for child in node.children(&mut curaor) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
             if child.range().start_point <= start && child.range().end_point <= end {
-                child.grammar_id().hash(&mut hasher);
+                let language = doc.language();
+                let ops_method = op.method();
+                let node_kind = child.kind_id();
+                data.insert(OpsBehaviorData {
+                    language,
+                    node_kind,
+                    ops_method,
+                });
             }
         }
-
-        let syntactic_signature = hasher.finish();
-        let language = doc.language();
-        let ops_method = op.method();
-        Some(OpsBehaviorData {
-            language,
-            syntactic_signature,
-            ops_method,
-        })
-    } else {
-        None
     }
+    data
 }
 
-fn hash_node_path<H: Hasher>(
+pub fn hash_node_path<H: Hasher>(
     node: tree_sitter::Node<'_>,
     max_syn_depth: usize,
     hasher: &mut H,
@@ -248,13 +247,6 @@ pub fn hash_paths(parse_tree: &tree_sitter::Tree, max_depth: usize) -> Option<Ha
 
 fn hash_node(hasher: &mut AHasher, node: tree_sitter::Node<'_>) {
     hasher.write_u16(node.grammar_id());
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct OpsBehaviorData {
-    language: Language,
-    syntactic_signature: u64,
-    ops_method: &'static str,
 }
 
 #[derive(Debug, Serialize, Deserialize, Deref, DerefMut, SerdeAny)]
