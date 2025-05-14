@@ -203,3 +203,20 @@ where
         }
     }
 }
+
+pub fn generate_random_string<R: Rand>(rand: &mut R, max_length: usize) -> String {
+    let length = if max_length > 0 {
+        rand.below_or_zero(max_length) + 1 // Ensure we generate at least one character
+    } else {
+        0
+    };
+
+    let mut result = String::with_capacity(length);
+    for _ in 0..length {
+        // Generate a random ASCII character from the printable range (32 to 126)
+        let char_code = rand.between(32, 126) as u8;
+        result.push(char_code as char);
+    }
+
+    result
+}

@@ -14,6 +14,7 @@ use crate::{
         },
     },
     text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
+    utils::generate_random_string,
 };
 
 #[derive(Debug)]
@@ -87,7 +88,6 @@ where
                 generators.push(random_position);
             }
         } else {
-            generators.push(random_position.clone());
             generators.push(invalid_pos.clone());
             generators.push(invalid_pos.clone());
             generators.push(invalid_pos.clone());
@@ -114,14 +114,15 @@ where
     ) -> Result<Self::Output, GenerationError> {
         let generate =
             |state: &mut State, _input: &LspInput| -> Option<TextDocumentPositionParams> {
-                let uri_content = state.rand_mut().below_or_zero(65536);
+                let rand = state.rand_mut();
+                let uri_content = generate_random_string(rand, 256);
                 let random_uri = lsp_types::Uri::from(
                     fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
                 );
 
                 let position = lsp_types::Position {
-                    line: state.rand_mut().below_or_zero(65536) as u32,
-                    character: state.rand_mut().below_or_zero(65536) as u32,
+                    line: rand.below_or_zero(65536) as u32,
+                    character: rand.below_or_zero(65536) as u32,
                 };
 
                 Some(TextDocumentPositionParams {

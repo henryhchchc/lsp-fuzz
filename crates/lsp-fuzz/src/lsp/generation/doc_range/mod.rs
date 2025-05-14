@@ -13,6 +13,7 @@ use crate::{
         TextDocument,
         mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     },
+    utils::generate_random_string,
 };
 
 mod range_selectors;
@@ -66,18 +67,19 @@ where
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
         let generate = |state: &mut State, _input: &LspInput| -> Option<Selection> {
-            let uri_content = state.rand_mut().below_or_zero(65536);
+            let rand = state.rand_mut();
+            let uri_content = generate_random_string(rand, 256);
             let random_uri = lsp_types::Uri::from(
                 fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
             );
-            let random_pos = |state: &mut State| -> lsp_types::Position {
+            let mut random_pos = || -> lsp_types::Position {
                 lsp_types::Position {
-                    line: state.rand_mut().below_or_zero(1024) as u32,
-                    character: state.rand_mut().below_or_zero(1024) as u32,
+                    line: rand.below_or_zero(1024) as u32,
+                    character: rand.below_or_zero(1024) as u32,
                 }
             };
-            let start = random_pos(state);
-            let end = random_pos(state);
+            let start = random_pos();
+            let end = random_pos();
 
             Some(Selection(
                 TextDocumentIdentifier { uri: random_uri },
