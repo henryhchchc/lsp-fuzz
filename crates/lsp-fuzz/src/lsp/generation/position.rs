@@ -14,7 +14,7 @@ use crate::{
         },
     },
     text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
-    utils::generate_random_string,
+    utils::generate_random_uri_content,
 };
 
 #[derive(Debug)]
@@ -115,7 +115,7 @@ where
         let generate =
             |state: &mut State, _input: &LspInput| -> Option<TextDocumentPositionParams> {
                 let rand = state.rand_mut();
-                let uri_content = generate_random_string(rand, 256);
+                let uri_content = generate_random_uri_content(rand, 256);
                 let random_uri = lsp_types::Uri::from(
                     fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
                 );
