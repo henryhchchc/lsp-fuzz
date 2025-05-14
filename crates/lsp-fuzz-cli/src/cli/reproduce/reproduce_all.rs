@@ -41,7 +41,7 @@ impl ReproduceAll {
             .map(Result::unwrap)
             .filter(|it| {
                 it.metadata().is_ok_and(|it| it.is_file())
-                    && it.file_name().to_string_lossy().starts_with("input_")
+                    && it.file_name().to_string_lossy().starts_with("id_")
             })
             .map(|it| it.path());
 
