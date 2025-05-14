@@ -142,8 +142,8 @@ impl FuzzCommand {
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
         let curiosity_gate = match self.ablation_mode {
-            AblationMode::Full | AblationMode::NoContextAwareness => ConstFeedback::True,
-            AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
+            AblationMode::Full => ConstFeedback::True,
+            _ => ConstFeedback::False,
         };
         let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
         let curiosity_feedback = EagerAndFeedback::new(
