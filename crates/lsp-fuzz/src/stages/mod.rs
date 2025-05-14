@@ -17,7 +17,7 @@ use libafl::{
     feedbacks::{MapFeedback, MapFeedbackMetadata},
     observers::MapObserver,
     stages::{Restartable, Stage},
-    state::{HasCorpus, HasExecutions, HasStartTime},
+    state::{HasCorpus, HasExecutions, HasSolutions, HasStartTime},
 };
 use libafl_bolts::{Named, current_time, serdeany::SerdeAny};
 use serde::{Deserialize, Serialize};
@@ -186,7 +186,7 @@ impl<W, O, I, State> Restartable<State> for StatsStage<W, O, I> {
 impl<E, EM, State, Z, W, I, O> Stage<E, EM, State, Z> for StatsStage<W, O, I>
 where
     W: Write,
-    State: HasCorpus<I> + HasExecutions + HasStartTime + HasNamedMetadata,
+    State: HasCorpus<I> + HasSolutions<I> + HasExecutions + HasStartTime + HasNamedMetadata,
     O: MapObserver,
     MapFeedbackMetadata<O::Entry>: SerdeAny,
 {
@@ -198,6 +198,7 @@ where
         _manager: &mut EM,
     ) -> Result<(), libafl::Error> {
         let corpus_count = state.corpus().count();
+        let solutions_count = state.solutions().count();
         let time = (current_time() - *state.start_time()).as_secs();
         let exec = *state.executions();
 
@@ -206,7 +207,7 @@ where
             .afl_context("Looking up coverage metadata")?;
         let edges_found = cov_feedback_meta.num_covered_map_indexes;
 
-        self.write_stat(corpus_count, time, exec, edges_found)
+        self.write_stat(corpus_count, solutions_count, time, exec, edges_found)
             .afl_context("Writing stat")?;
         Ok(())
     }
@@ -224,6 +225,7 @@ impl<W, O, I> StatsStage<W, O, I> {
     fn write_stat(
         &mut self,
         corpus_count: usize,
+        solutions_count: usize,
         time: u64,
         exec: u64,
         edges_found: usize,
@@ -233,7 +235,7 @@ impl<W, O, I> StatsStage<W, O, I> {
     {
         writeln!(
             self.stats_writer,
-            "{corpus_count},{time},{exec},{edges_found}"
+            "{corpus_count},{solutions_count},{time},{exec},{edges_found}"
         )?;
         self.stats_writer.flush()?;
         Ok(())
