@@ -29,21 +29,26 @@ pub struct ReproduceAll {
 
     #[clap(long)]
     no_parallel: bool,
+
+    #[clap(long)]
+    input_prefix: Option<String>,
 }
 
 impl ReproduceAll {
     pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
         info!(?self);
-        let input_files = self
-            .solution_dir
-            .read_dir()
-            .context("Reading solution directory")?
-            .map(Result::unwrap)
-            .filter(|it| {
-                it.metadata().is_ok_and(|it| it.is_file())
-                    && it.file_name().to_string_lossy().starts_with("id_")
-            })
-            .map(|it| it.path());
+        let input_files =
+            self.solution_dir
+                .read_dir()
+                .context("Reading solution directory")?
+                .map(Result::unwrap)
+                .filter(|it| {
+                    it.metadata().is_ok_and(|it| it.is_file())
+                        && self.input_prefix.as_ref().is_none_or(|prefix| {
+                            it.file_name().to_string_lossy().starts_with(prefix)
+                        })
+                })
+                .map(|it| it.path());
 
         let reproduce_one = |input_file: PathBuf| {
             let input_id = input_file
