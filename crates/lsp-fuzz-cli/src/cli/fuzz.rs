@@ -145,7 +145,7 @@ impl FuzzCommand {
         let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
         let curiosity_feedback = EagerAndFeedback::new(
             curiosity_gate,
-            CuriosityFeedback::new(&ops_behavior_observer),
+            CuriosityFeedback::new(&ops_behavior_observer, 128),
         );
         let stats_file = OpenOptions::new()
             .write(true)

@@ -13,7 +13,7 @@ use libafl::{
     HasMetadata, SerdeAny,
     feedbacks::{Feedback, StateInitializer},
     observers::{Observer, ObserversTuple},
-    state::HasCorpus,
+    state::{HasCorpus, HasExecutions},
 };
 use libafl_bolts::{
     Named,
@@ -33,12 +33,16 @@ use crate::{
 #[derive(Debug)]
 pub struct CuriosityFeedback<const MAX_DEPTH: usize> {
     observer_handle: Handle<OpsBehaviorObserver<MAX_DEPTH>>,
+    opt_in_threshold: u64,
+    last_found_exec: u64,
 }
 
 impl<const MAX_DEPTH: usize> CuriosityFeedback<MAX_DEPTH> {
-    pub fn new(observer: &OpsBehaviorObserver<MAX_DEPTH>) -> Self {
+    pub fn new(observer: &OpsBehaviorObserver<MAX_DEPTH>, opt_in_threshold: u64) -> Self {
         Self {
             observer_handle: observer.handle(),
+            last_found_exec: 0,
+            opt_in_threshold,
         }
     }
 }
@@ -63,7 +67,7 @@ where
 impl<EM, OBS, State, const MAX_DEPTH: usize> Feedback<EM, LspInput, OBS, State>
     for CuriosityFeedback<MAX_DEPTH>
 where
-    State: HasMetadata + HasCorpus<LspInput>,
+    State: HasMetadata + HasCorpus<LspInput> + HasExecutions,
     OBS: ObserversTuple<LspInput, State>,
 {
     fn is_interesting(
@@ -74,6 +78,7 @@ where
         observers: &OBS,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<bool, libafl::Error> {
+        let should_opt_in = (*state.executions() - self.last_found_exec) > self.opt_in_threshold;
         let metadata: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
@@ -85,7 +90,7 @@ where
             .observed_behavior()
             .afl_context("Observer did not observe any behavior.")?;
         let is_interesting = behavior_data.iter().any(|it| !metadata.contains(it));
-        Ok(is_interesting)
+        Ok(is_interesting && should_opt_in)
     }
 
     fn append_metadata(
@@ -95,6 +100,7 @@ where
         observers: &OBS,
         _testcase: &mut libafl::corpus::Testcase<LspInput>,
     ) -> Result<(), libafl::Error> {
+        self.last_found_exec = *state.executions();
         let metadata: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
