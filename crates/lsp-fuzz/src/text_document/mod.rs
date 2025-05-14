@@ -14,7 +14,7 @@ use libafl_bolts::{
 };
 use lsp_fuzz_grammars::Language;
 use mutations::{
-    NodeContentMutation, NodeTruncation, NodeUTF8Mutation, ReplaceNodeMutation,
+    NodeContentMutation, NodeTruncation, ReplaceNodeMutation,
     node_filters::HighlightedNodes,
     node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar, MismatchedNode},
     text_document_selectors::RandomDoc,
@@ -248,8 +248,8 @@ where
             ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, MismatchedNode);
         let terminal_truncation =
             NodeMutationInRandomDoc::new(NodeTruncation, grammar_lookup, terminal_node);
-        let terminal_char_mutation =
-            NodeMutationInRandomDoc::new(NodeUTF8Mutation, grammar_lookup, terminal_node);
+        // let terminal_char_mutation =
+        //     NodeMutationInRandomDoc::new(NodeUTF8Mutation, grammar_lookup, terminal_node);
         let drop_terminal = ReplaceNodeInRandomRoc::new(grammar_lookup, terminal_node, EmptyNode);
 
         tuple_list![
@@ -257,7 +257,7 @@ where
             produce_missing_node,
             generate_mismatched.with_probability(genearators_config.invalid_code_frequency),
             terminal_truncation.with_probability(genearators_config.invalid_code_frequency),
-            terminal_char_mutation.with_probability(genearators_config.invalid_code_frequency),
+            // terminal_char_mutation.with_probability(genearators_config.invalid_code_frequency),
             drop_terminal
                 .clone()
                 .with_probability(genearators_config.invalid_code_frequency),
