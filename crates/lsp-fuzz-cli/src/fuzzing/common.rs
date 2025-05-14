@@ -5,7 +5,7 @@ use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
     corpus::{HasTestcase, InMemoryOnDiskCorpus, OnDiskCorpus},
-    feedback_and_fast, feedback_or_fast,
+    feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, Feedback, NewHashFeedback},
     inputs::Input,
     observers::{AsanBacktraceObserver, CanTrack},
@@ -57,12 +57,14 @@ where
     Observers: MatchName,
     State: HasNamedMetadata + HasSolutions<I> + HasExecutions + HasStartTime,
 {
-    feedback_and_fast!(
+    feedback_or!(
         TestCaseFileNameFeedback::<SOLUTION>::new(),
-        CrashFeedback::new(),
-        feedback_or_fast!(
-            ConstFeedback::new(!asan_enabled),
-            NewHashFeedback::new(asan_observer),
+        feedback_and_fast!(
+            CrashFeedback::new(),
+            feedback_or_fast!(
+                ConstFeedback::new(!asan_enabled),
+                NewHashFeedback::new(asan_observer),
+            )
         )
     )
 }

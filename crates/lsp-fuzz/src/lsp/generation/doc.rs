@@ -2,7 +2,6 @@ use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
 
 use derive_new::new as New;
 use libafl::state::HasRand;
-use libafl_bolts::rands::Rand;
 use lsp_types::TextDocumentIdentifier;
 
 use super::{GenerationError, LspParamsGenerator};
@@ -10,6 +9,7 @@ use crate::{
     lsp::HasPredefinedGenerators,
     lsp_input::LspInput,
     text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
+    utils::generate_random_string,
 };
 
 #[derive(Debug, New)]
@@ -53,7 +53,7 @@ where
         state: &mut State,
         _input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
-        let uri_content = state.rand_mut().below_or_zero(65536);
+        let uri_content = generate_random_string(state.rand_mut(), 256);
         let uri = lsp_types::Uri::from(
             fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).unwrap(),
         );
