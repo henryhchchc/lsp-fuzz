@@ -99,6 +99,9 @@ pub(super) struct FuzzCommand {
 
     #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
     language_fragments: HashMap<Language, PathBuf>,
+
+    #[clap(long, default_value_t = 512)]
+    curiosity_opt_in_threshold: u64,
 }
 
 impl FuzzCommand {
@@ -145,7 +148,7 @@ impl FuzzCommand {
         let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
         let curiosity_feedback = EagerAndFeedback::new(
             curiosity_gate,
-            CuriosityFeedback::new(&ops_behavior_observer, 128),
+            CuriosityFeedback::new(&ops_behavior_observer, self.curiosity_opt_in_threshold),
         );
         let stats_file = OpenOptions::new()
             .write(true)
