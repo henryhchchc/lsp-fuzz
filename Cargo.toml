@@ -41,6 +41,7 @@ serde = "1"
 serde_cbor = "0.11"
 serde_json = { version = "1", features = ["preserve_order"] }
 static_assertions = "1.1.0"
+smallvec = { version = "1.15", features = ["const_generics"] }
 thiserror = "2"
 tracing = "0.1"
 tokio = { version = "1", features = ["full"] }

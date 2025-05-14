@@ -20,6 +20,7 @@ use libafl_bolts::{
     tuples::{Handle, Handled, MatchNameRef},
 };
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use super::{GrammarBasedMutation, Language};
 use crate::{
@@ -30,26 +31,26 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct CuriosityFeedback {
-    observer_handle: Handle<OpsBehaviorObserver>,
+pub struct CuriosityFeedback<const MAX_DEPTH: usize> {
+    observer_handle: Handle<OpsBehaviorObserver<MAX_DEPTH>>,
 }
 
-impl CuriosityFeedback {
-    pub fn new(observer: &OpsBehaviorObserver) -> Self {
+impl<const MAX_DEPTH: usize> CuriosityFeedback<MAX_DEPTH> {
+    pub fn new(observer: &OpsBehaviorObserver<MAX_DEPTH>) -> Self {
         Self {
             observer_handle: observer.handle(),
         }
     }
 }
 
-impl Named for CuriosityFeedback {
+impl<const MAX_DEPTH: usize> Named for CuriosityFeedback<MAX_DEPTH> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("CuriosityFeedback");
         &NAME
     }
 }
 
-impl<State> StateInitializer<State> for CuriosityFeedback
+impl<State, const MAX_DEPTH: usize> StateInitializer<State> for CuriosityFeedback<MAX_DEPTH>
 where
     State: HasMetadata,
 {
@@ -59,7 +60,8 @@ where
     }
 }
 
-impl<EM, OBS, State> Feedback<EM, LspInput, OBS, State> for CuriosityFeedback
+impl<EM, OBS, State, const MAX_DEPTH: usize> Feedback<EM, LspInput, OBS, State>
+    for CuriosityFeedback<MAX_DEPTH>
 where
     State: HasMetadata + HasCorpus<LspInput>,
     OBS: ObserversTuple<LspInput, State>,
@@ -75,11 +77,11 @@ where
         let metadata: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
-        let observer = observers
+        let observer: &OpsBehaviorObserver<MAX_DEPTH> = observers
             .get(&self.observer_handle)
             .afl_context("OpsBehaviorObserver not found")?;
 
-        let behavior_data = observer
+        let behavior_data: &HashSet<OpsBehaviorData<MAX_DEPTH>> = observer
             .observed_behavior()
             .afl_context("Observer did not observe any behavior.")?;
         let is_interesting = behavior_data.iter().any(|it| !metadata.contains(it));
@@ -96,10 +98,10 @@ where
         let metadata: &mut ObservedOpsBehaviors = state
             .metadata_mut()
             .expect("We inserted that at the beginning");
-        let observer = observers
+        let observer: &OpsBehaviorObserver<MAX_DEPTH> = observers
             .get(&self.observer_handle)
             .afl_context("OpsBehaviorObserver not found")?;
-        let behavior_data = observer
+        let behavior_data: &HashSet<OpsBehaviorData<MAX_DEPTH>> = observer
             .observed_behavior()
             .afl_context("Observer did not observe any behavior.")?;
         behavior_data.iter().for_each(|it| {
@@ -109,17 +111,16 @@ where
     }
 }
 
-fn analyze_behavior_data(
+fn analyze_behavior_data<const MAX_DEPTH: usize>(
     input: &LspInput,
-    max_syn_depth: usize,
-) -> Result<HashSet<OpsBehaviorData>, libafl::Error> {
+) -> Result<HashSet<OpsBehaviorData<MAX_DEPTH>>, libafl::Error> {
     let mut data = HashSet::new();
     for op in input.messages.iter() {
         if let Some(doc) = op.document()
             && let Some(doc) = input.get_text_document(&doc.uri)
         {
             if let Some(position) = op.position()
-                && let Some(ops_data) = digest_ops_data(op, doc, position, max_syn_depth)
+                && let Some(ops_data) = digest_ops_data(op, doc, position)
             {
                 data.insert(ops_data);
             }
@@ -135,18 +136,17 @@ fn analyze_behavior_data(
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub struct OpsBehaviorData {
+pub struct OpsBehaviorData<const MAX_DEPTH: usize> {
     language: Language,
-    node_kind: u16,
+    node_path: SmallVec<[u16; MAX_DEPTH]>,
     ops_method: &'static str,
 }
 
-fn digest_ops_data(
+fn digest_ops_data<const MAX_DEPTH: usize>(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     position: &lsp_types::Position,
-    _max_syn_depth: usize,
-) -> Option<OpsBehaviorData> {
+) -> Option<OpsBehaviorData<MAX_DEPTH>> {
     let ts_point = tree_sitter::Point {
         row: position.line as usize,
         column: position.character as usize,
@@ -159,11 +159,14 @@ fn digest_ops_data(
         && !node.is_missing()
     {
         let language = doc.language();
-        let node_kind = node.kind_id();
+        let node_path = iter::successors(Some(node), |it| it.parent())
+            .take(MAX_DEPTH)
+            .map(|it| it.grammar_id())
+            .collect();
         let ops_method = op.method();
         Some(OpsBehaviorData {
             language,
-            node_kind,
+            node_path,
             ops_method,
         })
     } else {
@@ -171,12 +174,12 @@ fn digest_ops_data(
     }
 }
 
-fn _digest_range_data(
+fn _digest_range_data<const MAX_DEPTH: usize>(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     range: &lsp_types::Range,
     _max_syn_depth: usize,
-) -> HashSet<OpsBehaviorData> {
+) -> HashSet<OpsBehaviorData<MAX_DEPTH>> {
     let mut data = HashSet::new();
     let start = tree_sitter::Point {
         row: range.start.line as usize,
@@ -200,10 +203,13 @@ fn _digest_range_data(
             {
                 let language = doc.language();
                 let ops_method = op.method();
-                let node_kind = child.kind_id();
+                let node_path = iter::successors(Some(node), |it| it.parent())
+                    .take(MAX_DEPTH)
+                    .map(|it| it.grammar_id())
+                    .collect();
                 data.insert(OpsBehaviorData {
                     language,
-                    node_kind,
+                    node_path,
                     ops_method,
                 });
             }
@@ -269,43 +275,41 @@ impl Default for ObservedOpsBehaviors {
 }
 
 impl ObservedOpsBehaviors {
-    pub fn merge(&mut self, new_data: &OpsBehaviorData) -> bool {
+    pub fn merge<const MAX_DEPTH: usize>(&mut self, new_data: &OpsBehaviorData<MAX_DEPTH>) -> bool {
         !self.inner.insert(new_data)
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OpsBehaviorObserver {
+pub struct OpsBehaviorObserver<const MAX_DEPTH: usize> {
     name: Cow<'static, str>,
-    max_syn_depth: usize,
     #[serde(skip)]
-    observed_behavior: Option<HashSet<OpsBehaviorData>>,
+    observed_behavior: Option<HashSet<OpsBehaviorData<MAX_DEPTH>>>,
 }
 
-impl OpsBehaviorObserver {
-    pub fn new<N>(name: N, max_syn_depth: usize) -> Self
+impl<const MAX_DEPTH: usize> OpsBehaviorObserver<MAX_DEPTH> {
+    pub fn new<N>(name: N) -> Self
     where
         N: Into<Cow<'static, str>>,
     {
         Self {
             name: name.into(),
-            max_syn_depth,
             observed_behavior: None,
         }
     }
 
-    pub const fn observed_behavior(&self) -> Option<&HashSet<OpsBehaviorData>> {
+    pub const fn observed_behavior(&self) -> Option<&HashSet<OpsBehaviorData<MAX_DEPTH>>> {
         self.observed_behavior.as_ref()
     }
 }
 
-impl Named for OpsBehaviorObserver {
+impl<const MAX_DEPTH: usize> Named for OpsBehaviorObserver<MAX_DEPTH> {
     fn name(&self) -> &Cow<'static, str> {
         &self.name
     }
 }
 
-impl<State> Observer<LspInput, State> for OpsBehaviorObserver {
+impl<State, const MAX_DEPTH: usize> Observer<LspInput, State> for OpsBehaviorObserver<MAX_DEPTH> {
     fn pre_exec(&mut self, _state: &mut State, _input: &LspInput) -> Result<(), libafl::Error> {
         self.observed_behavior = None;
         Ok(())
@@ -317,8 +321,7 @@ impl<State> Observer<LspInput, State> for OpsBehaviorObserver {
         input: &LspInput,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<(), libafl::Error> {
-        let data = analyze_behavior_data(input, self.max_syn_depth)
-            .afl_context("Analyzing behavior data")?;
+        let data = analyze_behavior_data(input).afl_context("Analyzing behavior data")?;
         self.observed_behavior = Some(data);
         Ok(())
     }

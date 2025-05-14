@@ -142,7 +142,7 @@ impl FuzzCommand {
             AblationMode::Full | AblationMode::NoContextAwareness => ConstFeedback::True,
             AblationMode::NoCuriosity | AblationMode::AllOff => ConstFeedback::False,
         };
-        let ops_behavior_observer = OpsBehaviorObserver::new("OpsBehavior", 20);
+        let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
         let curiosity_feedback = EagerAndFeedback::new(
             curiosity_gate,
             CuriosityFeedback::new(&ops_behavior_observer),
