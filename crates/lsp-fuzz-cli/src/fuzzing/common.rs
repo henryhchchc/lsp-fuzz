@@ -5,21 +5,23 @@ use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
     corpus::{HasTestcase, InMemoryOnDiskCorpus, OnDiskCorpus},
-    feedbacks::{
-        ConstFeedback, CrashFeedback, FastAndFeedback, FastOrFeedback, Feedback, NewHashFeedback,
-    },
+    feedback_and_fast, feedback_or_fast,
+    feedbacks::{ConstFeedback, CrashFeedback, Feedback, NewHashFeedback},
     inputs::Input,
     observers::{AsanBacktraceObserver, CanTrack},
     schedulers::{
         IndexesLenTimeMinimizerScheduler, Scheduler, StdWeightedScheduler,
         powersched::{BaseSchedule, PowerSchedule},
     },
-    state::{HasCorpus, HasRand},
+    state::{HasCorpus, HasExecutions, HasRand, HasSolutions, HasStartTime},
 };
 use libafl_bolts::{HasLen, Named, tuples::MatchName};
 use lsp_fuzz::{
-    corpus::ProperCachedCorpus, execution::FuzzTargetInfo, fuzz_target::StaticTargetBinaryInfo,
-    stages::StopOnReceived, utf8::UTF8Tokens,
+    corpus::{ProperCachedCorpus, TestCaseFileNameFeedback, corpus_kind::SOLUTION},
+    execution::FuzzTargetInfo,
+    fuzz_target::StaticTargetBinaryInfo,
+    stages::StopOnReceived,
+    utf8::UTF8Tokens,
 };
 use rayon::prelude::*;
 use tracing::{info, warn};
@@ -53,14 +55,15 @@ pub fn objective<EM, I, Observers, State>(
 ) -> impl Feedback<EM, I, Observers, State> + use<EM, I, Observers, State>
 where
     Observers: MatchName,
-    State: HasNamedMetadata,
+    State: HasNamedMetadata + HasSolutions<I> + HasExecutions + HasStartTime,
 {
-    FastAndFeedback::new(
+    feedback_and_fast!(
+        TestCaseFileNameFeedback::<SOLUTION>::new(),
         CrashFeedback::new(),
-        FastOrFeedback::new(
+        feedback_or_fast!(
             ConstFeedback::new(!asan_enabled),
             NewHashFeedback::new(asan_observer),
-        ),
+        )
     )
 }
 

@@ -32,7 +32,7 @@ use lsp_fuzz::{
         BaselineByteConverter, BaselineInput, BaselineInputGenerator, BaselineMessageMutator,
         BaselineSequenceMutator,
     },
-    corpus::TestCaseFileNameFeedback,
+    corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StatsStage, StopOnReceived, TimeoutStopStage},
@@ -142,7 +142,7 @@ impl NautilusBaseline {
         let mut feedback = feedback_or!(
             map_feedback,
             baseline_grammar_feedback,
-            TestCaseFileNameFeedback::new(),
+            TestCaseFileNameFeedback::<CORPUS>::new(),
             TimeFeedback::new(&time_observer)
         );
 

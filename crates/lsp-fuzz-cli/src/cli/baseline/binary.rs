@@ -31,7 +31,7 @@ use lsp_fuzz::{
     baseline::{
         BaselineByteConverter, BaselineInput, BaselineMessageMutator, BaselineSequenceMutator,
     },
-    corpus::TestCaseFileNameFeedback,
+    corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{FuzzExecutionConfig, FuzzInput, LspExecutor},
     fuzz_target,
     stages::{StatsStage, StopOnReceived, TimeoutStopStage},
@@ -140,7 +140,7 @@ impl BinaryBaseline {
 
         let mut feedback = feedback_or!(
             map_feedback,
-            TestCaseFileNameFeedback::new(),
+            TestCaseFileNameFeedback::<CORPUS>::new(),
             TimeFeedback::new(&time_observer)
         );
         let mut objective = common::objective(asan_enabled, &asan_observer);

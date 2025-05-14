@@ -25,7 +25,7 @@ use libafl_bolts::{
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
 use lsp_fuzz::{
-    corpus::TestCaseFileNameFeedback,
+    corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{
         FuzzExecutionConfig, FuzzInput, LspExecutor, workspace_observer::WorkspaceObserver,
     },
@@ -159,7 +159,7 @@ impl FuzzCommand {
         let mut feedback = feedback_or!(
             map_feedback,
             curiosity_feedback,
-            TestCaseFileNameFeedback::new(),
+            TestCaseFileNameFeedback::<CORPUS>::new(),
             TimeFeedback::new(&time_observer)
         );
 

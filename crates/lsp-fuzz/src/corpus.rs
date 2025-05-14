@@ -4,13 +4,14 @@ use std::{
     collections::VecDeque,
 };
 
+use corpus_kind::{CORPUS, SOLUTION};
 use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
     HasMetadata,
     corpus::{Corpus, CorpusId, HasTestcase, Testcase},
     feedbacks::{Feedback, StateInitializer},
-    state::{HasCorpus, HasExecutions, HasStartTime},
+    state::{HasCorpus, HasExecutions, HasSolutions, HasStartTime},
 };
 use libafl_bolts::{Named, SerdeAny, current_time};
 use serde::{Deserialize, Serialize};
@@ -18,18 +19,23 @@ use serde::{Deserialize, Serialize};
 use crate::utils::AflContext;
 
 #[derive(Debug, New)]
-pub struct TestCaseFileNameFeedback;
+pub struct TestCaseFileNameFeedback<const KIND: bool>;
 
-impl Named for TestCaseFileNameFeedback {
+pub mod corpus_kind {
+    pub const CORPUS: bool = true;
+    pub const SOLUTION: bool = false;
+}
+
+impl<const KIND: bool> Named for TestCaseFileNameFeedback<KIND> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("TestCaseFileNameFeedback");
         &NAME
     }
 }
 
-impl<State> StateInitializer<State> for TestCaseFileNameFeedback {}
+impl<const KIND: bool, State> StateInitializer<State> for TestCaseFileNameFeedback<KIND> {}
 
-impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback
+impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback<CORPUS>
 where
     State: HasExecutions + HasStartTime + HasCorpus<I>,
 {
@@ -52,6 +58,38 @@ where
         testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.corpus().peek_free_id();
+        let time = (current_time() - *state.start_time()).as_secs();
+        let exec = *state.executions();
+
+        let file_name = format!("id_{id}_time_{time}_exec_{exec}");
+        *testcase.filename_mut() = Some(file_name);
+        Ok(())
+    }
+}
+
+impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback<SOLUTION>
+where
+    State: HasExecutions + HasStartTime + HasSolutions<I>,
+{
+    fn is_interesting(
+        &mut self,
+        _state: &mut State,
+        _manager: &mut EM,
+        _input: &I,
+        _observers: &OT,
+        _exit_kind: &libafl::executors::ExitKind,
+    ) -> Result<bool, libafl::Error> {
+        Ok(false)
+    }
+
+    fn append_metadata(
+        &mut self,
+        state: &mut State,
+        _manager: &mut EM,
+        _observers: &OT,
+        testcase: &mut Testcase<I>,
+    ) -> Result<(), libafl::Error> {
+        let CorpusId(id) = state.solutions().peek_free_id();
         let time = (current_time() - *state.start_time()).as_secs();
         let exec = *state.executions();
 
