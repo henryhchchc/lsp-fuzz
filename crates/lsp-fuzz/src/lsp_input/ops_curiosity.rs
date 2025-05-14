@@ -123,9 +123,10 @@ fn analyze_behavior_data(
             {
                 data.insert(ops_data);
             }
-            if let Some(range) = op.range() {
-                let ops_data = digest_range_data(op, doc, range, max_syn_depth);
-                data.extend(ops_data);
+            if let Some(_range) = op.range() {
+                continue;
+                // let ops_data = digest_range_data(op, doc, range, max_syn_depth);
+                // data.extend(ops_data);
             }
         }
     }
@@ -170,7 +171,7 @@ fn digest_ops_data(
     }
 }
 
-fn digest_range_data(
+fn _digest_range_data(
     op: &ClientToServerMessage,
     doc: &TextDocument,
     range: &lsp_types::Range,
