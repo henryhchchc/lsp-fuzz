@@ -46,7 +46,7 @@ where
     if cycle_power_schedule {
         weighted_scheduler = weighted_scheduler.cycling_scheduler();
     }
-    IndexesLenTimeMinimizerScheduler::new(cov_observer, weighted_scheduler)
+    IndexesLenTimeMinimizerScheduler::with_skip_prob(cov_observer, weighted_scheduler, 0.75)
 }
 
 pub fn objective<EM, I, Observers, State>(
