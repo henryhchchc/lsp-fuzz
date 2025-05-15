@@ -34,7 +34,7 @@ use lsp_fuzz::{
     lsp::GeneratorsConfig,
     lsp_input::{
         LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
-        ops_curiosity::OpsBehaviorObserver, output_novelty::OutputNoveltyFeedback,
+        output_novelty::OutputNoveltyFeedback,
     },
     stages::{StatsStage, TimeoutStopStage},
     text_document::text_document_mutations,
@@ -99,9 +99,6 @@ pub(super) struct FuzzCommand {
 
     #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
     language_fragments: HashMap<Language, PathBuf>,
-
-    #[clap(long, default_value_t = 512)]
-    curiosity_opt_in_threshold: u64,
 }
 
 impl FuzzCommand {
@@ -146,7 +143,6 @@ impl FuzzCommand {
             AblationMode::Full => ConstFeedback::True,
             _ => ConstFeedback::False,
         };
-        let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
         let output_novelty = EagerAndFeedback::new(
             curiosity_gate,
             OutputNoveltyFeedback::new(&lsp_response_observer),
@@ -248,11 +244,7 @@ impl FuzzCommand {
                 map_observer: cov_observer,
                 responses_observer: lsp_response_observer,
                 asan_observer,
-                other_observers: tuple_list![
-                    workspace_observer,
-                    ops_behavior_observer,
-                    time_observer
-                ],
+                other_observers: tuple_list![workspace_observer, time_observer],
             };
             LspExecutor::start(target_info, exec_config).context("Starting executor")?
         };
