@@ -27,7 +27,8 @@ use libafl_bolts::{
 use lsp_fuzz::{
     corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{
-        FuzzExecutionConfig, FuzzInput, LspExecutor, workspace_observer::WorkspaceObserver,
+        FuzzExecutionConfig, FuzzInput, LspExecutor, responses::ResponsesObserver,
+        workspace_observer::WorkspaceObserver,
     },
     fuzz_target,
     lsp::GeneratorsConfig,
@@ -131,6 +132,7 @@ impl FuzzCommand {
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
+        let lsp_response_observer = ResponsesObserver::new();
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
         let asan_enabled = binary_info.uses_address_sanitizer && self.no_asan.not();
@@ -245,6 +247,7 @@ impl FuzzCommand {
                 auto_tokens: tokens.as_mut(),
                 coverage_shm_info: (coverage_map_shmem_id, cov_observer.as_ref().len()),
                 map_observer: cov_observer,
+                responses_observer: lsp_response_observer,
                 asan_observer,
                 other_observers: tuple_list![
                     workspace_observer,

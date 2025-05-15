@@ -106,6 +106,7 @@ pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
     pub auto_tokens: Option<&'a mut UTF8Tokens>,
     pub coverage_shm_info: (ShMemId, usize),
     pub map_observer: MO,
+    pub responses_observer: ResponsesObserver,
     pub asan_observer: Option<AsanBacktraceObserver>,
     pub other_observers: OBS,
 }
@@ -216,7 +217,7 @@ where
 
         let observers = Observers {
             map_observer: config.map_observer,
-            responses_observer: ResponsesObserver::new(),
+            responses_observer: config.responses_observer,
             asan_observer: config.asan_observer,
             other_observers: config.other_observers,
         };
