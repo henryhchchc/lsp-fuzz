@@ -230,7 +230,6 @@ impl NeoForkServer {
         command
             .args(args)
             .stdin(Stdio::null()) // Will be overridden by input_setup if necessary
-            .stdout(unsafe { Stdio::from_raw_fd(stdout_capture_fd.as_raw_fd()) }) // SAFTY: The fild should not be closed
             .stderr(stderr);
 
         command.env("__AFL_SHM_ID", shm_id.to_string());
@@ -266,6 +265,7 @@ impl NeoForkServer {
         let bind_pipes = {
             let child_reader_fd = child_reader.as_raw_fd();
             let child_writer_fd = child_writer.as_raw_fd();
+            let output_capture_fd = stdout_capture_fd.as_raw_fd();
             let communication_fds = [
                 rx.as_raw_fd(),
                 tx.as_raw_fd(),
@@ -274,6 +274,7 @@ impl NeoForkServer {
             ];
             move || {
                 use nix::unistd::{close, dup2};
+                dup2(output_capture_fd, nix::libc::STDOUT_FILENO).map_err(io::Error::from)?;
                 dup2(child_reader_fd, fd::CONTROL).map_err(io::Error::from)?;
                 dup2(child_writer_fd, fd::STATUS).map_err(io::Error::from)?;
                 for fd in communication_fds {
