@@ -33,7 +33,7 @@ use lsp_fuzz::{
         BaselineSequenceMutator,
     },
     corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
-    execution::{FuzzExecutionConfig, FuzzInput, LspExecutor, responses::ResponsesObserver},
+    execution::{FuzzExecutionConfig, FuzzInput, LspExecutor, responses::LspOutputObserver},
     fuzz_target,
     stages::{StatsStage, StopOnReceived, TimeoutStopStage},
     utf8::UTF8Tokens,
@@ -224,7 +224,7 @@ impl NautilusBaseline {
                 auto_tokens: tokens.as_mut(),
                 coverage_shm_info: (coverage_map_shmem_id, cov_observer.as_ref().len()),
                 map_observer: cov_observer,
-                responses_observer: ResponsesObserver::new(),
+                responses_observer: LspOutputObserver::new(),
                 asan_observer,
                 other_observers: tuple_list![time_observer],
             };

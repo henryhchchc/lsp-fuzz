@@ -20,8 +20,7 @@ use tuple_list::{tuple_list, tuple_list_type};
 use super::LspInput;
 use crate::{
     lsp::{
-        self, LspMessage, GeneratorsConfig, HasPredefinedGenerators, LspRequestMeta,
-        MessageParam,
+        self, GeneratorsConfig, HasPredefinedGenerators, LspMessage, LspRequestMeta, MessageParam,
         code_context::CodeContextRef,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
     },
@@ -35,11 +34,11 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
-pub struct LspMessages {
+pub struct LspMessageSequence {
     inner: Vec<lsp::LspMessage>,
 }
 
-impl LspMessages {
+impl LspMessageSequence {
     pub fn calibrate(&mut self, doc_uri: &Uri, input_edit: tree_sitter::InputEdit) {
         self.inner
             .iter_mut()
@@ -76,7 +75,7 @@ fn calibrate_message(message: &mut LspMessage, input_edit: tree_sitter::InputEdi
     }
 }
 
-impl HasLen for LspMessages {
+impl HasLen for LspMessageSequence {
     fn len(&self) -> usize {
         self.inner.len()
     }

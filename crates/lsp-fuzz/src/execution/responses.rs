@@ -10,18 +10,18 @@ use serde::{Deserialize, Serialize};
 use crate::lsp::json_rpc::JsonRPCMessage;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct ResponsesObserver {
+pub struct LspOutputObserver {
     captured_messages: Vec<JsonRPCMessage>,
 }
 
-impl Named for ResponsesObserver {
+impl Named for LspOutputObserver {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("ResponsesObserver");
         &NAME
     }
 }
 
-impl ResponsesObserver {
+impl LspOutputObserver {
     pub fn new() -> Self {
         Self {
             captured_messages: Vec::new(),
@@ -40,7 +40,7 @@ impl ResponsesObserver {
     }
 }
 
-impl<I, State> Observer<I, State> for ResponsesObserver {
+impl<I, State> Observer<I, State> for LspOutputObserver {
     fn pre_exec(&mut self, _state: &mut State, _input: &I) -> Result<(), libafl::Error> {
         self.captured_messages.clear();
         Ok(())

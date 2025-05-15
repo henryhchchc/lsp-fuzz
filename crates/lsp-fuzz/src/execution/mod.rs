@@ -26,7 +26,7 @@ use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
-use responses::ResponsesObserver;
+use responses::LspOutputObserver;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use tracing::info;
@@ -106,7 +106,7 @@ pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
     pub auto_tokens: Option<&'a mut UTF8Tokens>,
     pub coverage_shm_info: (ShMemId, usize),
     pub map_observer: MO,
-    pub responses_observer: ResponsesObserver,
+    pub responses_observer: LspOutputObserver,
     pub asan_observer: Option<AsanBacktraceObserver>,
     pub other_observers: OBS,
 }
@@ -248,7 +248,7 @@ where
 pub struct Observers<MO, OBS> {
     map_observer: MO,
     asan_observer: Option<AsanBacktraceObserver>,
-    responses_observer: ResponsesObserver,
+    responses_observer: LspOutputObserver,
     other_observers: OBS,
 }
 

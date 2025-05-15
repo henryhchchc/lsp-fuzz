@@ -27,15 +27,14 @@ use libafl_bolts::{
 use lsp_fuzz::{
     corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{
-        FuzzExecutionConfig, FuzzInput, LspExecutor, responses::ResponsesObserver,
+        FuzzExecutionConfig, FuzzInput, LspExecutor, responses::LspOutputObserver,
         workspace_observer::WorkspaceObserver,
     },
     fuzz_target,
     lsp::GeneratorsConfig,
     lsp_input::{
-        LspInputBytesConverter, LspInputGenerator, LspInputMutator,
-        messages::message_mutations,
-        ops_curiosity::{CuriosityFeedback, OpsBehaviorObserver},
+        LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
+        ops_curiosity::OpsBehaviorObserver, output_novelty::OutputNoveltyFeedback,
     },
     stages::{StatsStage, TimeoutStopStage},
     text_document::text_document_mutations,
@@ -132,7 +131,7 @@ impl FuzzCommand {
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };
 
-        let lsp_response_observer = ResponsesObserver::new();
+        let lsp_response_observer = LspOutputObserver::new();
         let asan_observer = AsanBacktraceObserver::new("asan_stacktrace");
 
         let asan_enabled = binary_info.uses_address_sanitizer && self.no_asan.not();
@@ -148,9 +147,9 @@ impl FuzzCommand {
             _ => ConstFeedback::False,
         };
         let ops_behavior_observer = OpsBehaviorObserver::<20>::new("OpsBehavior");
-        let curiosity_feedback = EagerAndFeedback::new(
+        let output_novelty = EagerAndFeedback::new(
             curiosity_gate,
-            CuriosityFeedback::new(&ops_behavior_observer, self.curiosity_opt_in_threshold),
+            OutputNoveltyFeedback::new(&lsp_response_observer),
         );
         let stats_file = OpenOptions::new()
             .write(true)
@@ -163,7 +162,7 @@ impl FuzzCommand {
 
         let mut feedback = feedback_or!(
             map_feedback,
-            curiosity_feedback,
+            output_novelty,
             TestCaseFileNameFeedback::<CORPUS>::new(),
             TimeFeedback::new(&time_observer)
         );
@@ -201,7 +200,7 @@ impl FuzzCommand {
         let mut fuzz_stages = {
             let mutation_stage = {
                 let generators_config = match self.ablation_mode {
-                    AblationMode::Full | AblationMode::NoCuriosity => GeneratorsConfig::full(),
+                    AblationMode::Full | AblationMode::NoServerFeedback => GeneratorsConfig::full(),
                     AblationMode::NoContextAwareness | AblationMode::AllOff => {
                         GeneratorsConfig::no_context_awareness()
                     }

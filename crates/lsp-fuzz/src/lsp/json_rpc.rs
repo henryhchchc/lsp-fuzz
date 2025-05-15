@@ -4,6 +4,7 @@ use std::{
     io::{self, BufRead, Read},
 };
 
+use lsp_types::notification::Notification;
 use serde::{Deserialize, Deserializer, Serialize};
 use static_assertions::const_assert_eq;
 
@@ -174,7 +175,32 @@ impl JsonRPCMessage {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ParamExtractionError {
+    #[error("Fail to deserialize the parameter {_0}")]
+    Deserialize(#[from] serde_json::Error),
+    #[error("The message does not metch the expected type")]
+    TypeMismatch,
+    #[error("The message does not match the expected method")]
+    MethodMismitch,
+}
+
 impl JsonRPCMessage {
+    pub fn extract_notification_param<N: Notification>(
+        &self,
+    ) -> Result<<N as Notification>::Params, ParamExtractionError> {
+        if let Self::Notification { method, params, .. } = self {
+            if method == N::METHOD {
+                let params = serde_json::from_value(params.clone())?;
+                Ok(params)
+            } else {
+                Err(ParamExtractionError::MethodMismitch)
+            }
+        } else {
+            Err(ParamExtractionError::TypeMismatch)
+        }
+    }
+
     // It does not compile without `R: Read`.
     pub fn read_lsp_payload<R: Read + BufRead + ?Sized>(reader: &mut R) -> io::Result<Self> {
         use io::{Error, ErrorKind::InvalidData};

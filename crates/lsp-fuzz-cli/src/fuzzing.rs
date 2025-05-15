@@ -81,7 +81,7 @@ pub struct ExecutorOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum AblationMode {
     Full,
-    NoCuriosity,
+    NoServerFeedback,
     NoContextAwareness,
     AllOff,
 }

@@ -21,7 +21,7 @@ use libafl::{
 use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice, rands::Rand};
 use lsp_fuzz_grammars::Language;
 use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
-use messages::LspMessages;
+use messages::LspMessageSequence;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -39,6 +39,7 @@ pub type FileContentInput = BytesInput;
 
 pub mod messages;
 pub mod ops_curiosity;
+pub mod output_novelty;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspaceEntry {
@@ -100,7 +101,7 @@ impl HasTargetBytes for WorkspaceEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct LspInput {
-    pub messages: LspMessages,
+    pub messages: LspMessageSequence,
     pub workspace: FileSystemDirectory<WorkspaceEntry>,
 }
 
@@ -360,7 +361,7 @@ where
             _ => main_file_workspace(text_document, ext),
         };
         Ok(LspInput {
-            messages: LspMessages::default(),
+            messages: LspMessageSequence::default(),
             workspace,
         })
     }
