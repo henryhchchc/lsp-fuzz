@@ -20,7 +20,7 @@ use tuple_list::{tuple_list, tuple_list_type};
 use super::LspInput;
 use crate::{
     lsp::{
-        self, ClientToServerMessage, GeneratorsConfig, HasPredefinedGenerators, LspMessage,
+        self, LspMessage, GeneratorsConfig, HasPredefinedGenerators, LspRequestMeta,
         MessageParam,
         code_context::CodeContextRef,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
@@ -36,7 +36,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
 pub struct LspMessages {
-    inner: Vec<lsp::ClientToServerMessage>,
+    inner: Vec<lsp::LspMessage>,
 }
 
 impl LspMessages {
@@ -48,7 +48,7 @@ impl LspMessages {
     }
 }
 
-fn calibrate_message(message: &mut ClientToServerMessage, input_edit: tree_sitter::InputEdit) {
+fn calibrate_message(message: &mut LspMessage, input_edit: tree_sitter::InputEdit) {
     // Helper function to determine if a position is after the edit
     fn is_after_edit(pos: &lsp_types::Position, edit: &tree_sitter::InputEdit) -> bool {
         (pos.line as usize)
@@ -247,9 +247,9 @@ where
     }
 }
 
-prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::ClientToServerMessage>);
+prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::LspMessage>);
 
-pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::ClientToServerMessage, State>>;
+pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::LspMessage, State>>;
 
 use lsp_types::*;
 
@@ -335,14 +335,14 @@ where
 
 pub struct AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspMessage,
+    M: LspRequestMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     name: Cow<'static, str>,
     generators: Vec<<M::Params as HasPredefinedGenerators<State>>::Generator>,
 }
 
-impl<M: LspMessage, State> Debug for AppendRandomlyGeneratedMessage<M, State>
+impl<M: LspRequestMeta, State> Debug for AppendRandomlyGeneratedMessage<M, State>
 where
     M::Params: HasPredefinedGenerators<State>,
 {
@@ -362,7 +362,7 @@ pub const MAX_MESSAGES: usize = 10;
 
 impl<M, State> AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspMessage,
+    M: LspRequestMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     pub fn with_predefined(config: &GeneratorsConfig) -> Self {
@@ -375,7 +375,7 @@ where
 
 impl<M, State> Named for AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspMessage,
+    M: LspRequestMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     fn name(&self) -> &Cow<'static, str> {
@@ -386,7 +386,7 @@ where
 impl<M, State> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
 where
     State: HasRand,
-    M: LspMessage,
+    M: LspRequestMeta,
     M::Params: HasPredefinedGenerators<State> + MessageParam<M>,
 {
     fn mutate(
@@ -402,7 +402,7 @@ where
             Err(GenerationError::NothingGenerated) => return Ok(MutationResult::Skipped),
             Err(GenerationError::Error(e)) => return Err(e),
         };
-        let message = ClientToServerMessage::from_params::<M>(params);
+        let message = LspMessage::from_params::<M>(params);
         if input.messages.len() >= MAX_MESSAGES {
             let being_replaced = state.rand_mut().choose(input.messages.iter_mut()).expect(
                 "There must be at least one message in the input when entering this branch",

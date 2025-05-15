@@ -24,7 +24,7 @@ use smallvec::SmallVec;
 
 use super::{GrammarBasedMutation, Language};
 use crate::{
-    lsp::{ClientToServerMessage, code_context::CodeContextRef},
+    lsp::{LspMessage, code_context::CodeContextRef},
     lsp_input::LspInput,
     text_document::TextDocument,
     utils::AflContext,
@@ -149,7 +149,7 @@ pub struct OpsBehaviorData<const MAX_DEPTH: usize> {
 }
 
 fn digest_ops_data<const MAX_DEPTH: usize>(
-    op: &ClientToServerMessage,
+    op: &LspMessage,
     doc: &TextDocument,
     position: &lsp_types::Position,
 ) -> Option<OpsBehaviorData<MAX_DEPTH>> {
@@ -181,7 +181,7 @@ fn digest_ops_data<const MAX_DEPTH: usize>(
 }
 
 fn _digest_range_data<const MAX_DEPTH: usize>(
-    op: &ClientToServerMessage,
+    op: &LspMessage,
     doc: &TextDocument,
     range: &lsp_types::Range,
     _max_syn_depth: usize,

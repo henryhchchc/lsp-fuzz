@@ -2,7 +2,7 @@ pub(crate) mod capabilities;
 pub mod message;
 
 use generation::{LspParamsGenerator, numeric::TabSizeGen};
-pub use message::ClientToServerMessage;
+pub use message::LspMessage;
 use serde::{Deserialize, Serialize};
 
 pub mod code_context;
@@ -12,16 +12,16 @@ pub mod json_rpc;
 pub mod metamodel;
 pub mod ucc;
 
-pub trait LspMessage {
+pub trait LspRequestMeta {
     type Params;
     const METHOD: &'static str;
 }
 
 pub trait MessageParam<M>
 where
-    M: LspMessage,
+    M: LspRequestMeta,
 {
-    fn into_message(self) -> ClientToServerMessage;
+    fn into_message(self) -> LspMessage;
 }
 
 pub trait HasPredefinedGenerators<State> {

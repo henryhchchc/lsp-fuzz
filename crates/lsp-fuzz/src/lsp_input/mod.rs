@@ -226,12 +226,12 @@ impl LspInput {
         bytes
     }
 
-    pub fn message_sequence(&self) -> impl Iterator<Item = lsp::ClientToServerMessage> + use<'_> {
+    pub fn message_sequence(&self) -> impl Iterator<Item = lsp::LspMessage> + use<'_> {
         #[allow(
             deprecated,
             reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
         )]
-        let init_request = lsp::ClientToServerMessage::Initialize(lsp_types::InitializeParams {
+        let init_request = lsp::LspMessage::Initialize(lsp_types::InitializeParams {
             process_id: None,
             client_info: Some(ClientInfo {
                 name: env!("CARGO_PKG_NAME").to_owned(),
@@ -246,7 +246,7 @@ impl LspInput {
             trace: Some(TraceValue::Off),
             ..Default::default()
         });
-        let initialized_req = lsp::ClientToServerMessage::Initialized(InitializedParams {});
+        let initialized_req = lsp::LspMessage::Initialized(InitializedParams {});
 
         let did_open_notifications = self
             .workspace
@@ -256,19 +256,17 @@ impl LspInput {
                 let path_str = path.to_str().expect("Path should contain valid UTF-8");
                 let uri =
                     Uri::from_str(&format!("{}{}", LspInput::PROROCOL_PREFIX, path_str)).unwrap();
-                lsp::ClientToServerMessage::DidOpenTextDocument(
-                    lsp_types::DidOpenTextDocumentParams {
-                        text_document: lsp_types::TextDocumentItem {
-                            uri: uri.clone(),
-                            language_id: doc.language().lsp_language_id().to_owned(),
-                            version: 1,
-                            text: doc.to_string_lossy().into_owned(),
-                        },
+                lsp::LspMessage::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
+                    text_document: lsp_types::TextDocumentItem {
+                        uri: uri.clone(),
+                        language_id: doc.language().lsp_language_id().to_owned(),
+                        version: 1,
+                        text: doc.to_string_lossy().into_owned(),
                     },
-                )
+                })
             });
-        let shutdown = lsp::ClientToServerMessage::Shutdown(());
-        let exit = lsp::ClientToServerMessage::Exit(());
+        let shutdown = lsp::LspMessage::Shutdown(());
+        let exit = lsp::LspMessage::Exit(());
 
         once(init_request)
             .chain(once(initialized_req))

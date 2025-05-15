@@ -237,9 +237,9 @@ fn jsonrpc_version_deserialize() {
 fn test_lsp_request_roundtrip() {
     use lsp_types::{InitializeParams, WorkspaceFolder};
 
-    use crate::lsp::ClientToServerMessage;
+    use crate::lsp::LspMessage;
 
-    let request = ClientToServerMessage::Initialize(InitializeParams {
+    let request = LspMessage::Initialize(InitializeParams {
         workspace_folders: Some(vec![WorkspaceFolder {
             uri: "lsp-fuzz://".parse().unwrap(),
             name: "folder".to_string(),

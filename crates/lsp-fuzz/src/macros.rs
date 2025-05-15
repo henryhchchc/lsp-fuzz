@@ -10,7 +10,7 @@ macro_rules! lsp_messages {
     ) => {
         use lsp_types::request::{self, Request};
         use lsp_types::notification::{self, Notification};
-        use crate::lsp::{code_context::CodeContextRef, LspMessage, MessageParam};
+        use crate::lsp::{code_context::CodeContextRef, LspRequestMeta, MessageParam};
 
         $(#[$outer])*
         $vis enum $type_name {
@@ -74,7 +74,7 @@ macro_rules! lsp_messages {
 
             pub fn from_params<M>(params: M::Params) -> Self
                 where
-                    M: LspMessage,
+                    M: LspRequestMeta,
                     M::Params: MessageParam<M>
             {
                 M::Params::into_message(params)
@@ -139,7 +139,7 @@ macro_rules! lsp_messages {
 
         $(
             $(
-                impl LspMessage for request::$req_variant {
+                impl LspRequestMeta for request::$req_variant {
                     const METHOD: &'static str = <Self as Request>::METHOD;
                     type Params = <Self as Request>::Params;
                 }
@@ -151,7 +151,7 @@ macro_rules! lsp_messages {
                 }
             )?
             $(
-                impl LspMessage for notification::$not_variant {
+                impl LspRequestMeta for notification::$not_variant {
                     const METHOD: &'static str = <Self as Notification>::METHOD;
                     type Params = <Self as Notification>::Params;
                 }

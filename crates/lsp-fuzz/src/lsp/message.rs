@@ -9,7 +9,7 @@ lsp_messages! {
     /// A Language Server Protocol message.
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
-        pub enum ClientToServerMessage {
+        pub enum LspMessage {
         // Client to Server messages
         request::CallHierarchyIncomingCalls,
         request::CallHierarchyOutgoingCalls,
@@ -65,17 +65,17 @@ lsp_messages! {
         request::WorkspaceSymbolRequest,
         request::WorkspaceSymbolResolve,
         // Server to Client messages
-        // request::ApplyWorkspaceEdit,
-        // request::CodeLensRefresh,
-        // request::InlayHintRefreshRequest,
-        // request::InlineValueRefreshRequest,
-        // request::RegisterCapability,
-        // request::ShowDocument,
-        // request::ShowMessageRequest,
-        // request::UnregisterCapability,
-        // request::WorkDoneProgressCreate,
-        // request::WorkspaceConfiguration,
-        // request::WorkspaceFoldersRequest,
+        request::ApplyWorkspaceEdit,
+        request::CodeLensRefresh,
+        request::InlayHintRefreshRequest,
+        request::InlineValueRefreshRequest,
+        request::RegisterCapability,
+        request::ShowDocument,
+        request::ShowMessageRequest,
+        request::UnregisterCapability,
+        request::WorkDoneProgressCreate,
+        request::WorkspaceConfiguration,
+        request::WorkspaceFoldersRequest,
 
         // Client to server notifications
         notification::Cancel,
@@ -101,15 +101,15 @@ lsp_messages! {
         notification::WorkDoneProgressCancel,
 
         // Server to client notifications
-        // notification::LogMessage,
-        // notification::Progress,
-        // notification::PublishDiagnostics,
-        // notification::ShowMessage,
-        // notification::TelemetryEvent,
+        notification::LogMessage,
+        notification::Progress,
+        notification::PublishDiagnostics,
+        notification::ShowMessage,
+        notification::TelemetryEvent,
     }
 }
 
-impl ClientToServerMessage {
+impl LspMessage {
     pub fn into_json_rpc(self, id: &mut usize, workspace_uri: Option<&str>) -> JsonRPCMessage {
         let is_request = self.is_request();
         let (method, mut params) = self.into_json();

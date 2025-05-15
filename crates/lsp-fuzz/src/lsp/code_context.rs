@@ -43,7 +43,23 @@ pub trait CodeContextRef {
     DidCloseTextDocumentParams,
     DidCloseNotebookDocumentParams,
     DidChangeTextDocumentParams,
-    DidChangeWorkspaceFoldersParams
+    DidChangeWorkspaceFoldersParams,
+    // Server to Server requests
+    ApplyWorkspaceEditParams,
+    ConfigurationParams,
+    RegistrationParams,
+    ShowDocumentParams,
+    ShowMessageRequestParams,
+    UnregistrationParams,
+    WorkDoneProgressCreateParams,
+
+    // Server to Client notifications
+    LogMessageParams,
+    ProgressParams,
+    PublishDiagnosticsParams,
+    ShowMessageParams,
+    LSPObject,
+    LSPArray,
 )]
 impl CodeContextRef for T {
     fn document(&self) -> Option<&TextDocumentIdentifier> {
@@ -68,6 +84,54 @@ impl CodeContextRef for T {
 
     fn range_mut(&mut self) -> Option<&mut lsp_types::Range> {
         None
+    }
+}
+
+impl<A, B> CodeContextRef for OneOf<A, B>
+where
+    A: CodeContextRef,
+    B: CodeContextRef,
+{
+    fn document(&self) -> Option<&TextDocumentIdentifier> {
+        match self {
+            OneOf::Left(left) => left.document(),
+            OneOf::Right(right) => right.document(),
+        }
+    }
+
+    fn position(&self) -> Option<&Position> {
+        match self {
+            OneOf::Left(left) => left.position(),
+            OneOf::Right(right) => right.position(),
+        }
+    }
+
+    fn range(&self) -> Option<&lsp_types::Range> {
+        match self {
+            OneOf::Left(left) => left.range(),
+            OneOf::Right(right) => right.range(),
+        }
+    }
+
+    fn document_mut(&mut self) -> Option<&mut TextDocumentIdentifier> {
+        match self {
+            OneOf::Left(left) => left.document_mut(),
+            OneOf::Right(right) => right.document_mut(),
+        }
+    }
+
+    fn position_mut(&mut self) -> Option<&mut Position> {
+        match self {
+            OneOf::Left(left) => left.position_mut(),
+            OneOf::Right(right) => right.position_mut(),
+        }
+    }
+
+    fn range_mut(&mut self) -> Option<&mut lsp_types::Range> {
+        match self {
+            OneOf::Left(left) => left.range_mut(),
+            OneOf::Right(right) => right.range_mut(),
+        }
     }
 }
 
