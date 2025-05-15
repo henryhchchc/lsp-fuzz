@@ -411,10 +411,6 @@ where
                 .responses_observer
                 .capture_stdout_content(output_reader)
                 .afl_context("Capturing target output")?;
-            info!(
-                "Output captured, {} messages",
-                self.observers.responses_observer.captured_messages().len()
-            );
         }
         self.observers
             .post_exec_child_all(state, input, &exit_kind)?;
