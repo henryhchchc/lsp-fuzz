@@ -167,7 +167,7 @@ impl Drop for NeoForkServer {
 
 /// Configuration options for creating a new fork server.
 #[derive(Debug)]
-pub struct NeoForkServerOptions<'f> {
+pub struct NeoForkServerOptions<'a> {
     /// Path to the target executable
     pub target: OsString,
     /// Command-line arguments to pass to the target
@@ -175,7 +175,7 @@ pub struct NeoForkServerOptions<'f> {
     /// Environment variables to set for the target
     pub envs: Vec<(OsString, OsString)>,
     /// Configuration for how fuzzing input is provided to the target
-    pub input_setup: FuzzInputSetup<'f>,
+    pub input_setup: FuzzInputSetup<'a>,
     /// Memory limit (in bytes) for the target process
     pub memlimit: u64,
     /// Whether to use persistent fuzzing mode (target runs multiple test cases without restarting)
@@ -190,6 +190,7 @@ pub struct NeoForkServerOptions<'f> {
     pub debug_output: bool,
     /// Signal to use when killing child processes
     pub kill_signal: Signal,
+    pub stdout_capture_fd: BorrowedFd<'a>,
 }
 
 impl NeoForkServer {
@@ -212,6 +213,7 @@ impl NeoForkServer {
             afl_debug,
             debug_output,
             kill_signal,
+            stdout_capture_fd,
         } = options;
 
         // Create bidirectional pipes for communication with the fork server
@@ -219,18 +221,16 @@ impl NeoForkServer {
         let (child_reader, tx) = os_pipe::pipe().afl_context("Failed to create control pipe")?;
 
         // Configure stdio based on debug settings
-        let (stdout, stderr) = if debug_output {
-            (Stdio::inherit(), Stdio::inherit())
-        } else {
-            (Stdio::null(), Stdio::null())
-        };
+        let stderr = debug_output
+            .then(Stdio::inherit)
+            .unwrap_or_else(Stdio::null);
 
         // Create and configure the command
         let mut command = process::Command::new(target);
         command
             .args(args)
             .stdin(Stdio::null()) // Will be overridden by input_setup if necessary
-            .stdout(stdout)
+            .stdout(unsafe { Stdio::from_raw_fd(stdout_capture_fd.as_raw_fd()) }) // SAFTY: The fild should not be closed
             .stderr(stderr);
 
         command.env("__AFL_SHM_ID", shm_id.to_string());

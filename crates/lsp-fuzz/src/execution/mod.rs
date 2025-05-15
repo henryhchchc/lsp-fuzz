@@ -1,8 +1,10 @@
 use std::{
     collections::HashMap,
     fs,
+    io::{BufReader, Read},
     marker::PhantomData,
     mem::{self, transmute},
+    os::fd::AsFd,
     path::PathBuf,
 };
 
@@ -24,12 +26,15 @@ use nix::{
     sys::{signal::Signal, time::TimeSpec},
     unistd::Pid,
 };
+use responses::ResponsesObserver;
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 use tracing::info;
 
 use crate::{utf8::UTF8Tokens, utils::AflContext};
 
 pub mod fork_server;
+pub mod responses;
 pub mod sanitizers;
 mod test;
 pub mod workspace_observer;
@@ -111,6 +116,7 @@ pub struct LspExecutor<State, MO, OBS, I, SHM> {
     crash_exit_code: Option<i8>,
     timeout: TimeSpec,
     fuzz_input: FuzzInput<SHM>,
+    output_capture_file: NamedTempFile,
     observers: Observers<MO, OBS>,
     _state: PhantomData<(State, I)>,
 }
@@ -159,6 +165,9 @@ where
                 .map(|(k, v)| (k.into(), v.into())),
         );
 
+        let output_capture_file =
+            NamedTempFile::new().afl_context("Creating output capture file")?;
+
         let opts = NeoForkServerOptions {
             target: target_info.path.as_os_str().to_owned(),
             args,
@@ -171,6 +180,7 @@ where
             afl_debug: config.debug_afl,
             debug_output: config.debug_child,
             kill_signal: target_info.kill_signal,
+            stdout_capture_fd: output_capture_file.as_fd(),
         };
         let mut fork_server = fork_server::NeoForkServer::new(opts)?;
 
@@ -206,6 +216,7 @@ where
 
         let observers = Observers {
             map_observer: config.map_observer,
+            responses_observer: ResponsesObserver::new(),
             asan_observer: config.asan_observer,
             other_observers: config.other_observers,
         };
@@ -215,6 +226,7 @@ where
             crash_exit_code: target_info.crash_exit_code,
             timeout: target_info.timeout,
             fuzz_input: config.fuzz_input,
+            output_capture_file,
             observers,
             _state: PhantomData,
         })
@@ -225,6 +237,7 @@ where
 pub struct Observers<MO, OBS> {
     map_observer: MO,
     asan_observer: Option<AsanBacktraceObserver>,
+    responses_observer: ResponsesObserver,
     other_observers: OBS,
 }
 
@@ -353,6 +366,14 @@ where
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;
+        self.output_capture_file
+            .as_file_mut()
+            .set_len(0)
+            .afl_context("Truncating output capture file")?;
+        self.output_capture_file
+            .as_file_mut()
+            .sync_data()
+            .afl_context("Syncing truncated output capture file to disk")?;
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
         let exit_kind = if let Some(status) = status {
@@ -369,6 +390,17 @@ where
         } else {
             ExitKind::Timeout
         };
+        if exit_kind == ExitKind::Ok {
+            let output_reader = BufReader::new(self.output_capture_file.by_ref());
+            self.observers
+                .responses_observer
+                .capture_stdout_content(output_reader)
+                .afl_context("Capturing target output")?;
+            info!(
+                "Output captured, {} messages",
+                self.observers.responses_observer.captured_messages().len()
+            );
+        }
         self.observers
             .post_exec_child_all(state, input, &exit_kind)?;
         if exit_kind == ExitKind::Crash
