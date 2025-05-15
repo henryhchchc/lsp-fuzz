@@ -20,15 +20,16 @@ macro_rules! lsp_responses {
                 }
             }
 
-            pub fn from_json(request: &crate::lsp::message::LspMessage, result: serde_json::Value) -> Result<Self, crate::lsp::message::ResponseDecodeError> {
-                let result = match request {
-                    $( crate::lsp::message::LspMessage::$res_variant(_) => {
-                        Self::$res_variant(serde_json::from_value(result)?)
-                    } ),*
-                    _ => return Err(crate::lsp::message::ResponseDecodeError::NotARequest),
+            pub fn try_from_json(method: impl AsRef<str>, json: serde_json::Value) -> Result<Self, crate::lsp::message::MessageDecodeError> {
+                let result = match method.as_ref() {
+                    $(<::lsp_types::request::$res_variant as ::lsp_types::request::Request>::METHOD => {
+                        Self::$res_variant(serde_json::from_value(json)?)
+                    })*,
+                    _ => return Err(crate::lsp::message::MessageDecodeError::MethodMismatch),
                 };
                 Ok(result)
             }
+
         }
     };
 }
@@ -110,6 +111,21 @@ macro_rules! lsp_messages {
                     M::Params: crate::lsp::MessageParam<M>
             {
                 <M::Params as crate::lsp::MessageParam<M>>::into_message(params)
+            }
+
+            pub fn try_from_json(method: impl AsRef<str>, json: serde_json::Value) -> Result<Self, crate::lsp::message::MessageDecodeError> {
+                let result = match method.as_ref() {
+                    $(
+                        $( <::lsp_types::request::$req_variant as ::lsp_types::request::Request>::METHOD => {
+                            Self::$req_variant(serde_json::from_value(json)?)
+                        })?
+                        $( <::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::METHOD => {
+                            Self::$not_variant(serde_json::from_value(json)?)
+                        })?
+                    ),*
+                    _ => return Err(crate::lsp::message::MessageDecodeError::MethodMismatch),
+                };
+                Ok(result)
             }
         }
 

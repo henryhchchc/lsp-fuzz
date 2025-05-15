@@ -224,18 +224,20 @@ fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ResponseDecodeError {
-    #[error("Fail to decode the response: {_0}")]
+pub enum MessageDecodeError {
+    #[error("Fail to deserialize the parameter {_0}")]
     Deserialize(#[from] serde_json::Error),
-    #[error("The supplied message is not a request")]
-    NotARequest,
+    #[error("The message does not metch the expected type")]
+    TypeMismatch,
+    #[error("The message does not match the expected method")]
+    MethodMismatch,
 }
 
 #[cfg(test)]
 mod tests {
-    use lsp_types::{HoverParams, TextDocumentPositionParams, WorkDoneProgressParams};
+    use lsp_types::request::{HoverRequest, Request};
 
-    use super::{LspMessage, LspResponse};
+    use super::LspResponse;
 
     #[test]
     fn test_localization() {
@@ -281,17 +283,8 @@ mod tests {
                 "value": "**Documentation:** This is a test hover response"
             }
         });
-        let request = LspMessage::HoverRequest(HoverParams {
-            text_document_position_params: TextDocumentPositionParams {
-                text_document: lsp_types::TextDocumentIdentifier {
-                    uri: "lsp-fuzz://path/to/file".parse().unwrap(),
-                },
-                position: lsp_types::Position::new(1, 2),
-            },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-        });
         let LspResponse::HoverRequest(Some(response)) =
-            LspResponse::from_json(&request, response).unwrap()
+            LspResponse::try_from_json(HoverRequest::METHOD, response).unwrap()
         else {
             panic!("Response type mismatch")
         };
