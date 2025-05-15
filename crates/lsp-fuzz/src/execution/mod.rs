@@ -292,6 +292,7 @@ where
 {
     fn pre_exec_all(&mut self, state: &mut State, input: &I) -> Result<(), libafl::Error> {
         self.map_observer.pre_exec(state, input)?;
+        self.responses_observer.pre_exec(state, input)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.pre_exec(state, input)?;
         }
@@ -305,17 +306,19 @@ where
         input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), libafl::Error> {
-        self.map_observer.post_exec(state, input, exit_kind)?;
+        self.other_observers
+            .post_exec_all(state, input, exit_kind)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.post_exec(state, input, exit_kind)?;
         }
-        self.other_observers
-            .post_exec_all(state, input, exit_kind)?;
+        self.responses_observer.post_exec(state, input, exit_kind)?;
+        self.map_observer.post_exec(state, input, exit_kind)?;
         Ok(())
     }
 
     fn pre_exec_child_all(&mut self, state: &mut State, input: &I) -> Result<(), libafl::Error> {
         self.map_observer.pre_exec_child(state, input)?;
+        self.responses_observer.pre_exec_child(state, input)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.pre_exec_child(state, input)?;
         }
@@ -329,12 +332,14 @@ where
         input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), libafl::Error> {
-        self.map_observer.post_exec_child(state, input, exit_kind)?;
+        self.other_observers
+            .post_exec_child_all(state, input, exit_kind)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.post_exec_child(state, input, exit_kind)?;
         }
-        self.other_observers
-            .post_exec_child_all(state, input, exit_kind)?;
+        self.responses_observer
+            .post_exec_child(state, input, exit_kind)?;
+        self.map_observer.post_exec_child(state, input, exit_kind)?;
         Ok(())
     }
 }
