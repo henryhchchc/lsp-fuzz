@@ -231,6 +231,16 @@ where
             _state: PhantomData,
         })
     }
+
+    fn clear_output_capture_file(&mut self) -> io::Result<()> {
+        let output_capture_file = self.output_capture_file.as_file_mut();
+        output_capture_file.rewind()?;
+        output_capture_file.write_all(&[])?;
+        output_capture_file.set_len(0)?;
+        output_capture_file.flush()?;
+        output_capture_file.sync_data()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -362,20 +372,13 @@ where
         input: &I,
     ) -> Result<ExitKind, libafl::Error> {
         // Transfer input to the fork server
-        let input_bytes = fuzzer.converter_mut().to_bytes(input);
+        let bytes = fuzzer.converter_mut().to_bytes(input);
+        let input_bytes = bytes;
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;
-        let output_capture_file = self.output_capture_file.as_file_mut();
-        output_capture_file
-            .rewind()
-            .afl_context("Rewinding output capture file")?;
-        output_capture_file
-            .set_len(0)
-            .afl_context("Truncating output capture file")?;
-        output_capture_file
-            .flush()
-            .afl_context("Flushing output capture file")?;
+
+        self.clear_output_capture_file()?;
 
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
