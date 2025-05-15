@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{BufReader, Read},
+    io::{BufReader, Seek, Write},
     marker::PhantomData,
     mem::{self, transmute},
     os::fd::AsFd,
@@ -366,14 +366,17 @@ where
         self.fuzz_input.send(&input_bytes)?;
 
         self.observers.pre_exec_child_all(state, input)?;
-        self.output_capture_file
-            .as_file_mut()
+        let output_capture_file = self.output_capture_file.as_file_mut();
+        output_capture_file
+            .rewind()
+            .afl_context("Rewinding output capture file")?;
+        output_capture_file
             .set_len(0)
             .afl_context("Truncating output capture file")?;
-        self.output_capture_file
-            .as_file_mut()
-            .sync_data()
-            .afl_context("Syncing truncated output capture file to disk")?;
+        output_capture_file
+            .flush()
+            .afl_context("Flushing output capture file")?;
+
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
         let exit_kind = if let Some(status) = status {
@@ -391,7 +394,10 @@ where
             ExitKind::Timeout
         };
         if exit_kind == ExitKind::Ok {
-            let output_reader = BufReader::new(self.output_capture_file.by_ref());
+            self.output_capture_file
+                .rewind()
+                .afl_context("Rewinding output capture file")?;
+            let output_reader = BufReader::new(&mut self.output_capture_file);
             self.observers
                 .responses_observer
                 .capture_stdout_content(output_reader)
