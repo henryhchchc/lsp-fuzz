@@ -1,3 +1,38 @@
+macro_rules! lsp_responses {
+    (
+        $(#[$outer:meta])*
+        $vis: vis enum $type_name: ident {
+            $( request::$res_variant: ident ),*
+        }
+    ) => {
+
+        $(#[$outer])*
+        $vis enum $type_name {
+            $( $res_variant(<::lsp_types::request::$res_variant as ::lsp_types::request::Request>::Result) ),*
+        }
+
+        impl $type_name {
+
+            /// Returns the method name of the request.
+            pub const fn method<'a>(&self) -> &'a str {
+                match self {
+                    $( Self::$res_variant(_) => <::lsp_types::request::$res_variant as ::lsp_types::request::Request>::METHOD ),*
+                }
+            }
+
+            pub fn from_json(request: &crate::lsp::message::LspMessage, result: serde_json::Value) -> Result<Self, crate::lsp::message::ResponseDecodeError> {
+                let result = match request {
+                    $( crate::lsp::message::LspMessage::$res_variant(_) => {
+                        Self::$res_variant(serde_json::from_value(result)?)
+                    } ),*
+                    _ => return Err(crate::lsp::message::ResponseDecodeError::NotARequest),
+                };
+                Ok(result)
+            }
+        }
+    };
+}
+
 macro_rules! lsp_messages {
     (
         $(#[$outer:meta])*
@@ -8,15 +43,12 @@ macro_rules! lsp_messages {
             ),*
         }
     ) => {
-        use lsp_types::request::{self, Request};
-        use lsp_types::notification::{self, Notification};
-        use crate::lsp::{code_context::CodeContextRef, LspRequestMeta, MessageParam};
 
         $(#[$outer])*
         $vis enum $type_name {
             $(
-                $( $req_variant(<request::$req_variant as Request>::Params) )?
-                $( $not_variant(<notification::$not_variant as Notification>::Params) )?
+                $( $req_variant(<::lsp_types::request::$req_variant as ::lsp_types::request::Request>::Params) )?
+                $( $not_variant(<::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::Params) )?
             ),*
         }
 
@@ -26,8 +58,8 @@ macro_rules! lsp_messages {
             pub const fn method<'a>(&self) -> &'a str {
                 match self {
                     $(
-                        $( Self::$req_variant(_) => <request::$req_variant as Request>::METHOD )?
-                        $( Self::$not_variant(_) => <notification::$not_variant as Notification>::METHOD )?
+                        $( Self::$req_variant(_) => <::lsp_types::request::$req_variant as ::lsp_types::request::Request>::METHOD )?
+                        $( Self::$not_variant(_) => <::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::METHOD )?
                     ),*
                 }
             }
@@ -58,13 +90,13 @@ macro_rules! lsp_messages {
                     $(
                         $(
                             Self::$req_variant(params) =>  (
-                                <request::$req_variant as Request>::METHOD,
+                                <::lsp_types::request::$req_variant as ::lsp_types::request::Request>::METHOD,
                                 serde_json::json!(params)
                             )
                         )?
                         $(
                             Self::$not_variant(params) => (
-                                <notification::$not_variant as Notification>::METHOD,
+                                <::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::METHOD,
                                 serde_json::json!(params)
                             )
                         )?
@@ -74,14 +106,14 @@ macro_rules! lsp_messages {
 
             pub fn from_params<M>(params: M::Params) -> Self
                 where
-                    M: LspRequestMeta,
-                    M::Params: MessageParam<M>
+                    M: crate::lsp::LspRequestMeta,
+                    M::Params: crate::lsp::MessageParam<M>
             {
-                M::Params::into_message(params)
+                <M::Params as crate::lsp::MessageParam<M>>::into_message(params)
             }
         }
 
-        impl CodeContextRef for $type_name {
+        impl crate::lsp::code_context::CodeContextRef for $type_name {
             fn document(&self) -> Option<&lsp_types::TextDocumentIdentifier> {
                 match self {
                     $(
@@ -139,24 +171,24 @@ macro_rules! lsp_messages {
 
         $(
             $(
-                impl LspRequestMeta for request::$req_variant {
-                    const METHOD: &'static str = <Self as Request>::METHOD;
-                    type Params = <Self as Request>::Params;
+                impl crate::lsp::LspRequestMeta for ::lsp_types::request::$req_variant {
+                    const METHOD: &'static str = <Self as ::lsp_types::request::Request>::METHOD;
+                    type Params = <Self as ::lsp_types::request::Request>::Params;
                 }
 
-                impl MessageParam<request::$req_variant> for <request::$req_variant as Request>::Params {
+                impl crate::lsp::MessageParam<::lsp_types::request::$req_variant> for <::lsp_types::request::$req_variant as ::lsp_types::request::Request>::Params {
                     fn into_message(self) -> $type_name {
                         $type_name::$req_variant(self)
                     }
                 }
             )?
             $(
-                impl LspRequestMeta for notification::$not_variant {
-                    const METHOD: &'static str = <Self as Notification>::METHOD;
-                    type Params = <Self as Notification>::Params;
+                impl crate::lsp::LspRequestMeta for ::lsp_types::notification::$not_variant {
+                    const METHOD: &'static str = <Self as ::lsp_types::notification::Notification>::METHOD;
+                    type Params = <Self as ::lsp_types::notification::Notification>::Params;
                 }
 
-                impl MessageParam<notification::$not_variant> for <notification::$not_variant as Notification>::Params {
+                impl crate::lsp::MessageParam<::lsp_types::notification::$not_variant> for <::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::Params {
                     fn into_message(self) -> $type_name {
                         $type_name::$not_variant(self)
                     }
@@ -231,4 +263,4 @@ macro_rules! afl_oops {
 }
 
 #[allow(unused_imports)]
-pub(crate) use {afl_oops, append_randoms, lsp_messages, prop_mutator};
+pub(crate) use {afl_oops, append_randoms, lsp_messages, lsp_responses, prop_mutator};

@@ -3,7 +3,10 @@ use std::{borrow::Cow, mem, ops::Range};
 use serde::{Deserialize, Serialize};
 
 use super::json_rpc::JsonRPCMessage;
-use crate::{lsp_input::LspInput, macros::lsp_messages};
+use crate::{
+    lsp_input::LspInput,
+    macros::{lsp_messages, lsp_responses},
+};
 
 lsp_messages! {
     /// A Language Server Protocol message.
@@ -105,7 +108,80 @@ lsp_messages! {
         notification::Progress,
         notification::PublishDiagnostics,
         notification::ShowMessage,
-        notification::TelemetryEvent,
+        notification::TelemetryEvent
+    }
+}
+
+lsp_responses! {
+    #[derive(Debug, Clone, PartialEq, Hash, Serialize, Deserialize)]
+    #[allow(clippy::large_enum_variant, reason = "By LSP spec")]
+    pub enum LspResponse {
+        // Client to Server messages
+        request::CallHierarchyIncomingCalls,
+        request::CallHierarchyOutgoingCalls,
+        request::CallHierarchyPrepare,
+        request::CodeActionRequest,
+        request::CodeActionResolveRequest,
+        request::CodeLensRequest,
+        request::CodeLensResolve,
+        request::ColorPresentationRequest,
+        request::Completion,
+        request::DocumentColor,
+        request::DocumentDiagnosticRequest,
+        request::DocumentHighlightRequest,
+        request::DocumentLinkRequest,
+        request::DocumentLinkResolve,
+        request::DocumentSymbolRequest,
+        request::ExecuteCommand,
+        request::FoldingRangeRequest,
+        request::Formatting,
+        request::GotoDeclaration,
+        request::GotoDefinition,
+        request::GotoImplementation,
+        request::GotoTypeDefinition,
+        request::HoverRequest,
+        request::Initialize,
+        request::InlayHintRequest,
+        request::InlayHintResolveRequest,
+        request::InlineValueRequest,
+        request::LinkedEditingRange,
+        request::MonikerRequest,
+        request::OnTypeFormatting,
+        request::PrepareRenameRequest,
+        request::RangeFormatting,
+        request::References,
+        request::Rename,
+        request::ResolveCompletionItem,
+        request::SelectionRangeRequest,
+        request::SemanticTokensFullDeltaRequest,
+        request::SemanticTokensFullRequest,
+        request::SemanticTokensRangeRequest,
+        request::SemanticTokensRefresh,
+        request::Shutdown,
+        request::SignatureHelpRequest,
+        request::TypeHierarchyPrepare,
+        request::TypeHierarchySubtypes,
+        request::TypeHierarchySupertypes,
+        request::WillCreateFiles,
+        request::WillDeleteFiles,
+        request::WillRenameFiles,
+        request::WillSaveWaitUntil,
+        request::WorkspaceDiagnosticRefresh,
+        request::WorkspaceDiagnosticRequest,
+        request::WorkspaceSymbolRequest,
+        request::WorkspaceSymbolResolve,
+        // Server to Client messages
+        request::ApplyWorkspaceEdit,
+        request::CodeLensRefresh,
+        request::InlayHintRefreshRequest,
+        request::InlineValueRefreshRequest,
+        request::RegisterCapability,
+        request::ShowDocument,
+        request::ShowMessageRequest,
+        request::UnregisterCapability,
+        request::WorkDoneProgressCreate,
+        request::WorkspaceConfiguration,
+        request::WorkspaceFoldersRequest
     }
 }
 
@@ -147,8 +223,19 @@ fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ResponseDecodeError {
+    #[error("Fail to decode the response: {_0}")]
+    Deserialize(#[from] serde_json::Error),
+    #[error("The supplied message is not a request")]
+    NotARequest,
+}
+
 #[cfg(test)]
 mod tests {
+    use lsp_types::{HoverParams, TextDocumentPositionParams, WorkDoneProgressParams};
+
+    use super::{LspMessage, LspResponse};
 
     #[test]
     fn test_localization() {
@@ -182,6 +269,38 @@ mod tests {
                         "uri": "file:///path/to/workspace_dir/path/to/element",
                     }
                 ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_response() {
+        let response = serde_json::json!({
+            "contents": {
+                "kind": "markdown",
+                "value": "**Documentation:** This is a test hover response"
+            }
+        });
+        let request = LspMessage::HoverRequest(HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: lsp_types::TextDocumentIdentifier {
+                    uri: "lsp-fuzz://path/to/file".parse().unwrap(),
+                },
+                position: lsp_types::Position::new(1, 2),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        });
+        let LspResponse::HoverRequest(Some(response)) =
+            LspResponse::from_json(&request, response).unwrap()
+        else {
+            panic!("Response type mismatch")
+        };
+        assert!(response.range.is_none());
+        assert_eq!(
+            response.contents,
+            lsp_types::HoverContents::Markup(lsp_types::MarkupContent {
+                kind: lsp_types::MarkupKind::Markdown,
+                value: "**Documentation:** This is a test hover response".to_string()
             })
         );
     }
