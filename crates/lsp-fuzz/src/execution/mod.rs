@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{BufReader, Seek, Write},
+    io::{self, BufReader, Seek, Write},
     marker::PhantomData,
     mem::{self, transmute},
     os::fd::AsFd,
@@ -378,7 +378,8 @@ where
 
         self.observers.pre_exec_child_all(state, input)?;
 
-        self.clear_output_capture_file()?;
+        self.clear_output_capture_file()
+            .afl_context("Clearing output capture file")?;
 
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
