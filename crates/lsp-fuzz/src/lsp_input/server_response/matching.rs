@@ -42,7 +42,7 @@ impl<'a> RequestResponseMatching<'a> {
         let requests: HashMap<_, _> = sent_messages
             .filter(|it| it.is_request())
             .enumerate()
-            .map(|(id, msg)| (MessageId::Number(id + 2), msg))
+            .map(|(id, msg)| (MessageId::Number(id + 1), msg))
             .collect();
 
         for recv in received_messages {
