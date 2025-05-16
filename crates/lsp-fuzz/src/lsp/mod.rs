@@ -3,6 +3,7 @@ pub mod message;
 
 use generation::{LspParamsGenerator, numeric::TabSizeGen};
 pub use message::LspMessage;
+use message::LspResponse;
 use serde::{Deserialize, Serialize};
 
 pub mod code_context;
@@ -12,16 +13,29 @@ pub mod json_rpc;
 pub mod metamodel;
 pub mod ucc;
 
-pub trait LspRequestMeta {
+pub trait LspMessageMeta {
     type Params;
     const METHOD: &'static str;
 }
 
+pub trait LspRequestMeta: LspMessageMeta {
+    type Response;
+}
+
 pub trait MessageParam<M>
+where
+    M: LspMessageMeta,
+{
+    fn into_message(self) -> LspMessage;
+
+    fn from_message_ref(message: &LspMessage) -> Option<&Self>;
+}
+
+pub trait MessageResponse<M>
 where
     M: LspRequestMeta,
 {
-    fn into_message(self) -> LspMessage;
+    fn from_response_ref(response: &LspResponse) -> Option<&Self>;
 }
 
 pub trait HasPredefinedGenerators<State> {

@@ -34,7 +34,7 @@ use lsp_fuzz::{
     lsp::GeneratorsConfig,
     lsp_input::{
         LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
-        output_novelty::OutputNoveltyFeedback,
+        server_response::LspResponseFeedback,
     },
     stages::{StatsStage, TimeoutStopStage},
     text_document::text_document_mutations,
@@ -145,7 +145,7 @@ impl FuzzCommand {
         };
         let output_novelty = EagerAndFeedback::new(
             curiosity_gate,
-            OutputNoveltyFeedback::new(&lsp_response_observer),
+            LspResponseFeedback::new(&lsp_response_observer),
         );
         let stats_file = OpenOptions::new()
             .write(true)

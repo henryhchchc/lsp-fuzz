@@ -39,7 +39,7 @@ pub type FileContentInput = BytesInput;
 
 pub mod messages;
 pub mod ops_curiosity;
-pub mod output_novelty;
+pub mod server_response;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspaceEntry {
@@ -197,12 +197,28 @@ impl InputToBytes<LspInput> for LspInputBytesConverter {
         let input_hash = input.workspace_hash();
         let workspace_dir = self
             .workspace_root
-            .join(format!("lsp-fuzz-workspace_{input_hash}"));
+            .join(format!("{}_{input_hash}", LspInput::WORKSPACE_DIR_PREFIX));
         input.request_bytes(&workspace_dir).into()
     }
 }
 
 impl LspInput {
+    pub const WORKSPACE_DIR_PREFIX: &str = "lsp-fuzz-workspace_";
+
+    pub fn lift_uri(uri: &lsp_types::Uri) -> Cow<'_, str> {
+        let uri_str = uri.as_str();
+        if let Some(index) = uri_str.find(Self::WORKSPACE_DIR_PREFIX) {
+            let in_workspace = uri_str[index..]
+                .find('/')
+                .map(|it| it + 1)
+                .unwrap_or(uri_str.len());
+            let lifted = format!("{}/{}", Self::PROROCOL_PREFIX, &uri_str[in_workspace..]);
+            Cow::Owned(lifted)
+        } else {
+            Cow::Borrowed(uri_str)
+        }
+    }
+
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
         let message_sequence = self.message_sequence();
 

@@ -31,6 +31,24 @@ macro_rules! lsp_responses {
             }
 
         }
+
+        $(
+            impl crate::lsp::LspRequestMeta for ::lsp_types::request::$res_variant {
+                type Response = <Self as ::lsp_types::request::Request>::Result;
+            }
+
+
+            impl crate::lsp::MessageResponse<::lsp_types::request::$res_variant> for <::lsp_types::request::$res_variant as ::lsp_types::request::Request>::Result {
+                fn from_response_ref(response: &$type_name) -> Option<&Self> {
+                    if let crate::lsp::$type_name::$res_variant(result) = response {
+                        Some(result)
+                    } else {
+                        None
+                    }
+                }
+            }
+        )*
+
     };
 }
 
@@ -107,7 +125,7 @@ macro_rules! lsp_messages {
 
             pub fn from_params<M>(params: M::Params) -> Self
                 where
-                    M: crate::lsp::LspRequestMeta,
+                    M: crate::lsp::LspMessageMeta,
                     M::Params: crate::lsp::MessageParam<M>
             {
                 <M::Params as crate::lsp::MessageParam<M>>::into_message(params)
@@ -187,7 +205,7 @@ macro_rules! lsp_messages {
 
         $(
             $(
-                impl crate::lsp::LspRequestMeta for ::lsp_types::request::$req_variant {
+                impl crate::lsp::LspMessageMeta for ::lsp_types::request::$req_variant {
                     const METHOD: &'static str = <Self as ::lsp_types::request::Request>::METHOD;
                     type Params = <Self as ::lsp_types::request::Request>::Params;
                 }
@@ -196,10 +214,18 @@ macro_rules! lsp_messages {
                     fn into_message(self) -> $type_name {
                         $type_name::$req_variant(self)
                     }
+
+                    fn from_message_ref(message: &$type_name) -> Option<&Self> {
+                        if let LspMessage::$req_variant(params) = message {
+                            Some(params)
+                        } else {
+                            None
+                        }
+                    }
                 }
             )?
             $(
-                impl crate::lsp::LspRequestMeta for ::lsp_types::notification::$not_variant {
+                impl crate::lsp::LspMessageMeta for ::lsp_types::notification::$not_variant {
                     const METHOD: &'static str = <Self as ::lsp_types::notification::Notification>::METHOD;
                     type Params = <Self as ::lsp_types::notification::Notification>::Params;
                 }
@@ -207,6 +233,14 @@ macro_rules! lsp_messages {
                 impl crate::lsp::MessageParam<::lsp_types::notification::$not_variant> for <::lsp_types::notification::$not_variant as ::lsp_types::notification::Notification>::Params {
                     fn into_message(self) -> $type_name {
                         $type_name::$not_variant(self)
+                    }
+
+                    fn from_message_ref(message: &$type_name) -> Option<&Self> {
+                        if let LspMessage::$not_variant(params) = message {
+                            Some(params)
+                        } else {
+                            None
+                        }
                     }
                 }
             )?

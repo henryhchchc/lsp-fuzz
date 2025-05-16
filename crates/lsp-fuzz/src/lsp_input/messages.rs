@@ -20,7 +20,7 @@ use tuple_list::{tuple_list, tuple_list_type};
 use super::LspInput;
 use crate::{
     lsp::{
-        self, GeneratorsConfig, HasPredefinedGenerators, LspMessage, LspRequestMeta, MessageParam,
+        self, GeneratorsConfig, HasPredefinedGenerators, LspMessage, LspMessageMeta, MessageParam,
         code_context::CodeContextRef,
         generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
         json_rpc::MessageId,
@@ -365,14 +365,14 @@ where
 
 pub struct AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspRequestMeta,
+    M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     name: Cow<'static, str>,
     generators: Vec<<M::Params as HasPredefinedGenerators<State>>::Generator>,
 }
 
-impl<M: LspRequestMeta, State> Debug for AppendRandomlyGeneratedMessage<M, State>
+impl<M: LspMessageMeta, State> Debug for AppendRandomlyGeneratedMessage<M, State>
 where
     M::Params: HasPredefinedGenerators<State>,
 {
@@ -392,7 +392,7 @@ pub const MAX_MESSAGES: usize = 10;
 
 impl<M, State> AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspRequestMeta,
+    M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     pub fn with_predefined(config: &GeneratorsConfig) -> Self {
@@ -405,7 +405,7 @@ where
 
 impl<M, State> Named for AppendRandomlyGeneratedMessage<M, State>
 where
-    M: LspRequestMeta,
+    M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
 {
     fn name(&self) -> &Cow<'static, str> {
@@ -416,7 +416,7 @@ where
 impl<M, State> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
 where
     State: HasRand,
-    M: LspRequestMeta,
+    M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State> + MessageParam<M>,
 {
     fn mutate(
