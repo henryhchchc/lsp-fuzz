@@ -323,7 +323,9 @@ where
         input: &mut LspInput,
     ) -> Result<MutationResult, libafl::Error> {
         let mut result = MutationResult::Skipped;
-        if self.text_document_mutator.mutate(state, input)? == MutationResult::Mutated {
+        if state.rand_mut().coinflip(0.5)
+            && self.text_document_mutator.mutate(state, input)? == MutationResult::Mutated
+        {
             result = MutationResult::Mutated;
         }
         if self.requests_mutator.mutate(state, input)? == MutationResult::Mutated {
