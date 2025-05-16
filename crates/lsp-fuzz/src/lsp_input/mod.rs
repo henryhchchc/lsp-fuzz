@@ -197,7 +197,7 @@ impl InputToBytes<LspInput> for LspInputBytesConverter {
         let input_hash = input.workspace_hash();
         let workspace_dir = self
             .workspace_root
-            .join(format!("{}_{input_hash}", LspInput::WORKSPACE_DIR_PREFIX));
+            .join(format!("{}{input_hash}", LspInput::WORKSPACE_DIR_PREFIX));
         input.request_bytes(&workspace_dir).into()
     }
 }
