@@ -218,3 +218,48 @@ where
         Ok(generated.clone())
     }
 }
+
+#[derive(Debug)]
+pub struct FallbackGenerator<First, Second> {
+    first: First,
+    second: Second,
+}
+
+impl<First, Second> Clone for FallbackGenerator<First, Second>
+where
+    First: Clone,
+    Second: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            first: self.first.clone(),
+            second: self.second.clone(),
+        }
+    }
+}
+
+impl<First, Second> FallbackGenerator<First, Second> {
+    pub const fn new(first: First, second: Second) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<State, First, Second> LspParamsGenerator<State> for FallbackGenerator<First, Second>
+where
+    First: LspParamsGenerator<State>,
+    Second: LspParamsGenerator<State, Output = First::Output>,
+{
+    type Output = First::Output;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        match self.first.generate(state, input) {
+            Ok(result) => Ok(result),
+            Err(GenerationError::NothingGenerated) => self.second.generate(state, input),
+            err => err,
+        }
+    }
+}

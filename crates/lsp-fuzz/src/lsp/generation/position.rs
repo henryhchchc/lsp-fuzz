@@ -10,6 +10,7 @@ use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
 use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
 use crate::{
+    lsp::generation::meta::FallbackGenerator,
     lsp_input::{
         LspInput,
         messages::{
@@ -76,8 +77,12 @@ where
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
-        let diagnostic_guided: Self::Generator =
-            Rc::new(DiagnosticPositionGenerator::<RandomDoc>::new());
+
+        let diag_fallback = FallbackGenerator::new(
+            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            SelectInRandomDoc::new(term_start_pos),
+        );
+        let diagnostic_guided: Self::Generator = Rc::new(diag_fallback);
 
         let mut generators = Vec::new();
         if config.ctx_awareness {

@@ -8,6 +8,58 @@ use libafl::{
 };
 use libafl_bolts::{Named, rands::Rand};
 
+#[derive(Debug)]
+pub struct FallbackMutator<Frist, Second> {
+    first: Frist,
+    second: Second,
+}
+
+impl<Frist, Second> FallbackMutator<Frist, Second> {
+    pub const fn new(first: Frist, second: Second) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<First, Second> Named for FallbackMutator<First, Second>
+where
+    First: Named,
+    Second: Named,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        static NAME: Cow<'static, str> = Cow::Borrowed("FallbackMutator");
+        &NAME
+    }
+}
+
+impl<I, First, Second, State> Mutator<I, State> for FallbackMutator<First, Second>
+where
+    First: Mutator<I, State>,
+    Second: Mutator<I, State>,
+{
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut I,
+    ) -> Result<MutationResult, libafl::Error> {
+        let first_reult = self.first.mutate(state, input)?;
+        if first_reult == MutationResult::Skipped {
+            self.second.mutate(state, input)
+        } else {
+            Ok(first_reult)
+        }
+    }
+
+    fn post_exec(
+        &mut self,
+        state: &mut State,
+        new_corpus_id: Option<CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        self.first.post_exec(state, new_corpus_id)?;
+        self.second.post_exec(state, new_corpus_id)?;
+        Ok(())
+    }
+}
+
 pub trait WithProbability {
     fn with_probability(self, probability: f64) -> ProbabilityMutator<Self>
     where
