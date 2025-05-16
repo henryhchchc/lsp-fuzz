@@ -83,6 +83,7 @@ where
         if config.ctx_awareness {
             generators.extend([
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
+                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
                 term_start.clone(),
                 term_start.clone(),
                 term_start.clone(),
@@ -92,8 +93,6 @@ where
             ]);
             if config.feedback_guidance {
                 generators.extend([
-                    diagnostic_guided.clone(),
-                    diagnostic_guided.clone(),
                     diagnostic_guided.clone(),
                     diagnostic_guided.clone(),
                     diagnostic_guided.clone(),
