@@ -363,7 +363,7 @@ where
     }
 }
 
-pub struct AppendRandomlyGeneratedMessage<M, State>
+pub struct AppendMessage<M, State>
 where
     M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
@@ -372,7 +372,7 @@ where
     generators: Vec<<M::Params as HasPredefinedGenerators<State>>::Generator>,
 }
 
-impl<M: LspMessageMeta, State> Debug for AppendRandomlyGeneratedMessage<M, State>
+impl<M: LspMessageMeta, State> Debug for AppendMessage<M, State>
 where
     M::Params: HasPredefinedGenerators<State>,
 {
@@ -390,7 +390,7 @@ where
 
 pub const MAX_MESSAGES: usize = 10;
 
-impl<M, State> AppendRandomlyGeneratedMessage<M, State>
+impl<M, State> AppendMessage<M, State>
 where
     M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
@@ -403,7 +403,7 @@ where
     }
 }
 
-impl<M, State> Named for AppendRandomlyGeneratedMessage<M, State>
+impl<M, State> Named for AppendMessage<M, State>
 where
     M: LspMessageMeta,
     M::Params: HasPredefinedGenerators<State>,
@@ -413,7 +413,7 @@ where
     }
 }
 
-impl<M, State> Mutator<LspInput, State> for AppendRandomlyGeneratedMessage<M, State>
+impl<M, State> Mutator<LspInput, State> for AppendMessage<M, State>
 where
     State: HasRand,
     M: LspMessageMeta,

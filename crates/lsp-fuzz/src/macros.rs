@@ -262,8 +262,8 @@ macro_rules! append_randoms {
         use lsp_types::{request, notification};
         $vis type $return_ty<State> = tuple_list::tuple_list_type![
             $(
-                $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>, )?
-                $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>, )?
+                $(AppendMessage::<request::$req_variant, State>, )?
+                $(AppendMessage::<notification::$not_variant, State>, )?
             )*
         ];
 
@@ -274,8 +274,8 @@ macro_rules! append_randoms {
         {
             tuple_list::tuple_list![
                 $(
-                    $(AppendRandomlyGeneratedMessage::<request::$req_variant, State>::with_predefined(config),)?
-                    $(AppendRandomlyGeneratedMessage::<notification::$not_variant, State>::with_predefined(config),)?
+                    $(AppendMessage::<request::$req_variant, State>::with_predefined(config),)?
+                    $(AppendMessage::<notification::$not_variant, State>::with_predefined(config),)?
                 )*
             ]
         }
