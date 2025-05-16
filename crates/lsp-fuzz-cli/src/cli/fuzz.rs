@@ -188,7 +188,8 @@ impl FuzzCommand {
         let mut fuzz_stages = {
             let mutation_stage = {
                 let generators_config = match self.ablation_mode {
-                    AblationMode::Full | AblationMode::NoServerFeedback => GeneratorsConfig::full(),
+                    AblationMode::Full => GeneratorsConfig::full(),
+                    AblationMode::NoServerFeedback => GeneratorsConfig::no_server_feedback(),
                     AblationMode::NoContextAwareness | AblationMode::AllOff => {
                         GeneratorsConfig::no_context_awareness()
                     }

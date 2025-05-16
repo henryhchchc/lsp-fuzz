@@ -10,6 +10,6 @@ pub struct LspResponseInfo {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny)]
 pub struct Diagnostic {
-    pub uri: String,
+    pub uri: lsp_types::Uri,
     pub range: lsp_types::Range,
 }

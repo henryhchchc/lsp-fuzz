@@ -66,6 +66,7 @@ pub struct GeneratorsConfig {
     pub invalid_positions: bool,
     pub invalid_code_frequency: f64,
     pub ctx_awareness: bool,
+    pub feedback_guidance: bool,
 }
 
 impl GeneratorsConfig {
@@ -75,18 +76,35 @@ impl GeneratorsConfig {
             invalid_positions: true,
             invalid_code_frequency: 0.1,
             ctx_awareness: true,
+            feedback_guidance: true,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,
             },
         }
     }
+
+    pub fn no_server_feedback() -> Self {
+        Self {
+            invalid_ranges: true,
+            invalid_positions: true,
+            invalid_code_frequency: 0.1,
+            ctx_awareness: true,
+            feedback_guidance: false,
+            tab_size: TabSizeGen {
+                candidates: vec![0, 1, 2, 4, 8],
+                rand_prob: 0.2,
+            },
+        }
+    }
+
     pub fn no_context_awareness() -> Self {
         Self {
             invalid_ranges: true,
             invalid_positions: true,
             ctx_awareness: false,
             invalid_code_frequency: 0.0,
+            feedback_guidance: false,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,

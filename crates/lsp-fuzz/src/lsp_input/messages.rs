@@ -5,7 +5,7 @@ use derive_new::new as New;
 use libafl::{
     HasMetadata,
     mutators::{MutationResult, Mutator, MutatorsTuple},
-    state::HasRand,
+    state::{HasCurrentTestcase, HasRand},
 };
 use libafl_bolts::{
     HasLen, Named,
@@ -533,7 +533,7 @@ pub fn message_mutations<State>(
     config: &GeneratorsConfig,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<State>
 where
-    State: HasRand + HasMetadata + 'static,
+    State: HasRand + HasMetadata + HasCurrentTestcase<LspInput> + 'static,
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
     append_randomly_generated_messages(config)

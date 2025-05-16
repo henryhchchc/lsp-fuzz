@@ -205,7 +205,7 @@ impl InputToBytes<LspInput> for LspInputBytesConverter {
 impl LspInput {
     pub const WORKSPACE_DIR_PREFIX: &str = "lsp-fuzz-workspace_";
 
-    pub fn lift_uri(uri: &lsp_types::Uri) -> Cow<'_, str> {
+    pub fn lift_uri(uri: &lsp_types::Uri) -> Cow<'_, lsp_types::Uri> {
         let uri_str = uri.as_str();
         if let Some(index) = uri_str.find(Self::WORKSPACE_DIR_PREFIX) {
             let in_workspace = uri_str[index..]
@@ -213,9 +213,9 @@ impl LspInput {
                 .map(|it| it + 1)
                 .unwrap_or(uri_str.len());
             let lifted = format!("{}/{}", Self::PROROCOL_PREFIX, &uri_str[in_workspace..]);
-            Cow::Owned(lifted)
+            Cow::Owned(lifted.parse().unwrap())
         } else {
-            Cow::Borrowed(uri_str)
+            Cow::Borrowed(uri)
         }
     }
 

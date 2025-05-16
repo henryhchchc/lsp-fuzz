@@ -270,7 +270,7 @@ macro_rules! append_randoms {
         $(#[$outer])*
         $vis fn $fn_name<State>(config: &GeneratorsConfig) -> $return_ty<State>
         where
-            State: libafl::state::HasRand + libafl::common::HasMetadata + 'static
+            State: libafl::state::HasRand + libafl::common::HasMetadata + libafl::state::HasCurrentTestcase<LspInput> + 'static
         {
             tuple_list::tuple_list![
                 $(

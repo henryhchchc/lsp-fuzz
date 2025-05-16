@@ -1,7 +1,10 @@
 use std::{marker::PhantomData, rc::Rc, str::FromStr};
 
 use derive_new::new as New;
-use libafl::{HasMetadata, state::HasRand};
+use libafl::{
+    HasMetadata,
+    state::{HasCurrentTestcase, HasRand},
+};
 use libafl_bolts::rands::Rand;
 use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
@@ -12,6 +15,7 @@ use crate::{
         messages::{
             HighlightSteer, PositionSelector, RandomPosition, TerminalStartPosition, ValidPosition,
         },
+        server_response::metadata::LspResponseInfo,
     },
     text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     utils::generate_random_uri_content,
@@ -59,7 +63,7 @@ where
 
 impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
 where
-    State: HasRand + HasMetadata,
+    State: HasRand + HasMetadata + HasCurrentTestcase<LspInput>,
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
@@ -72,6 +76,8 @@ where
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
+        let diagnostic_guided: Self::Generator =
+            Rc::new(DiagnosticPositionGenerator::<RandomDoc>::new());
 
         let mut generators = Vec::new();
         if config.ctx_awareness {
@@ -84,6 +90,15 @@ where
                 steer.clone(),
                 steer.clone(),
             ]);
+            if config.feedback_guidance {
+                generators.extend([
+                    diagnostic_guided.clone(),
+                    diagnostic_guided.clone(),
+                    diagnostic_guided.clone(),
+                    diagnostic_guided.clone(),
+                    diagnostic_guided.clone(),
+                ]);
+            }
             if config.invalid_positions {
                 generators.push(random_position);
             }
@@ -131,5 +146,49 @@ where
                 })
             };
         generate(state, input).ok_or(GenerationError::NothingGenerated)
+    }
+}
+
+#[derive(Debug, New)]
+pub struct DiagnosticPositionGenerator<D> {
+    _doc_selector: PhantomData<D>,
+}
+
+impl<State, D> LspParamsGenerator<State> for DiagnosticPositionGenerator<D>
+where
+    D: TextDocumentSelector<State>,
+    State: HasRand + HasCurrentTestcase<LspInput>,
+{
+    type Output = TextDocumentPositionParams;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let (uri, _doc) =
+            D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
+        let test_case = state
+            .current_testcase()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+        let response_info = test_case
+            .metadata::<LspResponseInfo>()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+        let diagnostics: Vec<_> = response_info
+            .diagnostics
+            .iter()
+            .filter(|diag| diag.uri == uri)
+            .map(|diag| diag.range.start)
+            .collect();
+        drop(test_case);
+        let position = state
+            .rand_mut()
+            .choose(diagnostics)
+            .ok_or(GenerationError::NothingGenerated)?;
+
+        Ok(Self::Output {
+            text_document: TextDocumentIdentifier { uri },
+            position,
+        })
     }
 }

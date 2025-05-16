@@ -97,7 +97,7 @@ where
             let uri = LspInput::lift_uri(&pub_diag.uri);
             for diag_item in pub_diag.diagnostics.iter() {
                 let diag = Diagnostic {
-                    uri: uri.as_ref().to_owned(),
+                    uri: uri.as_ref().clone(),
                     range: diag_item.range,
                 };
                 diagnostics.insert(diag);
