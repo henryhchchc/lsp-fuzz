@@ -200,7 +200,7 @@ impl FuzzCommand {
                 );
                 let messages_mutator = HavocScheduledMutator::with_max_stack_pow(
                     message_mutations(&generators_config),
-                    4,
+                    3,
                 );
                 let mutator = LspInputMutator::new(text_document_mutator, messages_mutator);
                 StdPowerMutationalStage::new(mutator)
