@@ -78,11 +78,18 @@ where
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
-        let diag_fallback = FallbackGenerator::new(
+        let diag1 = FallbackGenerator::new(
             DiagnosticPositionGenerator::<RandomDoc>::new(),
             SelectInRandomDoc::new(term_start_pos),
         );
-        let diagnostic_guided: Self::Generator = Rc::new(diag_fallback);
+        let diag2 = FallbackGenerator::new(
+            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            SelectInRandomDoc::new(ValidPosition::new()),
+        );
+        let diag3 = FallbackGenerator::new(
+            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            SelectInRandomDoc::new(HighlightSteer::new()),
+        );
 
         let mut generators = Vec::new();
         if config.ctx_awareness {
@@ -98,9 +105,11 @@ where
             ]);
             if config.feedback_guidance {
                 generators.extend([
-                    diagnostic_guided.clone(),
-                    diagnostic_guided.clone(),
-                    diagnostic_guided.clone(),
+                    Rc::new(diag1) as _,
+                    Rc::new(diag2) as _,
+                    Rc::new(diag2) as _,
+                    Rc::new(diag3) as _,
+                    Rc::new(diag3) as _,
                 ]);
             }
             if config.invalid_positions {
