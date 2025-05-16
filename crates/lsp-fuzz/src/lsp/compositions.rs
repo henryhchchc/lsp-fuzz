@@ -363,6 +363,38 @@ compose! {
     }
 }
 
+compose! {
+    TypeHierarchySupertypesParams {
+        item: TypeHierarchyItem,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
+    }
+}
+
+compose! {
+    TypeHierarchySubtypesParams {
+        item: TypeHierarchyItem,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
+    }
+}
+
+compose! {
+    CallHierarchyIncomingCallsParams {
+        item: CallHierarchyItem,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
+    }
+}
+
+compose! {
+    CallHierarchyOutgoingCallsParams {
+        item: CallHierarchyItem,
+        work_done_progress_params: WorkDoneProgressParams,
+        partial_result_params: PartialResultParams
+    }
+}
+
 impl Compose for DocumentRangeFormattingParams {
     type Components = tuple_list_type![Selection, FormattingOptions, WorkDoneProgressParams];
 
@@ -400,6 +432,19 @@ impl Compose for SelectionRangeParams {
             positions: vec![position],
             work_done_progress_params,
             partial_result_params,
+        }
+    }
+}
+
+impl Compose for ExecuteCommandParams {
+    type Components = tuple_list_type![Command, WorkDoneProgressParams];
+
+    fn compose(components: Self::Components) -> Self {
+        let (command, work_done_progress_params) = components.into_tuple();
+        Self {
+            command: command.command,
+            arguments: command.arguments.unwrap_or_default(),
+            work_done_progress_params,
         }
     }
 }

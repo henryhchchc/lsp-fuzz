@@ -1,11 +1,20 @@
 use std::marker::PhantomData;
 
-use libafl::state::HasRand;
+use libafl::{
+    HasMetadata,
+    state::{HasCurrentTestcase, HasRand},
+};
 use libafl_bolts::rands::Rand;
 use lsp_types::OneOf;
 
 use super::{GenerationError, LspParamsGenerator};
-use crate::{lsp::HasPredefinedGenerators, lsp_input::LspInput};
+use crate::{
+    lsp::HasPredefinedGenerators,
+    lsp_input::{
+        LspInput,
+        server_response::metadata::{ContainsFragment, ParamFragments},
+    },
+};
 
 #[derive(Debug)]
 pub struct DefaultGenerator<T> {
@@ -143,5 +152,69 @@ where
         } else {
             self.inner.generate(state, input).map(Some)
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ParamFragmentGenerator<T> {
+    enabled: bool,
+    _phantom: PhantomData<fn() -> T>,
+}
+
+impl<T> ParamFragmentGenerator<T> {
+    pub const fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<State, T> LspParamsGenerator<State> for ParamFragmentGenerator<T>
+where
+    State: HasRand + HasCurrentTestcase<LspInput>,
+    ParamFragments: ContainsFragment<T>,
+    T: Clone,
+{
+    type Output = T;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        if !self.enabled {
+            return Err(GenerationError::NothingGenerated);
+        }
+        let testcase = state
+            .current_testcase()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let fragment_store = testcase
+            .metadata::<ParamFragments>()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let frag_len = fragment_store.fragments().len();
+        drop(testcase);
+        let selected_idx = state
+            .rand_mut()
+            .choose(0..frag_len)
+            .ok_or(GenerationError::NothingGenerated)?;
+
+        // We have to reborrow here. This is a pain in the ass.
+
+        let testcase = state
+            .current_testcase()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let fragment_store = testcase
+            .metadata::<ParamFragments>()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+        let param_fragments = fragment_store.fragments();
+        let generated: &T = param_fragments
+            .iter()
+            .nth(selected_idx)
+            .expect("The index is witin the range");
+        Ok(generated.clone())
     }
 }

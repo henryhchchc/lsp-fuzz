@@ -13,12 +13,14 @@ use libafl_bolts::{
     Named,
     tuples::{Handle, Handled, MatchNameRef},
 };
-use lsp_types::notification::PublishDiagnostics;
-use metadata::{Diagnostic, LspResponseInfo};
+use lsp_types::{CompletionResponse, WorkspaceSymbolResponse, notification::PublishDiagnostics};
+use metadata::{Diagnostic, LspResponseInfo, ParamFragments};
 use tracing::warn;
 
 use super::LspInput;
-use crate::{execution::responses::LspOutputObserver, utils::AflContext};
+use crate::{
+    execution::responses::LspOutputObserver, lsp::message::LspResponse, utils::AflContext,
+};
 
 pub mod metadata;
 
@@ -104,7 +106,62 @@ where
             }
         }
 
-        let response_info = LspResponseInfo { diagnostics };
+        let mut param_fragments = ParamFragments::default();
+
+        for res in matching.responses.values() {
+            use LspResponse::*;
+            match res {
+                CodeActionRequest(Some(cas)) => cas.iter().cloned().for_each(|ca| match ca {
+                    lsp_types::CodeActionOrCommand::Command(command) => {
+                        param_fragments.commands.insert(command);
+                    }
+                    lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
+                        param_fragments.code_actions.insert(code_action);
+                    }
+                }),
+                InlayHintRequest(Some(inlay_hints)) => {
+                    param_fragments
+                        .inlay_hints
+                        .extend(inlay_hints.iter().cloned());
+                }
+                Completion(Some(res)) => {
+                    let items = match res {
+                        CompletionResponse::Array(items) => items,
+                        CompletionResponse::List(list) => &list.items,
+                    };
+                    param_fragments
+                        .completion_items
+                        .extend(items.iter().cloned());
+                }
+                CodeLensRequest(Some(code_lens)) => {
+                    param_fragments.code_lens.extend(code_lens.iter().cloned());
+                }
+                WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Nested(symbols))) => {
+                    param_fragments
+                        .workspace_symbols
+                        .extend(symbols.iter().cloned());
+                }
+                TypeHierarchyPrepare(Some(items)) => {
+                    param_fragments
+                        .type_hierarchy_items
+                        .extend(items.iter().cloned());
+                }
+                CallHierarchyPrepare(Some(items)) => {
+                    param_fragments
+                        .call_hierarchy_items
+                        .extend(items.iter().cloned());
+                }
+                DocumentLinkRequest(Some(links)) => {
+                    param_fragments.document_links.extend(links.iter().cloned());
+                }
+                _ => {}
+            }
+        }
+
+        let response_info = LspResponseInfo {
+            diagnostics,
+            param_fragments,
+        };
         testcase.add_metadata(response_info);
         Ok(())
     }
