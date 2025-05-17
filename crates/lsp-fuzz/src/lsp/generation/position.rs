@@ -106,15 +106,19 @@ where
         let mut generators = Vec::new();
         if config.ctx_awareness {
             generators.extend([
+                Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator,
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-                term_start.clone(),
-                term_start.clone(),
-                term_start.clone(),
-                steer.clone(),
-                steer.clone(),
-                steer.clone(),
             ]);
+            if config.grammar_ops_awareness {
+                generators.extend([
+                    term_start.clone(),
+                    term_start.clone(),
+                    term_start.clone(),
+                    steer.clone(),
+                    steer.clone(),
+                    steer.clone(),
+                ]);
+            }
             if config.feedback_guidance {
                 generators.extend([
                     diag1.clone() as _,

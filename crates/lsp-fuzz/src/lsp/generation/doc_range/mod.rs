@@ -114,15 +114,23 @@ where
                     RINDGen::new(range_selectors::random_valid_range),
                     RINDGen::new(range_selectors::random_valid_range),
                     RINDGen::new(range_selectors::random_valid_range),
-                    RINDGen::new(range_selectors::random_subtree),
-                    RINDGen::new(range_selectors::random_subtree),
-                    RINDGen::new(range_selectors::random_subtree),
-                    RINDGen::new(range_selectors::random_subtree),
-                    RINDGen::new(range_selectors::random_subtree),
                 ]
                 .map(Rc::new)
                 .map(|it| it as _),
             );
+            if config.grammar_ops_awareness {
+                generators.extend(
+                    [
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::random_subtree),
+                    ]
+                    .map(Rc::new)
+                    .map(|it| it as _),
+                );
+            }
             if config.invalid_ranges {
                 generators.extend(
                     [
