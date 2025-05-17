@@ -159,7 +159,7 @@ where
         if doc_len - node_len + node_content.len() > MAX_DOCUMENT_SIZE {
             return Ok(MutationResult::Skipped);
         }
-        let input_edit = doc.splice(node_range, node_content.to_vec());
+        let input_edit = doc.splice(node_range, node_content);
         input.messages.calibrate(doc_uri, input_edit);
         Ok(MutationResult::Mutated)
     }
