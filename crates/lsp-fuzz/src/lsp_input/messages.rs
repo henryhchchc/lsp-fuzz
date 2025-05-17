@@ -388,7 +388,7 @@ where
     }
 }
 
-pub const MAX_MESSAGES: usize = 10;
+pub const MAX_MESSAGES: usize = 20;
 
 impl<M, State> AppendMessage<M, State>
 where
