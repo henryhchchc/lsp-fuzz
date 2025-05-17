@@ -82,27 +82,6 @@ where
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
-        let diag1 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(diag_nodes),
-            SelectInRandomDoc::new(term_start_pos),
-        ));
-        let diag2 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(diag_nodes),
-            SelectInRandomDoc::new(ValidPosition::new()),
-        ));
-        let diag3 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(diag_nodes_parent),
-            SelectInRandomDoc::new(HighlightSteer::new()),
-        ));
-        let diag4 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(diag_nodes_parent),
-            SelectInRandomDoc::new(HighlightSteer::new()),
-        ));
-        let symbol1 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(collected_symbols),
-            SelectInRandomDoc::new(term_start_pos),
-        ));
-
         let mut generators = Vec::new();
         if config.ctx_awareness {
             generators.extend([
@@ -121,19 +100,9 @@ where
             }
             if config.feedback_guidance {
                 generators.extend([
-                    diag1.clone() as _,
-                    diag2.clone() as _,
-                    diag3.clone() as _,
-                    diag3.clone() as _,
-                    diag4.clone() as _,
-                    diag4.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
-                    symbol1.clone() as _,
+                    Rc::new(FeedbackPosInDoc::new(diag_nodes)) as Self::Generator,
+                    Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
+                    Rc::new(FeedbackPosInDoc::new(collected_symbols)),
                 ]);
             }
             if config.invalid_positions {

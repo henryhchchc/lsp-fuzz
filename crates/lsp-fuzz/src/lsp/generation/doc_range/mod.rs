@@ -146,14 +146,7 @@ where
                 generators.extend(
                     [
                         RINDGen::new(range_selectors::diagnosed_range),
-                        RINDGen::new(range_selectors::diagnosed_range),
                         RINDGen::new(range_selectors::diagnosed_parent),
-                        RINDGen::new(range_selectors::diagnosed_parent),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                     ]
                     .map(|it| {
