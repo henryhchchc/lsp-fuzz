@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
 use derive_new::new as New;
 use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
-use lsp_types::{Range, TextDocumentIdentifier};
+use lsp_types::{Range, TextDocumentIdentifier, Uri};
 
 use super::{GenerationError, LspParamsGenerator};
 use crate::{
@@ -23,7 +23,7 @@ pub struct Selection(pub TextDocumentIdentifier, pub Range);
 
 #[derive(Debug, New)]
 pub struct RangeInDocGenerator<State, D = RandomDoc> {
-    range_selector: fn(&mut State, &TextDocument) -> Range,
+    range_selector: fn(&mut State, &Uri, &TextDocument) -> Range,
     _phantom: PhantomData<D>,
 }
 
@@ -49,7 +49,7 @@ where
     ) -> Result<Self::Output, GenerationError> {
         let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
-        let range = (self.range_selector)(state, doc);
+        let range = (self.range_selector)(state, &uri, doc);
         let doc = TextDocumentIdentifier { uri };
         Ok(Selection(doc, range))
     }
@@ -139,8 +139,10 @@ where
                     [
                         RINDGen::new(range_selectors::diagnosed_range),
                         RINDGen::new(range_selectors::diagnosed_range),
-                        RINDGen::new(range_selectors::diagnosed_range),
-                        RINDGen::new(range_selectors::diagnosed_range),
+                        RINDGen::new(range_selectors::symbols_range),
+                        RINDGen::new(range_selectors::symbols_range),
+                        RINDGen::new(range_selectors::symbols_range),
+                        RINDGen::new(range_selectors::symbols_range),
                     ]
                     .map(Rc::new)
                     .map(|it| it as _),
