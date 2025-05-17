@@ -22,7 +22,7 @@ use crate::{
         GrammarBasedMutation, TextDocument,
         mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     },
-    utils::{ToLspPosition, ToTreeSitterPoint, generate_random_uri_content},
+    utils::{ToLspPosition, ToLspRange, ToTreeSitterPoint, generate_random_uri_content},
 };
 
 #[derive(Debug)]
@@ -251,7 +251,8 @@ pub(super) fn diag_nodes_parent(
             )
         })
         .filter_map(|it| it.parent())
-        .map(|it| it.range().start_point.to_lsp_position())
+        .flat_map(|it| doc.node_starts_in_range(it.range().to_lsp_range()))
+        .map(|it| it.to_lsp_position())
         .collect()
 }
 
