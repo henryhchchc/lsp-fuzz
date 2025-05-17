@@ -8,6 +8,7 @@ use lsp_types::{Position, Range, Uri};
 use crate::{
     lsp_input::{LspInput, server_response::metadata::LspResponseInfo},
     text_document::{GrammarBasedMutation, TextDocument, grammar::tree_sitter::TreeIter},
+    utils::{ToLspRange, ToTreeSitterPoint},
 };
 
 fn lsp_whole_range(doc: &TextDocument) -> Range {
@@ -104,6 +105,37 @@ pub(super) fn diagnosed_range<State: HasRand + HasCurrentTestcase<LspInput>>(
         drop(test_case);
         let rand = state.rand_mut();
         rand.choose(ranges)
+    };
+
+    if let Some(range) = select() {
+        range
+    } else {
+        random_subtree(state, uri, doc)
+    }
+}
+
+pub(super) fn diagnosed_parent<State: HasRand + HasCurrentTestcase<LspInput>>(
+    state: &mut State,
+    uri: &Uri,
+    doc: &TextDocument,
+) -> Range {
+    let mut select = || -> Option<Range> {
+        let test_case = state.current_testcase().ok()?;
+        let response_info = test_case.metadata::<LspResponseInfo>().ok()?;
+        let ranges: Vec<_> = response_info
+            .diagnostics
+            .iter()
+            .filter(|it| &it.uri == uri)
+            .map(|it| it.range)
+            .collect();
+        drop(test_case);
+        let rand = state.rand_mut();
+        let range = rand.choose(ranges)?;
+        let node = doc
+            .parse_tree()
+            .root_node()
+            .descendant_for_point_range(range.start.to_ts_point(), range.end.to_ts_point())?;
+        Some(node.parent()?.range().to_lsp_range())
     };
 
     if let Some(range) = select() {

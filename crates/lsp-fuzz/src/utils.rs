@@ -221,3 +221,42 @@ pub fn generate_random_uri_content<R: Rand>(rand: &mut R, max_length: usize) -> 
 
     result
 }
+
+pub trait ToTreeSitterPoint {
+    fn to_ts_point(&self) -> tree_sitter::Point;
+}
+
+impl ToTreeSitterPoint for lsp_types::Position {
+    fn to_ts_point(&self) -> tree_sitter::Point {
+        tree_sitter::Point {
+            row: self.line as _,
+            column: self.character as _,
+        }
+    }
+}
+
+pub trait ToLspPosition {
+    fn to_lsp_position(&self) -> lsp_types::Position;
+}
+
+impl ToLspPosition for tree_sitter::Point {
+    fn to_lsp_position(&self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.row as _,
+            character: self.column as _,
+        }
+    }
+}
+
+pub trait ToLspRange {
+    fn to_lsp_range(&self) -> lsp_types::Range;
+}
+
+impl ToLspRange for tree_sitter::Range {
+    fn to_lsp_range(&self) -> lsp_types::Range {
+        lsp_types::Range {
+            start: self.start_point.to_lsp_position(),
+            end: self.end_point.to_lsp_position(),
+        }
+    }
+}

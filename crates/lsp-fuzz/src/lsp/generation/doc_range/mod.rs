@@ -7,7 +7,7 @@ use lsp_types::{Range, TextDocumentIdentifier, Uri};
 
 use super::{GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::HasPredefinedGenerators,
+    lsp::{HasPredefinedGenerators, generation::meta::FallbackGenerator},
     lsp_input::LspInput,
     text_document::{
         TextDocument,
@@ -139,11 +139,18 @@ where
                     [
                         RINDGen::new(range_selectors::diagnosed_range),
                         RINDGen::new(range_selectors::diagnosed_range),
+                        RINDGen::new(range_selectors::diagnosed_parent),
+                        RINDGen::new(range_selectors::diagnosed_parent),
+                        RINDGen::new(range_selectors::symbols_range),
+                        RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                     ]
+                    .map(|it| {
+                        FallbackGenerator::new(it, RINDGen::new(range_selectors::random_subtree))
+                    })
                     .map(Rc::new)
                     .map(|it| it as _),
                 );

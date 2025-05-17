@@ -19,10 +19,10 @@ use crate::{
         server_response::metadata::LspResponseInfo,
     },
     text_document::{
-        TextDocument,
+        GrammarBasedMutation, TextDocument,
         mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     },
-    utils::generate_random_uri_content,
+    utils::{ToLspPosition, ToTreeSitterPoint, generate_random_uri_content},
 };
 
 #[derive(Debug)]
@@ -91,7 +91,11 @@ where
             SelectInRandomDoc::new(ValidPosition::new()),
         ));
         let diag3 = Rc::new(FallbackGenerator::new(
-            FeedbackPosInDoc::new(diag_nodes),
+            FeedbackPosInDoc::new(diag_nodes_parent),
+            SelectInRandomDoc::new(HighlightSteer::new()),
+        ));
+        let diag4 = Rc::new(FallbackGenerator::new(
+            FeedbackPosInDoc::new(diag_nodes_parent),
             SelectInRandomDoc::new(HighlightSteer::new()),
         ));
         let symbol1 = Rc::new(FallbackGenerator::new(
@@ -115,9 +119,10 @@ where
                 generators.extend([
                     diag1.clone() as _,
                     diag2.clone() as _,
-                    diag2.clone() as _,
                     diag3.clone() as _,
                     diag3.clone() as _,
+                    diag4.clone() as _,
+                    diag4.clone() as _,
                     symbol1.clone() as _,
                     symbol1.clone() as _,
                     symbol1.clone() as _,
@@ -227,10 +232,26 @@ pub(super) fn diag_nodes(
         .iter()
         .filter(|diag| &diag.uri == uri)
         .flat_map(|diag| doc.node_starts_in_range(diag.range))
-        .map(|it| lsp_types::Position {
-            line: it.row as u32,
-            character: it.column as u32,
+        .map(|it| it.to_lsp_position())
+        .collect()
+}
+
+pub(super) fn diag_nodes_parent(
+    data: &LspResponseInfo,
+    uri: &lsp_types::Uri,
+    doc: &TextDocument,
+) -> Vec<lsp_types::Position> {
+    data.diagnostics
+        .iter()
+        .filter(|diag| &diag.uri == uri)
+        .filter_map(|it| {
+            doc.parse_tree().root_node().descendant_for_point_range(
+                it.range.start.to_ts_point(),
+                it.range.end.to_ts_point(),
+            )
         })
+        .filter_map(|it| it.parent())
+        .map(|it| it.range().start_point.to_lsp_position())
         .collect()
 }
 
@@ -243,9 +264,6 @@ pub(super) fn collected_symbols(
         .iter()
         .filter(|it| &it.uri == uri)
         .flat_map(|it| doc.node_starts_in_range(it.range))
-        .map(|it| lsp_types::Position {
-            line: it.row as u32,
-            character: it.column as u32,
-        })
+        .map(|it| it.to_lsp_position())
         .collect()
 }
