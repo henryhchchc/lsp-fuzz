@@ -121,6 +121,10 @@ where
                     symbol1.clone() as _,
                     symbol1.clone() as _,
                     symbol1.clone() as _,
+                    symbol1.clone() as _,
+                    symbol1.clone() as _,
+                    symbol1.clone() as _,
+                    symbol1.clone() as _,
                 ]);
             }
             if config.invalid_positions {
