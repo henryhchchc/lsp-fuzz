@@ -34,6 +34,19 @@ impl TreeIter for tree_sitter::Tree {
     }
 }
 
+impl TreeIter for tree_sitter::Node<'_> {
+    fn iter(&self) -> TreeIterator<'_> {
+        let node_count = self.descendant_count();
+        let available_descendants = 0..node_count;
+        let cursor = self.walk();
+
+        TreeIterator {
+            descendant_indices: available_descendants.into_iter(),
+            cursor,
+        }
+    }
+}
+
 /// An iterator over all nodes in a tree-sitter syntax tree.
 ///
 /// This iterator provides efficient access to all nodes in a pre-order traversal.

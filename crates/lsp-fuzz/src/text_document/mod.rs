@@ -1,6 +1,7 @@
 use std::{borrow::Cow, hash::Hash, ops::Range};
 
 use generation::{GrammarContext, GrammarContextLookup};
+use grammar::tree_sitter::TreeIter;
 use libafl::{
     HasMetadata,
     inputs::HasTargetBytes,
@@ -100,6 +101,25 @@ impl TextDocument {
 
     pub const fn content(&self) -> &[u8] {
         self.content.as_slice()
+    }
+
+    pub fn node_starts_in_range(&self, range: lsp_types::Range) -> Vec<tree_sitter::Point> {
+        let start_point = tree_sitter::Point {
+            row: range.start.line as usize,
+            column: range.start.character as usize,
+        };
+        let end_point = tree_sitter::Point {
+            row: range.end.line as usize,
+            column: range.end.character as usize,
+        };
+        let Some(node) = self
+            .parse_tree()
+            .root_node()
+            .descendant_for_point_range(start_point, end_point)
+        else {
+            return Vec::new();
+        };
+        node.iter().map(|it| it.start_position()).collect()
     }
 }
 

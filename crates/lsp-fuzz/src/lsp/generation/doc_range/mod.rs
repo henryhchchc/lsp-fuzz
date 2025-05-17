@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
 
 use derive_new::new as New;
-use libafl::state::HasRand;
+use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier};
 
@@ -92,7 +92,7 @@ where
 
 impl<State> HasPredefinedGenerators<State> for Selection
 where
-    State: HasRand + 'static,
+    State: HasRand + HasCurrentTestcase<LspInput> + 'static,
 {
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Selection>>;
 
@@ -126,31 +126,27 @@ where
             if config.invalid_ranges {
                 generators.extend(
                     [
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_valid_range),
-                        RINDGen::new(range_selectors::random_valid_range),
                         RINDGen::new(range_selectors::after_range),
                         RINDGen::new(range_selectors::inverted_range),
+                        RINDGen::new(range_selectors::random_invalid_range::<256, _>),
+                    ]
+                    .map(Rc::new)
+                    .map(|it| it as _),
+                );
+            }
+            if config.feedback_guidance {
+                generators.extend(
+                    [
+                        RINDGen::new(range_selectors::diagnosed_range),
+                        RINDGen::new(range_selectors::diagnosed_range),
+                        RINDGen::new(range_selectors::diagnosed_range),
+                        RINDGen::new(range_selectors::diagnosed_range),
                     ]
                     .map(Rc::new)
                     .map(|it| it as _),
                 );
             }
         } else {
-            generators.extend(
-                [
-                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
-                    RINDGen::new(range_selectors::random_invalid_range::<65536, _>),
-                ]
-                .map(Rc::new)
-                .map(|it| it as _),
-            );
             generators.extend(
                 [
                     InvalidSelectionGenerator::new(),

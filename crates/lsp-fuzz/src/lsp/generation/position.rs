@@ -179,7 +179,7 @@ where
         state: &mut State,
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
-        let (uri, _doc) =
+        let (uri, doc) =
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let test_case = state
             .current_testcase()
@@ -187,21 +187,24 @@ where
         let response_info = test_case
             .metadata::<LspResponseInfo>()
             .map_err(|_| GenerationError::NothingGenerated)?;
-        let diagnostics: Vec<_> = response_info
+        let diag_nodes: Vec<_> = response_info
             .diagnostics
             .iter()
             .filter(|diag| diag.uri == uri)
-            .map(|diag| diag.range.start)
+            .flat_map(|diag| doc.node_starts_in_range(diag.range))
             .collect();
         drop(test_case);
         let position = state
             .rand_mut()
-            .choose(diagnostics)
+            .choose(diag_nodes)
             .ok_or(GenerationError::NothingGenerated)?;
 
         Ok(Self::Output {
             text_document: TextDocumentIdentifier { uri },
-            position,
+            position: lsp_types::Position {
+                line: position.row as u32,
+                character: position.column as u32,
+            },
         })
     }
 }

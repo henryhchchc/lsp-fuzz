@@ -1,8 +1,14 @@
-use libafl::state::HasRand;
+use libafl::{
+    HasMetadata,
+    state::{HasCurrentTestcase, HasRand},
+};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Position, Range};
 
-use crate::text_document::{GrammarBasedMutation, TextDocument, grammar::tree_sitter::TreeIter};
+use crate::{
+    lsp_input::{LspInput, server_response::metadata::LspResponseInfo},
+    text_document::{GrammarBasedMutation, TextDocument, grammar::tree_sitter::TreeIter},
+};
 
 fn lsp_whole_range(doc: &TextDocument) -> Range {
     let start = lsp_types::Position::default();
@@ -69,6 +75,30 @@ pub(super) fn random_subtree<State: HasRand>(state: &mut State, doc: &TextDocume
         Range { start, end }
     } else {
         lsp_whole_range(doc)
+    }
+}
+
+pub(super) fn diagnosed_range<State: HasRand + HasCurrentTestcase<LspInput>>(
+    state: &mut State,
+    doc: &TextDocument,
+) -> Range {
+    let mut select = || -> Option<Range> {
+        let test_case = state.current_testcase().ok()?;
+        let response_info = test_case.metadata::<LspResponseInfo>().ok()?;
+        let ranges: Vec<_> = response_info
+            .diagnostics
+            .iter()
+            .map(|it| it.range)
+            .collect();
+        drop(test_case);
+        let rand = state.rand_mut();
+        rand.choose(ranges)
+    };
+
+    if let Some(range) = select() {
+        range
+    } else {
+        random_subtree(state, doc)
     }
 }
 
