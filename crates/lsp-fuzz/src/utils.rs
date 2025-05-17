@@ -211,7 +211,7 @@ pub fn generate_random_uri_content<R: Rand>(rand: &mut R, max_length: usize) -> 
         0
     };
     static AVAILABLE_CHARS: &str =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/";
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./";
 
     let mut result = String::with_capacity(length);
     for _ in 0..length {
