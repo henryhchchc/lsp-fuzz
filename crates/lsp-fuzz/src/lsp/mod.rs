@@ -103,7 +103,7 @@ impl GeneratorsConfig {
             invalid_ranges: true,
             invalid_positions: true,
             ctx_awareness: false,
-            invalid_code_frequency: 0.0,
+            invalid_code_frequency: 0.1,
             feedback_guidance: false,
             tab_size: TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],

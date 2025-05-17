@@ -97,15 +97,15 @@ where
     type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
 
     fn generators(
-        _config: &crate::lsp::GeneratorsConfig,
+        config: &crate::lsp::GeneratorsConfig,
     ) -> impl IntoIterator<Item = Self::Generator> {
         const DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
         const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
         const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
-        [
-            Rc::new(DEFAULT) as _,
-            Rc::new(TOKENS) as _,
-            Rc::new(TERMINAL_TEXT) as _,
-        ]
+        let mut generators = vec![Rc::new(DEFAULT) as _, Rc::new(TOKENS) as _];
+        if config.ctx_awareness {
+            generators.push(Rc::new(TERMINAL_TEXT) as _);
+        }
+        generators
     }
 }
