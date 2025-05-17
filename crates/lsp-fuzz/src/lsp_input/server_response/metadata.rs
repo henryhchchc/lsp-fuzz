@@ -1,5 +1,6 @@
 use std::{collections::HashSet, hash::Hash};
 
+use derive_new::new as New;
 use libafl_bolts::SerdeAny;
 use lsp_types::{
     CallHierarchyItem, CodeAction, CodeLens, Command, CompletionItem, DocumentLink, InlayHint,
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 pub struct LspResponseInfo {
     pub diagnostics: HashSet<Diagnostic>,
     pub param_fragments: ParamFragments,
+    pub symbol_ranges: HashSet<SymbolRange>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny)]
@@ -30,6 +32,12 @@ pub struct ParamFragments {
     pub type_hierarchy_items: HashSet<TypeHierarchyItem>,
     pub call_hierarchy_items: HashSet<CallHierarchyItem>,
     pub document_links: HashSet<DocumentLink>,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny, New)]
+pub struct SymbolRange {
+    pub uri: lsp_types::Uri,
+    pub range: lsp_types::Range,
 }
 
 pub trait ContainsFragment<T> {

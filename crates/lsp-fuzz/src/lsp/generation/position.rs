@@ -18,7 +18,10 @@ use crate::{
         },
         server_response::metadata::LspResponseInfo,
     },
-    text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
+    text_document::{
+        TextDocument,
+        mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
+    },
     utils::generate_random_uri_content,
 };
 
@@ -72,6 +75,7 @@ where
         config: &crate::lsp::GeneratorsConfig,
     ) -> impl IntoIterator<Item = Self::Generator> {
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
+        type FeedbackPosInDoc<F> = FeedbackPositionsGenerator<RandomDoc, F>;
         let term_start_pos = TerminalStartPosition::new();
         let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
@@ -79,16 +83,20 @@ where
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
         let diag1 = Rc::new(FallbackGenerator::new(
-            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            FeedbackPosInDoc::new(diag_nodes),
             SelectInRandomDoc::new(term_start_pos),
         ));
         let diag2 = Rc::new(FallbackGenerator::new(
-            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            FeedbackPosInDoc::new(diag_nodes),
             SelectInRandomDoc::new(ValidPosition::new()),
         ));
         let diag3 = Rc::new(FallbackGenerator::new(
-            DiagnosticPositionGenerator::<RandomDoc>::new(),
+            FeedbackPosInDoc::new(diag_nodes),
             SelectInRandomDoc::new(HighlightSteer::new()),
+        ));
+        let symbol1 = Rc::new(FallbackGenerator::new(
+            FeedbackPosInDoc::new(collected_symbols),
+            SelectInRandomDoc::new(term_start_pos),
         ));
 
         let mut generators = Vec::new();
@@ -110,6 +118,9 @@ where
                     diag2.clone() as _,
                     diag3.clone() as _,
                     diag3.clone() as _,
+                    symbol1.clone() as _,
+                    symbol1.clone() as _,
+                    symbol1.clone() as _,
                 ]);
             }
             if config.invalid_positions {
@@ -163,13 +174,15 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct DiagnosticPositionGenerator<D> {
+pub struct FeedbackPositionsGenerator<D, F> {
+    position_selector: F,
     _doc_selector: PhantomData<D>,
 }
 
-impl<State, D> LspParamsGenerator<State> for DiagnosticPositionGenerator<D>
+impl<State, D, F> LspParamsGenerator<State> for FeedbackPositionsGenerator<D, F>
 where
     D: TextDocumentSelector<State>,
+    F: Fn(&LspResponseInfo, &lsp_types::Uri, &TextDocument) -> Vec<lsp_types::Position>,
     State: HasRand + HasCurrentTestcase<LspInput>,
 {
     type Output = TextDocumentPositionParams;
@@ -187,24 +200,48 @@ where
         let response_info = test_case
             .metadata::<LspResponseInfo>()
             .map_err(|_| GenerationError::NothingGenerated)?;
-        let diag_nodes: Vec<_> = response_info
-            .diagnostics
-            .iter()
-            .filter(|diag| diag.uri == uri)
-            .flat_map(|diag| doc.node_starts_in_range(diag.range))
-            .collect();
+        let points = (self.position_selector)(response_info, &uri, doc);
         drop(test_case);
         let position = state
             .rand_mut()
-            .choose(diag_nodes)
+            .choose(points)
             .ok_or(GenerationError::NothingGenerated)?;
 
         Ok(Self::Output {
             text_document: TextDocumentIdentifier { uri },
-            position: lsp_types::Position {
-                line: position.row as u32,
-                character: position.column as u32,
-            },
+            position,
         })
     }
+}
+
+pub(super) fn diag_nodes(
+    data: &LspResponseInfo,
+    uri: &lsp_types::Uri,
+    doc: &TextDocument,
+) -> Vec<lsp_types::Position> {
+    data.diagnostics
+        .iter()
+        .filter(|diag| &diag.uri == uri)
+        .flat_map(|diag| doc.node_starts_in_range(diag.range))
+        .map(|it| lsp_types::Position {
+            line: it.row as u32,
+            character: it.column as u32,
+        })
+        .collect()
+}
+
+pub(super) fn collected_symbols(
+    data: &LspResponseInfo,
+    uri: &lsp_types::Uri,
+    doc: &TextDocument,
+) -> Vec<lsp_types::Position> {
+    data.symbol_ranges
+        .iter()
+        .filter(|it| &it.uri == uri)
+        .flat_map(|it| doc.node_starts_in_range(it.range))
+        .map(|it| lsp_types::Position {
+            line: it.row as u32,
+            character: it.column as u32,
+        })
+        .collect()
 }

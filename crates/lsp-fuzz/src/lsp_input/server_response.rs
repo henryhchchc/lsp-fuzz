@@ -1,4 +1,7 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashSet, VecDeque},
+};
 
 use derive_more::Debug;
 use libafl::{
@@ -13,13 +16,18 @@ use libafl_bolts::{
     Named,
     tuples::{Handle, Handled, MatchNameRef},
 };
-use lsp_types::{CompletionResponse, WorkspaceSymbolResponse, notification::PublishDiagnostics};
-use metadata::{Diagnostic, LspResponseInfo, ParamFragments};
+use lsp_types::{
+    CompletionResponse, DocumentSymbolResponse, OneOf, WorkspaceSymbolResponse,
+    notification::PublishDiagnostics,
+};
+use metadata::{Diagnostic, LspResponseInfo, ParamFragments, SymbolRange};
 use tracing::warn;
 
 use super::LspInput;
 use crate::{
-    execution::responses::LspOutputObserver, lsp::message::LspResponse, utils::AflContext,
+    execution::responses::LspOutputObserver,
+    lsp::{LspMessage, message::LspResponse},
+    utils::AflContext,
 };
 
 pub mod metadata;
@@ -107,8 +115,9 @@ where
         }
 
         let mut param_fragments = ParamFragments::default();
+        let mut symbol_ranges = HashSet::new();
 
-        for res in matching.responses.values() {
+        for (req, res) in matching.responses {
             use LspResponse::*;
             match res {
                 CodeActionRequest(Some(cas)) => cas.iter().cloned().for_each(|ca| match ca {
@@ -120,39 +129,63 @@ where
                     }
                 }),
                 InlayHintRequest(Some(inlay_hints)) => {
-                    param_fragments
-                        .inlay_hints
-                        .extend(inlay_hints.iter().cloned());
+                    param_fragments.inlay_hints.extend(inlay_hints.into_iter());
                 }
                 Completion(Some(res)) => {
                     let items = match res {
                         CompletionResponse::Array(items) => items,
-                        CompletionResponse::List(list) => &list.items,
+                        CompletionResponse::List(list) => list.items,
                     };
-                    param_fragments
-                        .completion_items
-                        .extend(items.iter().cloned());
+                    param_fragments.completion_items.extend(items.into_iter());
                 }
                 CodeLensRequest(Some(code_lens)) => {
-                    param_fragments.code_lens.extend(code_lens.iter().cloned());
+                    param_fragments.code_lens.extend(code_lens.into_iter());
                 }
                 WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Nested(symbols))) => {
-                    param_fragments
-                        .workspace_symbols
-                        .extend(symbols.iter().cloned());
+                    param_fragments.workspace_symbols.extend(symbols.clone());
+                    symbol_ranges.extend(symbols.into_iter().filter_map(|sym| {
+                        if let OneOf::Left(it) = sym.location {
+                            Some(SymbolRange::new(it.uri, it.range))
+                        } else {
+                            None
+                        }
+                    }));
+                }
+                WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Flat(symbols)))
+                | DocumentSymbolRequest(Some(DocumentSymbolResponse::Flat(symbols))) => {
+                    symbol_ranges.extend(
+                        symbols.into_iter().map(|sym| {
+                            SymbolRange::new(sym.location.uri.clone(), sym.location.range)
+                        }),
+                    );
+                }
+                DocumentSymbolRequest(Some(DocumentSymbolResponse::Nested(symbols))) => {
+                    if let LspMessage::DocumentSymbolRequest(req) = req {
+                        let mut queue = VecDeque::from_iter(symbols.into_iter());
+                        while let Some(symbol) = queue.pop_front() {
+                            let mut symbol = symbol.clone();
+                            if let Some(children) = symbol.children.take() {
+                                queue.extend(children);
+                            }
+                            symbol_ranges.insert(SymbolRange::new(
+                                req.text_document.uri.clone(),
+                                symbol.selection_range,
+                            ));
+                        }
+                    }
                 }
                 TypeHierarchyPrepare(Some(items)) => {
                     param_fragments
                         .type_hierarchy_items
-                        .extend(items.iter().cloned());
+                        .extend(items.into_iter());
                 }
                 CallHierarchyPrepare(Some(items)) => {
                     param_fragments
                         .call_hierarchy_items
-                        .extend(items.iter().cloned());
+                        .extend(items.into_iter());
                 }
                 DocumentLinkRequest(Some(links)) => {
-                    param_fragments.document_links.extend(links.iter().cloned());
+                    param_fragments.document_links.extend(links.into_iter());
                 }
                 _ => {}
             }
@@ -161,6 +194,7 @@ where
         let response_info = LspResponseInfo {
             diagnostics,
             param_fragments,
+            symbol_ranges,
         };
         testcase.add_metadata(response_info);
         Ok(())
