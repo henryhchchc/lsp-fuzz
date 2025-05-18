@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::lsp::{
     LspMessage, LspMessageMeta, MessageParam,
     json_rpc::{JsonRPCMessage, MessageId, ResponseError},
-    message::{LspResponse, MessageDecodeError},
+    message::{LspResponse, MessageDecodeError, lift_localized_json},
 };
 
 #[derive(Debug)]
@@ -48,11 +48,15 @@ impl<'a> RequestResponseMatching<'a> {
         for recv in received_messages {
             match recv {
                 JsonRPCMessage::Request { method, params, .. } => {
-                    let request = LspMessage::try_from_json(method, params.clone())?;
+                    let mut params = params.clone();
+                    lift_localized_json(&mut params);
+                    let request = LspMessage::try_from_json(method, params)?;
                     requests_from_server.push(request);
                 }
                 JsonRPCMessage::Notification { method, params, .. } => {
-                    let notification = LspMessage::try_from_json(method, params.clone())?;
+                    let mut params = params.clone();
+                    lift_localized_json(&mut params);
+                    let notification = LspMessage::try_from_json(method, params)?;
                     notifications.push(notification);
                 }
                 JsonRPCMessage::Response {
@@ -63,8 +67,9 @@ impl<'a> RequestResponseMatching<'a> {
                 } => {
                     if let Some(msg) = requests.get(id).copied() {
                         if let Some(result) = result {
-                            let response =
-                                LspResponse::try_from_json(msg.method(), result.clone())?;
+                            let mut result = result.clone();
+                            lift_localized_json(&mut result);
+                            let response = LspResponse::try_from_json(msg.method(), result)?;
                             responses.insert(msg, response);
                         } else if let Some(error) = error {
                             errors.insert(msg, error.clone());

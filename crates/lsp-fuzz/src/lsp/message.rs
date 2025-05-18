@@ -223,6 +223,25 @@ fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
     }
 }
 
+pub(crate) fn lift_localized_json(value: &mut serde_json::Value) {
+    use serde_json::Value::{Array, Object, String};
+    match value {
+        Object(inner) => inner.values_mut().for_each(|value| {
+            lift_localized_json(value);
+        }),
+        Array(items) => items.iter_mut().for_each(|value| {
+            lift_localized_json(value);
+        }),
+        String(str_val) if str_val.starts_with(LspInput::PROROCOL_PREFIX) => {
+            if let Some(index) = str_val.find(LspInput::WORKSPACE_DIR_PREFIX) {
+                let next_slash = str_val[index..].find('/').unwrap_or(str_val.len());
+                str_val.replace_range(0..next_slash, LspInput::PROROCOL_PREFIX);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MessageDecodeError {
     #[error("Fail to deserialize the parameter {_0}")]
