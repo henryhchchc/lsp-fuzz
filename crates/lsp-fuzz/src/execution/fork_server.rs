@@ -26,7 +26,7 @@ use nix::{
         select::FdSet,
         signal::{SigSet, Signal},
         time::TimeSpec,
-        wait::WaitPidFlag,
+        wait::{WaitPidFlag, WaitStatus},
     },
     unistd::Pid,
 };
@@ -407,6 +407,11 @@ impl NeoForkServer {
     ///
     /// Returns the process ID and exit status (if the process completed within timeout).
     pub fn run_child(&mut self, timeout: &TimeSpec) -> Result<(Pid, Option<i32>), libafl::Error> {
+        while nix::sys::wait::waitpid(None, Some(WaitPidFlag::WNOHANG))
+            .afl_context("Waiting for child processes")?
+            != WaitStatus::StillAlive
+        {}
+
         // Notify fork server if the previous run timed out
         let notification = u32::from(self.last_run_timed_out);
         self.write_u32(notification)
@@ -434,11 +439,7 @@ impl NeoForkServer {
         if self.last_run_timed_out {
             // Try to kill the child process
             match nix::sys::signal::kill(pid, self.kill_signal) {
-                Ok(_) => {
-                    nix::sys::wait::waitpid(Pid::from_raw(-1), Some(WaitPidFlag::WNOHANG))
-                        .afl_context("Waiting for child processes")?;
-                }
-                Err(Errno::ESRCH) => {
+                Ok(_) | Err(Errno::ESRCH) => {
                     // It's OK if the child already terminated
                 }
                 Err(errno) => {
