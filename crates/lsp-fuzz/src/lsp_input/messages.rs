@@ -150,11 +150,14 @@ where
         state: &mut State,
         doc: &TextDocument,
     ) -> Option<lsp_types::Position> {
-        let (index, line) = state.rand_mut().choose(doc.lines().enumerate())?;
-        let character = state.rand_mut().choose(0..line.len())?;
+        let positions = doc
+            .lines()
+            .enumerate()
+            .flat_map(|(idx, line)| (0..line.len()).map(move |char| (idx, char)));
+        let (line, char) = state.rand_mut().choose(positions)?;
         Some(lsp_types::Position {
-            line: index as _,
-            character: character as _,
+            line: line as _,
+            character: char as _,
         })
     }
 }
