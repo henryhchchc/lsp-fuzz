@@ -26,6 +26,7 @@ use nix::{
         select::FdSet,
         signal::{SigSet, Signal},
         time::TimeSpec,
+        wait::WaitPidFlag,
     },
     unistd::Pid,
 };
@@ -433,7 +434,11 @@ impl NeoForkServer {
         if self.last_run_timed_out {
             // Try to kill the child process
             match nix::sys::signal::kill(pid, self.kill_signal) {
-                Ok(_) | Err(Errno::ESRCH) => {
+                Ok(_) => {
+                    nix::sys::wait::waitpid(Pid::from_raw(-1), Some(WaitPidFlag::WNOHANG))
+                        .afl_context("Waiting for child processes")?;
+                }
+                Err(Errno::ESRCH) => {
                     // It's OK if the child already terminated
                 }
                 Err(errno) => {
