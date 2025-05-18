@@ -16,7 +16,7 @@ pub mod node_filters;
 pub mod node_generators;
 pub mod text_document_selectors;
 
-pub const MAX_DOCUMENT_SIZE: usize = 1_000_000;
+pub const MAX_DOCUMENT_SIZE: usize = 100_000;
 
 #[derive(Debug)]
 pub struct ReplaceNodeMutation<'a, TS, NodeSel, NodeGen> {

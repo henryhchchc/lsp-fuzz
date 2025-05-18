@@ -10,7 +10,6 @@ use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
 use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
 use crate::{
-    lsp::generation::meta::FallbackGenerator,
     lsp_input::{
         LspInput,
         messages::{
@@ -90,6 +89,9 @@ where
             ]);
             if config.grammar_ops_awareness {
                 generators.extend([
+                    term_start.clone(),
+                    term_start.clone(),
+                    term_start.clone(),
                     term_start.clone(),
                     term_start.clone(),
                     term_start.clone(),
