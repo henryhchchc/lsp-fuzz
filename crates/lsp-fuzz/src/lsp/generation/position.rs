@@ -103,6 +103,7 @@ where
                     Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),
+                    Rc::new(FeedbackPosInDoc::new(collected_symbols)),
                 ]);
             }
             if config.invalid_positions {

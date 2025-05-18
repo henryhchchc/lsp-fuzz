@@ -72,17 +72,7 @@ pub(super) fn random_subtree<State: HasRand>(
 ) -> Range {
     let tree_iter = doc.parse_tree().iter();
     if let Some(node) = state.rand_mut().choose(tree_iter) {
-        let start = node.start_position();
-        let start = Position {
-            line: start.row as u32,
-            character: start.column as u32,
-        };
-        let end = node.end_position();
-        let end = Position {
-            line: end.row as u32,
-            character: end.column as u32,
-        };
-        Range { start, end }
+        node.range().to_lsp_range()
     } else {
         lsp_whole_range(doc)
     }
