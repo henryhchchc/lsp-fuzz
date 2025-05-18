@@ -86,16 +86,13 @@ where
             generators.extend([
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator,
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
+                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
+                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
             ]);
             if config.grammar_ops_awareness {
                 generators.extend([
                     term_start.clone(),
                     term_start.clone(),
-                    term_start.clone(),
-                    term_start.clone(),
-                    term_start.clone(),
-                    term_start.clone(),
-                    steer.clone(),
                     steer.clone(),
                     steer.clone(),
                 ]);
