@@ -30,8 +30,7 @@ pub enum Language {
 ///
 /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
 /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
-pub const WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES: [&str; 10] = [
-    "comment",
+pub const WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES: [&str; 9] = [
     "string",
     "number",
     "keyword",

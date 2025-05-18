@@ -93,6 +93,8 @@ where
                 generators.extend([
                     term_start.clone(),
                     term_start.clone(),
+                    term_start.clone(),
+                    steer.clone(),
                     steer.clone(),
                     steer.clone(),
                 ]);
