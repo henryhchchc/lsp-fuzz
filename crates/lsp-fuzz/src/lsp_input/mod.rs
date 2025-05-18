@@ -210,7 +210,7 @@ impl LspInput {
         if let Some(index) = uri_str.find(Self::WORKSPACE_DIR_PREFIX) {
             let in_workspace = uri_str[index..]
                 .find('/')
-                .map(|it| it + 1)
+                .map(|it| it + index + 1)
                 .unwrap_or(uri_str.len());
             let lifted = format!("{}/{}", Self::PROROCOL_PREFIX, &uri_str[in_workspace..]);
             Cow::Owned(lifted.parse().unwrap())
@@ -435,4 +435,34 @@ fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<Wo
             )])),
         ),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lift_uri() {
+        // Given a URI with workspace prefix
+        let uri_str = "file:///tmp/lsp-fuzz-workspace_2333/abc/file.rs".to_owned();
+        let uri = Uri::from_str(&uri_str).unwrap();
+
+        // When lifting the URI
+        let lifted = LspInput::lift_uri(&uri);
+
+        // Then the result has fuzzer protocol prefix and workspace path
+        assert_eq!(
+            lifted.as_str(),
+            format!("{}/abc/file.rs", LspInput::PROROCOL_PREFIX)
+        );
+
+        // Given a URI without workspace prefix
+        let uri = Uri::from_str("file:///other/path").unwrap();
+
+        // When lifting the URI
+        let lifted = LspInput::lift_uri(&uri);
+
+        // Then the original URI is returned unchanged
+        assert_eq!(lifted.as_str(), "file:///other/path");
+    }
 }

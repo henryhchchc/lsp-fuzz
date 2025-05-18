@@ -232,9 +232,11 @@ pub(crate) fn lift_localized_json(value: &mut serde_json::Value) {
         Array(items) => items.iter_mut().for_each(|value| {
             lift_localized_json(value);
         }),
-        String(str_val) if str_val.starts_with(LspInput::PROROCOL_PREFIX) => {
+        String(str_val) => {
             if let Some(index) = str_val.find(LspInput::WORKSPACE_DIR_PREFIX) {
-                let next_slash = str_val[index..].find('/').unwrap_or(str_val.len());
+                let next_slash = str_val[index..]
+                    .find('/')
+                    .map_or(str_val.len(), |it| it + index + 1);
                 str_val.replace_range(0..next_slash, LspInput::PROROCOL_PREFIX);
             }
         }
@@ -313,6 +315,46 @@ mod tests {
             lsp_types::HoverContents::Markup(lsp_types::MarkupContent {
                 kind: lsp_types::MarkupKind::Markdown,
                 value: "**Documentation:** This is a test hover response".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_lift_localized_json() {
+        let mut value = serde_json::json!({
+            "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/file",
+            "other_attr": {
+                "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/other_file"
+            },
+            "some_arr": [
+                "file:///path/to/lsp-fuzz-workspace_2333/path/to/element",
+                "file:///path/to/lsp-fuzz-workspace_2333/",
+                "file:///path/to/lsp-fuzz-workspace_2333",
+            ],
+            "other_arr": [
+                {
+                    "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/element",
+                }
+            ]
+        });
+        super::lift_localized_json(&mut value);
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "uri": "lsp-fuzz://path/to/file",
+                "other_attr": {
+                    "uri": "lsp-fuzz://path/to/other_file"
+                },
+                "some_arr": [
+                    "lsp-fuzz://path/to/element",
+                    "lsp-fuzz://",
+                    "lsp-fuzz://",
+                ],
+                "other_arr": [
+                    {
+                        "uri": "lsp-fuzz://path/to/element",
+                    }
+                ]
             })
         );
     }
