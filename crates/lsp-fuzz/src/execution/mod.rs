@@ -174,7 +174,7 @@ where
             args,
             envs,
             input_setup: FuzzInputSetup::from(&config.fuzz_input),
-            memlimit: 1024, // 1GB
+            memlimit: 0,
             persistent_fuzzing: target_info.persistent_fuzzing,
             deferred: target_info.defer_fork_server,
             coverage_map_info: config.coverage_shm_info,
