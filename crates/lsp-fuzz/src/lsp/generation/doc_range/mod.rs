@@ -108,6 +108,7 @@ where
         if config.ctx_awareness {
             generators.extend(
                 [
+                    RINDGen::new(range_selectors::whole_range),
                     RINDGen::new(range_selectors::random_valid_range),
                     RINDGen::new(range_selectors::random_valid_range),
                     RINDGen::new(range_selectors::random_valid_range),
@@ -120,7 +121,6 @@ where
             if config.grammar_ops_awareness {
                 generators.extend(
                     [
-                        RINDGen::new(range_selectors::whole_range),
                         RINDGen::new(range_selectors::random_subtree),
                         RINDGen::new(range_selectors::random_subtree),
                         RINDGen::new(range_selectors::random_subtree),
