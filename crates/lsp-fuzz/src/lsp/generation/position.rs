@@ -78,7 +78,7 @@ where
         type FeedbackPosInDoc<F> = FeedbackPositionsGenerator<RandomDoc, F>;
         let term_start_pos = NodeTypeBalancingSelection::<2>::new();
         let node_type: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
-        let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
+        let _steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
@@ -94,14 +94,12 @@ where
                     node_type.clone(),
                     node_type.clone(),
                     node_type.clone(),
-                    steer.clone(),
-                    steer.clone(),
-                    steer.clone(),
                 ]);
             }
             if config.feedback_guidance {
                 generators.extend([
                     Rc::new(FeedbackPosInDoc::new(diag_nodes)) as Self::Generator,
+                    Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
                     Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),
