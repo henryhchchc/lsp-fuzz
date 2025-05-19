@@ -66,7 +66,7 @@ pub(super) fn random_invalid_range<const MAX_RAND: usize, State: HasRand>(
     Range { start, end }
 }
 
-pub(super) fn random_subtree<State: HasRand>(
+pub(super) fn subtree_node_type<State: HasRand>(
     state: &mut State,
     _uri: &Uri,
     doc: &TextDocument,
@@ -103,7 +103,7 @@ pub(super) fn diagnosed_range<State: HasRand + HasCurrentTestcase<LspInput>>(
     if let Some(range) = select() {
         range
     } else {
-        random_subtree(state, uri, doc)
+        subtree_node_type(state, uri, doc)
     }
 }
 
@@ -134,7 +134,7 @@ pub(super) fn diagnosed_parent<State: HasRand + HasCurrentTestcase<LspInput>>(
     if let Some(range) = select() {
         range
     } else {
-        random_subtree(state, uri, doc)
+        subtree_node_type(state, uri, doc)
     }
 }
 
@@ -160,7 +160,7 @@ pub(super) fn symbols_range<State: HasRand + HasCurrentTestcase<LspInput>>(
     if let Some(range) = select() {
         range
     } else {
-        random_subtree(state, uri, doc)
+        subtree_node_type(state, uri, doc)
     }
 }
 

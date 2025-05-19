@@ -111,9 +111,6 @@ where
                     RINDGen::new(range_selectors::whole_range),
                     RINDGen::new(range_selectors::random_valid_range),
                     RINDGen::new(range_selectors::random_valid_range),
-                    RINDGen::new(range_selectors::random_valid_range),
-                    RINDGen::new(range_selectors::random_valid_range),
-                    RINDGen::new(range_selectors::random_valid_range),
                 ]
                 .map(Rc::new)
                 .map(|it| it as _),
@@ -121,11 +118,11 @@ where
             if config.grammar_ops_awareness {
                 generators.extend(
                     [
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
-                        RINDGen::new(range_selectors::random_subtree),
+                        RINDGen::new(range_selectors::subtree_node_type),
+                        RINDGen::new(range_selectors::subtree_node_type),
+                        RINDGen::new(range_selectors::subtree_node_type),
+                        RINDGen::new(range_selectors::subtree_node_type),
+                        RINDGen::new(range_selectors::subtree_node_type),
                     ]
                     .map(Rc::new)
                     .map(|it| it as _),
@@ -154,7 +151,7 @@ where
                         RINDGen::new(range_selectors::symbols_range),
                     ]
                     .map(|it| {
-                        FallbackGenerator::new(it, RINDGen::new(range_selectors::random_subtree))
+                        FallbackGenerator::new(it, RINDGen::new(range_selectors::subtree_node_type))
                     })
                     .map(Rc::new)
                     .map(|it| it as _),

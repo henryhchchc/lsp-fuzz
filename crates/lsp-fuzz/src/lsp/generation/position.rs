@@ -77,7 +77,7 @@ where
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         type FeedbackPosInDoc<F> = FeedbackPositionsGenerator<RandomDoc, F>;
         let term_start_pos = NodeTypeBalancingSelection::<2>::new();
-        let term_start: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
+        let node_type: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
         let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
@@ -87,14 +87,13 @@ where
             generators.extend([
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator,
                 Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
             ]);
             if config.grammar_ops_awareness {
                 generators.extend([
-                    term_start.clone(),
-                    term_start.clone(),
-                    term_start.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
                     steer.clone(),
                     steer.clone(),
                     steer.clone(),
