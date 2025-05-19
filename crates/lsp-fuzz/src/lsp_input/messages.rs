@@ -184,7 +184,7 @@ where
             .into_group_map_by(|&it| {
                 std::iter::successors(Some(it), |&it| it.parent())
                     .take(LEVEL)
-                    .map(|it| it.grammar_id())
+                    .map(|it| it.kind_id())
                     .collect::<SmallVec<[u16; LEVEL]>>()
             });
         let (_signature, nodes) = state.rand_mut().choose(node_grpups.into_iter())?;

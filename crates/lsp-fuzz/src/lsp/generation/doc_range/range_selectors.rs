@@ -71,7 +71,10 @@ pub(super) fn subtree_node_type<State: HasRand>(
     _uri: &Uri,
     doc: &TextDocument,
 ) -> Range {
-    let subtree_types = doc.parse_tree().iter().into_group_map_by(|it| it.kind_id());
+    let subtree_types = doc
+        .parse_tree()
+        .iter()
+        .into_group_map_by(|it| it.grammar_id());
     if let Some((_kind, subtrees)) = state.rand_mut().choose(subtree_types)
         && let Some(subtree) = state.rand_mut().choose(subtrees)
     {
