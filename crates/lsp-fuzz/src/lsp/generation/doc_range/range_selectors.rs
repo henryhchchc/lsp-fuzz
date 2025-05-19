@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use libafl::{
     HasMetadata,
     state::{HasCurrentTestcase, HasRand},
@@ -70,9 +71,11 @@ pub(super) fn random_subtree<State: HasRand>(
     _uri: &Uri,
     doc: &TextDocument,
 ) -> Range {
-    let tree_iter = doc.parse_tree().iter();
-    if let Some(node) = state.rand_mut().choose(tree_iter) {
-        node.range().to_lsp_range()
+    let subtree_types = doc.parse_tree().iter().into_group_map_by(|it| it.kind_id());
+    if let Some((_kind, subtrees)) = state.rand_mut().choose(subtree_types)
+        && let Some(subtree) = state.rand_mut().choose(subtrees)
+    {
+        subtree.range().to_lsp_range()
     } else {
         lsp_whole_range(doc)
     }

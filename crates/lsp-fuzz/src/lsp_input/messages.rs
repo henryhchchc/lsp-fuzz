@@ -2,6 +2,7 @@ use std::{any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::Phantom
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
+use itertools::Itertools;
 use libafl::{
     HasMetadata,
     mutators::{MutationResult, Mutator, MutatorsTuple},
@@ -14,6 +15,7 @@ use libafl_bolts::{
 };
 use lsp_fuzz_grammars::WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list, tuple_list_type};
 
@@ -163,9 +165,9 @@ where
 }
 
 #[derive(Debug, Clone, Copy, New)]
-pub struct TerminalStartPosition;
+pub struct NodeTypeBalancingSelection<const LEVEL: usize>;
 
-impl<State> PositionSelector<State> for TerminalStartPosition
+impl<State, const LEVEL: usize> PositionSelector<State> for NodeTypeBalancingSelection<LEVEL>
 where
     State: HasRand,
 {
@@ -174,13 +176,20 @@ where
         state: &mut State,
         doc: &TextDocument,
     ) -> Option<lsp_types::Position> {
-        let terminals = doc
+        let node_grpups = doc
             .metadata()
             .parse_tree
             .iter()
-            .filter(|it| it.child_count() == 0);
-        let range = state.rand_mut().choose(terminals)?;
-        Some(range.lsp_start_position())
+            .filter(|it| it.child_count() == 0)
+            .into_group_map_by(|&it| {
+                std::iter::successors(Some(it), |&it| it.parent())
+                    .take(LEVEL)
+                    .map(|it| it.grammar_id())
+                    .collect::<SmallVec<[u16; LEVEL]>>()
+            });
+        let (_signature, nodes) = state.rand_mut().choose(node_grpups.into_iter())?;
+        let node = state.rand_mut().choose(nodes.into_iter())?;
+        Some(node.lsp_start_position())
     }
 }
 
