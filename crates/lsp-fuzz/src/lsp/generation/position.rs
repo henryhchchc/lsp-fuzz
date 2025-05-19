@@ -94,6 +94,10 @@ where
                     node_type.clone(),
                     node_type.clone(),
                     node_type.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
+                    node_type.clone(),
                 ]);
             }
             if config.feedback_guidance {
