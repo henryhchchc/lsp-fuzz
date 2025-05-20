@@ -1,7 +1,9 @@
 use std::{borrow::Cow, hash::Hash, ops::Range};
 
+use ahash::{HashMap, HashSet};
 use generation::{GrammarContext, GrammarContextLookup};
 use grammar::tree_sitter::TreeIter;
+use itertools::Itertools;
 use libafl::{
     HasMetadata,
     inputs::HasTargetBytes,
@@ -40,18 +42,53 @@ pub struct TextDocument {
     metadata: Metadata,
 }
 
+const SIGNATURE_LEVEL: usize = 3;
+
 #[derive(Debug, Clone)]
 pub struct Metadata {
     pub parse_tree: tree_sitter::Tree,
+    pub node_type_ranges: HashMap<u16, HashSet<tree_sitter::Range>>,
+    pub node_signatures: HashMap<[u16; SIGNATURE_LEVEL], HashSet<tree_sitter::Point>>,
 }
 
 impl Metadata {
     pub fn generate(language: Language, content: &[u8]) -> Self {
         let mut parser = language.tree_sitter_parser();
-        let tree = parser
+        let parse_tree = parser
             .parse(content, None)
             .expect("Cannot parse input content");
-        Self { parse_tree: tree }
+        let mut result = Self {
+            parse_tree,
+            node_type_ranges: Default::default(),
+            node_signatures: Default::default(),
+        };
+        result.update_node_info();
+        result
+    }
+
+    fn update_node_info(&mut self) {
+        self.node_type_ranges = self
+            .parse_tree
+            .root_node()
+            .iter()
+            .into_group_map_by(|it| it.kind_id())
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().map(|it| it.range()).collect()))
+            .collect();
+        self.node_signatures = self
+            .parse_tree
+            .root_node()
+            .iter()
+            .into_group_map_by(|&it| {
+                std::iter::successors(Some(it), |it| it.parent())
+                    .take(SIGNATURE_LEVEL)
+                    .map(|it| it.kind_id())
+                    .collect_array::<SIGNATURE_LEVEL>()
+                    .expect("We take exactly SIGNATURE_LEVEL elements")
+            })
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().map(|it| it.start_position()).collect()))
+            .collect();
     }
 }
 
@@ -89,6 +126,7 @@ impl TextDocument {
         self.metadata.parse_tree = parser
             .parse(&self.content, Some(&self.metadata.parse_tree))
             .expect("Parsing should not fail");
+        self.metadata.update_node_info();
     }
 
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
