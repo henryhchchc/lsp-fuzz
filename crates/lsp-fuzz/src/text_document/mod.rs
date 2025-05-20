@@ -23,6 +23,7 @@ use mutations::{
     text_document_selectors::RandomDoc,
 };
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use tuple_list::tuple_list;
 
 use crate::{lsp::GeneratorsConfig, lsp_input::LspInput, mutators::WithProbability};
@@ -48,7 +49,7 @@ const SIGNATURE_LEVEL: usize = 3;
 pub struct Metadata {
     pub parse_tree: tree_sitter::Tree,
     pub node_type_ranges: HashMap<u16, HashSet<tree_sitter::Range>>,
-    pub node_signatures: HashMap<[u16; SIGNATURE_LEVEL], HashSet<tree_sitter::Point>>,
+    pub node_signatures: HashMap<SmallVec<[u16; SIGNATURE_LEVEL]>, HashSet<tree_sitter::Point>>,
 }
 
 impl Metadata {
@@ -83,8 +84,7 @@ impl Metadata {
                 std::iter::successors(Some(it), |it| it.parent())
                     .take(SIGNATURE_LEVEL)
                     .map(|it| it.kind_id())
-                    .collect_array::<SIGNATURE_LEVEL>()
-                    .expect("We take exactly SIGNATURE_LEVEL elements")
+                    .collect()
             })
             .into_iter()
             .map(|(k, v)| (k, v.into_iter().map(|it| it.start_position()).collect()))
