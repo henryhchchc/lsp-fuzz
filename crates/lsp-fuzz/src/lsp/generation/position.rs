@@ -93,8 +93,7 @@ where
                     node_type.clone(),
                     node_type.clone(),
                     node_type.clone(),
-                    node_type.clone(),
-                    node_type.clone(),
+                    steer.clone(),
                     steer.clone(),
                     steer.clone(),
                 ]);
@@ -102,8 +101,6 @@ where
             if config.feedback_guidance {
                 generators.extend([
                     Rc::new(FeedbackPosInDoc::new(diag_nodes)) as Self::Generator,
-                    Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
-                    Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
                     Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),
                     Rc::new(FeedbackPosInDoc::new(collected_symbols)),

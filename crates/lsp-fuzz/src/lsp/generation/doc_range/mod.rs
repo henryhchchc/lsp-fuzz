@@ -110,6 +110,7 @@ where
                 [
                     RINDGen::new(range_selectors::whole_range),
                     RINDGen::new(range_selectors::random_valid_range),
+                    RINDGen::new(range_selectors::random_valid_range),
                 ]
                 .map(Rc::new)
                 .map(|it| it as _),
@@ -144,7 +145,7 @@ where
                         RINDGen::new(range_selectors::diagnosed_range),
                         RINDGen::new(range_selectors::diagnosed_parent),
                         RINDGen::new(range_selectors::diagnosed_parent),
-                        RINDGen::new(range_selectors::diagnosed_parent),
+                        RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
                         RINDGen::new(range_selectors::symbols_range),
