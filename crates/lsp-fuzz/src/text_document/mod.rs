@@ -80,6 +80,7 @@ impl Metadata {
             .parse_tree
             .root_node()
             .iter()
+            .filter(|it| it.child_count() == 0)
             .into_group_map_by(|&it| {
                 std::iter::successors(Some(it), |it| it.parent())
                     .take(SIGNATURE_LEVEL)
