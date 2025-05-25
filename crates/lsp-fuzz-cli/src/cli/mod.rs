@@ -9,7 +9,7 @@ use std::{cmp::max, collections::HashMap, str::FromStr};
 
 use anyhow::{Context, bail};
 use baseline::{binary::BinaryBaseline, nautilus::NautilusBaseline};
-use corpus_coverage::CorpusCoverage;
+use corpus_coverage::CatInput;
 use export::ExportCommand;
 use fuzz::FuzzCommand;
 use libafl::inputs::{BytesInput, NautilusInput};
@@ -44,9 +44,9 @@ impl Cli {
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
-            Command::CorpusCoverageLspFuzz(cmd) => cmd.run(self.global_options),
-            Command::CorpusCoverageBaselineBinary(cmd) => cmd.run(self.global_options),
-            Command::CorpusCoverageBaselineGrammar(cmd) => cmd.run(self.global_options),
+            Command::CatInput(cmd) => cmd.run(self.global_options),
+            Command::CatBinInput(cmd) => cmd.run(self.global_options),
+            Command::CatGramInput(cmd) => cmd.run(self.global_options),
             Command::ReproduceBaseline(cmd) => cmd.run(self.global_options),
         }
     }
@@ -87,9 +87,9 @@ enum Command {
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
     ReproduceBaseline(ReproduceBaseline),
-    CorpusCoverageLspFuzz(CorpusCoverage<LspInput>),
-    CorpusCoverageBaselineBinary(CorpusCoverage<BaselineInput<BytesInput>>),
-    CorpusCoverageBaselineGrammar(CorpusCoverage<BaselineInput<NautilusInput>>),
+    CatInput(CatInput<LspInput>),
+    CatBinInput(CatInput<BaselineInput<BytesInput>>),
+    CatGramInput(CatInput<BaselineInput<NautilusInput>>),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

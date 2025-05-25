@@ -1,15 +1,13 @@
 use std::{
-    fmt::{Debug, Display},
-    fs,
+    io::{self, Write},
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::OnceLock,
 };
 
 use anyhow::Context;
 use derive_new::new as New;
 use libafl::{
-    corpus::CorpusId,
     generators::NautilusContext,
     inputs::{
         BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
@@ -17,105 +15,45 @@ use libafl::{
 };
 use lsp_fuzz::{
     baseline::{BaselineByteConverter, BaselineInput},
-    coverage::CoverageDataGenerator,
     lsp_input::{LspInput, LspInputBytesConverter},
 };
-use rayon::prelude::*;
 use tempfile::TempDir;
-use tracing::info;
 
-use crate::{
-    cli::GlobalOptions,
-    fuzzing::{FuzzerStateDir, common::ParTryCollect},
-};
+use crate::cli::GlobalOptions;
 
 /// Reproduces crashes found during fuzzing (for a directory containing the inputs).
 #[derive(Debug, clap::Parser)]
-pub struct CorpusCoverage<I> {
-    /// Directory containing the fuzzer states.
+pub struct CatInput<I> {
     #[clap(long)]
-    state: FuzzerStateDir,
-
-    /// The path to the target executable.
-    #[clap(long, short)]
-    target_executable: PathBuf,
-
-    /// The path to the target executable.
-    #[clap(long, short)]
-    target_args: Vec<String>,
+    input_path: PathBuf,
 
     #[clap(skip)]
     _input: PhantomData<I>,
 }
 
-impl<I> CorpusCoverage<I>
+impl<I> CatInput<I>
 where
     I: Input + Send + Sync,
     ExperimentalCovByteGen: CovInputBytesGenerator<I>,
 {
     pub fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
-        info!("Loading corpus");
-        let covereage_inputs: Vec<CoverageInput<I>> =
-            load_corpus(&self.state.corpus_dir()).context("Loading corpus")?;
-        fs::create_dir_all(self.state.coverage_dir()).context("Creating coverage dir")?;
-        info!(
-            "Generating coverage reports for {}",
-            self.target_executable.display()
-        );
-        let coverage_data_generator =
-            CoverageDataGenerator::new(self.target_executable, self.target_args);
+        let input = I::from_file(&self.input_path).context("Reading input")?;
         let temp_dir = TempDir::new().context("Creating temp_dir")?;
         let input_bytes_conv = ExperimentalCovByteGen::new(temp_dir);
 
-        covereage_inputs
-            .into_par_iter()
-            .try_for_each(|input| -> anyhow::Result<_> {
-                info!("Measuring coverage for {}", input);
-                let tmp_raw_data = TempDir::new().context("Creating temp raw profile data dir")?;
-                let profile_data = tmp_raw_data.path().join("coverage.profraw");
-                let input_bytes = input_bytes_conv.generate_bytes(&input);
-                coverage_data_generator
-                    .run_target_with_coverage(&input_bytes, &profile_data)
-                    .context("Running target")?;
-                coverage_data_generator
-                    .merge_llvm_raw_prof_data(
-                        [profile_data],
-                        &self.state.coverage_dir().join(input.prof_data_file_name()),
-                    )
-                    .context("Merging coverage data")?;
-                Ok(())
-            })?;
+        let bytes = input_bytes_conv.generate_bytes(&input);
+
+        io::stdout()
+            .lock()
+            .write_all(&bytes)
+            .context("Writing to stdout")?;
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
-pub struct CoverageInput<I> {
-    id: CorpusId,
-    time: u64,
-    #[allow(unused, reason = "For completeness")]
-    exec: u64,
-    content: I,
-}
-
-impl<I> Display for CoverageInput<I> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "id_{}_time_{}_exec_{}", self.id.0, self.time, self.exec)
-    }
-}
-
-impl<I> CoverageInput<I> {
-    pub fn prof_data_file_name(&self) -> String {
-        format!(
-            "id_{}_time_{}_exec_{}.profdata",
-            self.id.0, self.time, self.exec
-        )
-    }
-}
-
 pub trait CovInputBytesGenerator<I> {
-    fn generate_bytes(&self, input: &CoverageInput<I>) -> Vec<u8>;
+    fn generate_bytes(&self, input: &I) -> Vec<u8>;
 }
 
 #[derive(Debug, New)]
@@ -124,21 +62,21 @@ pub struct ExperimentalCovByteGen {
 }
 
 impl CovInputBytesGenerator<LspInput> for ExperimentalCovByteGen {
-    fn generate_bytes(&self, input: &CoverageInput<LspInput>) -> Vec<u8> {
+    fn generate_bytes(&self, input: &LspInput) -> Vec<u8> {
         let mut converter = LspInputBytesConverter::new(self.temp_dir.path().to_owned());
-        converter.to_bytes(&input.content).to_vec()
+        converter.to_bytes(input).to_vec()
     }
 }
 
 impl CovInputBytesGenerator<BaselineInput<BytesInput>> for ExperimentalCovByteGen {
-    fn generate_bytes(&self, input: &CoverageInput<BaselineInput<BytesInput>>) -> Vec<u8> {
+    fn generate_bytes(&self, input: &BaselineInput<BytesInput>) -> Vec<u8> {
         let mut converter = BaselineByteConverter::new(NopBytesConverter::default());
-        converter.to_bytes(&input.content).to_vec()
+        converter.to_bytes(input).to_vec()
     }
 }
 
 impl CovInputBytesGenerator<BaselineInput<NautilusInput>> for ExperimentalCovByteGen {
-    fn generate_bytes(&self, input: &CoverageInput<BaselineInput<NautilusInput>>) -> Vec<u8> {
+    fn generate_bytes(&self, input: &BaselineInput<NautilusInput>) -> Vec<u8> {
         static NAUTILUS_CONTEXT: OnceLock<NautilusContext> = OnceLock::new();
         let nautilus_context = NAUTILUS_CONTEXT.get_or_init(|| {
             let mut nautilus_ctx = NautilusContext {
@@ -149,54 +87,6 @@ impl CovInputBytesGenerator<BaselineInput<NautilusInput>> for ExperimentalCovByt
         });
         let mut converter =
             BaselineByteConverter::new(NautilusBytesConverter::new(nautilus_context));
-        converter.to_bytes(&input.content).to_vec()
+        converter.to_bytes(input).to_vec()
     }
-}
-
-fn inter_metadata(file_name: &str) -> Option<(CorpusId, u64, u64)> {
-    // "id_{id}_time_{time}_exec_{exec}"
-    let strip_id = file_name.strip_prefix("id_")?;
-    let (id, remaining) = strip_id.split_once("_time_")?;
-    let (time, exec) = remaining.split_once("_exec_")?;
-    let id = id.parse().ok()?;
-    let time = time.parse().ok()?;
-    let exec = exec.parse().ok()?;
-    Some((CorpusId(id), time, exec))
-}
-
-fn load_cov_input<I>(corpus_dir: &Path, input_file_name: String) -> anyhow::Result<CoverageInput<I>>
-where
-    I: Input,
-{
-    let input_path = corpus_dir.join(&input_file_name);
-    let input = I::from_file(input_path).context("Loading input")?;
-    let (id, time, exec) = inter_metadata(&input_file_name).context("Inter metadata")?;
-    Ok(CoverageInput {
-        id,
-        content: input,
-        time,
-        exec,
-    })
-}
-
-fn load_corpus<I>(corpus_dir: &Path) -> anyhow::Result<Vec<CoverageInput<I>>>
-where
-    I: Clone + Input + Send,
-{
-    corpus_dir
-        .read_dir()
-        .context("Reading corpus directory")?
-        .map(Result::unwrap)
-        .filter(|it| {
-            it.metadata().is_ok_and(|it| it.is_file())
-                && it.file_name().to_string_lossy().starts_with("id_")
-        })
-        .map(|it| {
-            it.file_name()
-                .into_string()
-                .expect("File name should be valid UTF-8")
-        })
-        .par_bridge()
-        .map(|it| load_cov_input(corpus_dir, it))
-        .try_collect_par()
 }
