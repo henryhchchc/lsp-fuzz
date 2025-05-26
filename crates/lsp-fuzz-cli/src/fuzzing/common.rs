@@ -169,6 +169,7 @@ pub fn analyze_fuzz_target(target_path: &Path) -> Result<StaticTargetBinaryInfo,
     Ok(binary_info)
 }
 
+#[allow(unused, reason = "utility")]
 pub trait ParTryCollect<T, E>: ParallelIterator {
     fn try_collect_par<C>(self) -> Result<C, E>
     where

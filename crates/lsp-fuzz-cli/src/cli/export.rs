@@ -21,22 +21,24 @@ pub(super) struct ExportCommand {
     /// The path to the output directory
     #[clap(long, short)]
     output: PathBuf,
+
+    #[clap(long)]
+    input_prefix: Option<String>,
 }
 
 impl ExportCommand {
-    const FILE_NAME_PREFIX: &str = "input_";
-
     pub(super) fn run(self, _global_options: GlobalOptions) -> anyhow::Result<()> {
         let input_files = fs::read_dir(self.input)
             .context("Reading input directory")?
-            .filter_map(|it| {
-                it.ok().and_then(|it| {
-                    it.file_name()
-                        .to_str()
-                        .is_some_and(|it| it.starts_with(Self::FILE_NAME_PREFIX))
-                        .then(|| it.path())
-                })
-            });
+            .map(Result::unwrap)
+            .filter(|it| {
+                it.metadata().is_ok_and(|it| it.is_file())
+                    && self
+                        .input_prefix
+                        .as_ref()
+                        .is_none_or(|prefix| it.file_name().to_string_lossy().starts_with(prefix))
+            })
+            .map(|it| it.path());
         for input in input_files {
             info!("Processing {}", input.display());
             let output = self.output.join(
