@@ -13,7 +13,7 @@ use libafl::{
     inputs::{
         BytesInput, HasTargetBytes, Input, InputToBytes, NautilusBytesConverter, NautilusInput,
     },
-    mutators::Mutator,
+    mutators::{MutationResult, Mutator},
     state::{HasMaxSize, HasRand},
 };
 use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice};
@@ -156,8 +156,21 @@ where
         &mut self,
         state: &mut State,
         input: &mut TwoDimBaselineInput,
-    ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
-        todo!()
+    ) -> Result<MutationResult, libafl::Error> {
+        let mut result = MutationResult::Skipped;
+
+        if self.code_mutator.mutate(state, &mut input.code)? == MutationResult::Mutated {
+            result = MutationResult::Mutated;
+        }
+        if self
+            .editor_operation_mutator
+            .mutate(state, &mut input.editor_operations)?
+            == MutationResult::Mutated
+        {
+            result = MutationResult::Mutated;
+        }
+
+        Ok(result)
     }
 
     fn post_exec(
@@ -165,6 +178,6 @@ where
         _state: &mut State,
         _new_corpus_id: Option<libafl::corpus::CorpusId>,
     ) -> Result<(), libafl::Error> {
-        todo!()
+        Ok(())
     }
 }
