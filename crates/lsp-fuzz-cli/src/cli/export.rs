@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context;
 use libafl::inputs::Input;
-use lsp_fuzz::lsp_input::LspInput;
+use lsp_fuzz::{execution::workspace_observer::HasWorkspace, lsp_input::LspInput};
 use tracing::info;
 
 use super::GlobalOptions;
@@ -61,7 +61,7 @@ fn export_input(input: &Path, output_dir: &Path) -> Result<(), anyhow::Error> {
     let workspace_dir = output_dir.join("workspace");
     fs::create_dir_all(&workspace_dir).context("Creating workspace directory")?;
     input
-        .setup_source_dir(&workspace_dir)
+        .setup_workspace(&workspace_dir)
         .context("Setting up workspace directory")?;
     let workspace_url = format!("file://{}/", workspace_dir.display());
     let requests_dir = output_dir.join("requests");

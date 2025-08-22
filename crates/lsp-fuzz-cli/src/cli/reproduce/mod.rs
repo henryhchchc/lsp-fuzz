@@ -17,7 +17,9 @@ use libcasr::{
     severity::Severity,
     stacktrace::ParseStacktrace,
 };
-use lsp_fuzz::{lsp::json_rpc::JsonRPCMessage, lsp_input::LspInput};
+use lsp_fuzz::{
+    execution::workspace_observer::HasWorkspace, lsp::json_rpc::JsonRPCMessage, lsp_input::LspInput,
+};
 use nix::libc;
 use serde::Serialize;
 use tracing::{info, warn};
@@ -95,7 +97,7 @@ fn reproduce(
     let asan_log_file_prefix = workspace_dir.join(ASAN_LOG_FN);
     let asan_options_env = asan_options(&asan_log_file_prefix).join(":");
     input
-        .setup_source_dir(workspace_dir)
+        .setup_workspace(workspace_dir)
         .context("Setting up workspace_dir")?;
     let mut target = Command::new(target_executable);
     target

@@ -25,6 +25,7 @@ use messages::LspMessageSequence;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    execution::workspace_observer::HasWorkspace,
     file_system::{FileSystemDirectory, FileSystemEntry},
     lsp::{self, capabilities::fuzzer_client_capabilities},
     text_document::{
@@ -115,12 +116,6 @@ impl LspInput {
         WORKSPACE_ROOT_URI.clone()
     }
 
-    pub fn workspace_hash(&self) -> u64 {
-        let mut hasher = ahash::AHasher::default();
-        self.workspace.hash(&mut hasher);
-        hasher.finish()
-    }
-
     /// Retrieves a text document from the workspace by its URI.
     ///
     /// This function looks up a text document in the workspace using the provided URI.
@@ -199,6 +194,18 @@ impl InputToBytes<LspInput> for LspInputBytesConverter {
             .workspace_root
             .join(format!("{}{input_hash}", LspInput::WORKSPACE_DIR_PREFIX));
         input.request_bytes(&workspace_dir).into()
+    }
+}
+
+impl HasWorkspace for LspInput {
+    fn workspace_hash(&self) -> u64 {
+        let mut hasher = ahash::AHasher::default();
+        self.workspace.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn setup_workspace(&self, workspace_root: &Path) -> Result<(), std::io::Error> {
+        self.workspace.write_to_fs(workspace_root)
     }
 }
 
@@ -291,10 +298,6 @@ impl LspInput {
             .chain(self.messages.iter().cloned())
             .chain(once(shutdown))
             .chain(once(exit))
-    }
-
-    pub fn setup_source_dir(&self, source_dir: &Path) -> Result<(), std::io::Error> {
-        self.workspace.write_to_fs(source_dir)
     }
 }
 
