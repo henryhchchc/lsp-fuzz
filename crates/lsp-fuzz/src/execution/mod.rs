@@ -264,9 +264,9 @@ where
             && type_eq::<T, AsanBacktraceObserver>()
             && asan_observer.name() == name
         {
-            return Some(unsafe { transmute::<&AsanBacktraceObserver, &T>(asan_observer) });
+            Some(unsafe { transmute::<&AsanBacktraceObserver, &T>(asan_observer) })
         } else if type_eq::<T, LspOutputObserver>() && self.responses_observer.name() == name {
-            return Some(unsafe { transmute::<&LspOutputObserver, &T>(&self.responses_observer) });
+            Some(unsafe { transmute::<&LspOutputObserver, &T>(&self.responses_observer) })
         } else {
             #[allow(deprecated, reason = "Fallback call")]
             self.other_observers.match_name(name)
@@ -280,11 +280,11 @@ where
             && type_eq::<T, AsanBacktraceObserver>()
             && asan_observer.name() == name
         {
-            return Some(unsafe { transmute::<&mut AsanBacktraceObserver, &mut T>(asan_observer) });
+            Some(unsafe { transmute::<&mut AsanBacktraceObserver, &mut T>(asan_observer) })
         } else if type_eq::<T, LspOutputObserver>() && self.responses_observer.name() == name {
-            return Some(unsafe {
+            Some(unsafe {
                 transmute::<&mut LspOutputObserver, &mut T>(&mut self.responses_observer)
-            });
+            })
         } else {
             #[allow(deprecated, reason = "Fallback call")]
             self.other_observers.match_name_mut(name)

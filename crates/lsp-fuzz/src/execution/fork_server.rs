@@ -15,7 +15,7 @@ use std::{
 };
 
 use bitflags::bitflags;
-use libafl::executors::forkserver::ConfigTarget;
+use libafl::executors::forkserver;
 use libafl_bolts::{
     fs::InputFile,
     shmem::{ShMem, ShMemId},
@@ -255,12 +255,10 @@ impl NeoForkServer {
         }
 
         // Set additional environment variables and process limits
-        command
-            .env("LD_BIND_NOW", "1")
-            .envs(envs)
-            .setlimit(memlimit)
-            .set_coredump(afl_debug)
-            .setsid();
+        //
+        forkserver::ConfigTarget::setlimit(&mut command, memlimit);
+        forkserver::ConfigTarget::set_coredump(&mut command, afl_debug);
+        command.env("LD_BIND_NOW", "1").envs(envs).setsid(true);
 
         // Set up the pipe file descriptors in the child process
         let bind_pipes = {
