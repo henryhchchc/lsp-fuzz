@@ -7,10 +7,16 @@ use std::{
     str::FromStr,
 };
 
-use libafl::inputs::{
-    BytesInput, HasTargetBytes, Input, InputToBytes, NautilusBytesConverter, NautilusInput,
+use derive_more::Debug;
+use derive_new::new as New;
+use libafl::{
+    inputs::{
+        BytesInput, HasTargetBytes, Input, InputToBytes, NautilusBytesConverter, NautilusInput,
+    },
+    mutators::Mutator,
+    state::{HasMaxSize, HasRand},
 };
-use libafl_bolts::ownedref::OwnedSlice;
+use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice};
 use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +36,12 @@ pub struct TwoDimBaselineInput {
 
 impl Input for TwoDimBaselineInput {}
 
+impl HasLen for TwoDimBaselineInput {
+    fn len(&self) -> usize {
+        self.code.len() + self.editor_operations.len()
+    }
+}
+
 impl HasWorkspace for TwoDimBaselineInput {
     fn workspace_hash(&self) -> u64 {
         let mut hasher = ahash::AHasher::default();
@@ -45,7 +57,7 @@ impl HasWorkspace for TwoDimBaselineInput {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, New)]
 pub struct TwoDimInputConverter<'a> {
     workspace_root: PathBuf,
     lang_id: String,
@@ -119,5 +131,40 @@ impl InputToBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
             )
             .collect();
         OwnedSlice::from(bytes)
+    }
+}
+
+#[derive(Debug, New)]
+pub struct TwoDimBaselineMutator<CM, EM> {
+    code_mutator: CM,
+    editor_operation_mutator: EM,
+}
+
+impl<CM, EM> Named for TwoDimBaselineMutator<CM, EM> {
+    fn name(&self) -> &Cow<'static, str> {
+        todo!()
+    }
+}
+
+impl<CM, EM, State> Mutator<TwoDimBaselineInput, State> for TwoDimBaselineMutator<CM, EM>
+where
+    CM: Mutator<BytesInput, State>,
+    EM: Mutator<BaselineInput<NautilusInput>, State>,
+    State: HasMaxSize + HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        input: &mut TwoDimBaselineInput,
+    ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+        todo!()
+    }
+
+    fn post_exec(
+        &mut self,
+        _state: &mut State,
+        _new_corpus_id: Option<libafl::corpus::CorpusId>,
+    ) -> Result<(), libafl::Error> {
+        todo!()
     }
 }

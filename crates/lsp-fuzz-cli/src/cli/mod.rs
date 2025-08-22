@@ -21,6 +21,8 @@ use reproduce::{
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::cli::baseline::two_dim::TwoDimyBaseline;
+
 #[derive(Debug, clap::Parser)]
 #[command(version, about, styles = clap::builder::Styles::styled())]
 pub struct Cli {
@@ -40,6 +42,7 @@ impl Cli {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
             Command::BaselineNautilus(cmd) => cmd.run(self.global_options),
             Command::BaselineBinary(cmd) => cmd.run(self.global_options),
+            Command::Baseline2D(cmd) => cmd.run(self.global_options),
             Command::Export(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
@@ -82,6 +85,7 @@ enum Command {
     Fuzz(Box<FuzzCommand>),
     BaselineNautilus(Box<NautilusBaseline>),
     BaselineBinary(Box<BinaryBaseline>),
+    Baseline2D(Box<TwoDimyBaseline>),
     MineGrammarFragments(MineGrammarFragments),
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
