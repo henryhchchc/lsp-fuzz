@@ -19,5 +19,5 @@ tree-sitter-ruby = "0"
 tree-sitter-rust = "0"
 tree-sitter-solidity = "1"
 tree-sitter-toml-ng = "0"
-tree-sitter-verilog = { git = "https://github.com/gmlarumbe/tree-sitter-systemverilog.git", branch = "dev", version = "85372241" }
+tree-sitter-systemverilog = "0.2.1"
 tree-sitter-qmljs = { git = "https://github.com/henryhchchc/tree-sitter-qmljs.git", branch = "master" }

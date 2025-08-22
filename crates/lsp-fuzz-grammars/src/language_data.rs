@@ -96,7 +96,7 @@ pub const VERILOG: LanguageInfo = LanguageInfo {
         "/res/highlights/verilog.scm"
     )),
     lsp_language_id: "verilog",
-    ts_language_fn: tree_sitter_verilog::LANGUAGE,
+    ts_language_fn: tree_sitter_systemverilog::LANGUAGE,
 };
 
 /// The Solidity language information
