@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::lsp_input::LspInput;
 
+pub mod two_dim;
+
 const MAX_MESSAGES: usize = 20;
 
 #[derive(Debug, Clone, Hash, Serialize, Deserialize, New)]
