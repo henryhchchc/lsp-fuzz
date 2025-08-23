@@ -10,13 +10,15 @@ use std::{
 use derive_more::Debug;
 use derive_new::new as New;
 use libafl::{
+    generators::Generator,
     inputs::{
         BytesInput, HasTargetBytes, Input, InputToBytes, NautilusBytesConverter, NautilusInput,
     },
     mutators::{MutationResult, Mutator},
     state::{HasMaxSize, HasRand},
 };
-use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice};
+use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice, rands::Rand};
+use lsp_fuzz_grammars::Language;
 use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +27,7 @@ use crate::{
     execution::workspace_observer::HasWorkspace,
     lsp::{self, capabilities::fuzzer_client_capabilities},
     lsp_input::LspInput,
+    utils::AflContext,
 };
 
 #[derive(Debug, Clone, Hash, Serialize, Deserialize)]
@@ -179,5 +182,35 @@ where
         _new_corpus_id: Option<libafl::corpus::CorpusId>,
     ) -> Result<(), libafl::Error> {
         Ok(())
+    }
+}
+
+#[derive(Debug, New)]
+pub struct TwoDimBaselineGenerator<CodeGen, OpsGen> {
+    language: Language,
+    code_generator: CodeGen,
+    editor_ops_generator: OpsGen,
+}
+
+impl<State, CodeGen, OpsGen> Generator<TwoDimBaselineInput, State>
+    for TwoDimBaselineGenerator<CodeGen, OpsGen>
+where
+    CodeGen: Generator<BytesInput, State>,
+    OpsGen: Generator<BaselineInput<NautilusInput>, State>,
+    State: HasRand,
+{
+    fn generate(&mut self, state: &mut State) -> Result<TwoDimBaselineInput, libafl::Error> {
+        let code = self.code_generator.generate(state)?;
+        let editor_operations = self.editor_ops_generator.generate(state)?;
+        let file_name_extension = state
+            .rand_mut()
+            .choose(self.language.file_extensions())
+            .afl_context("No file extension chosen")?
+            .to_owned();
+        Ok(TwoDimBaselineInput {
+            file_name_extension,
+            code,
+            editor_operations,
+        })
     }
 }

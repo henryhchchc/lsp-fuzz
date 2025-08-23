@@ -3,23 +3,25 @@ use std::{fs::OpenOptions, io::BufWriter, ops::Not, path::PathBuf, time::Duratio
 use anyhow::Context;
 use clap::builder::BoolishValueParser;
 use libafl::{
-    Fuzzer, NopInputFilter, StdFuzzerBuilder,
+    Fuzzer, HasMetadata, NopInputFilter, StdFuzzerBuilder,
+    corpus::Corpus,
     events::SimpleEventManager,
     feedback_or,
-    feedbacks::{MaxMapFeedback, TimeFeedback},
-    generators::{NautilusContext, NautilusGenerator},
+    feedbacks::{MaxMapFeedback, NautilusChunksMetadata, TimeFeedback},
+    generators::{NautilusContext, NautilusGenerator, RandBytesGenerator},
     inputs::NautilusBytesConverter,
     monitors::SimpleMonitor,
     mutators::{
         HavocScheduledMutator, NautilusRandomMutator, NautilusRecursionMutator,
         NautilusSpliceMutator, havoc_mutations_no_crossover,
     },
+    nonzero,
     observers::{
         AsanBacktraceObserver, CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver,
     },
     schedulers::powersched::BaseSchedule,
     stages::{CalibrationStage, StdPowerMutationalStage},
-    state::StdState,
+    state::{DEFAULT_MAX_SIZE, HasCorpus, StdState},
 };
 use libafl_bolts::{
     AsSliceMut, HasLen,
@@ -28,8 +30,9 @@ use libafl_bolts::{
 };
 use lsp_fuzz::{
     baseline::{
-        BaselineByteConverter, BaselineMessageMutator, BaselineSequenceMutator,
-        two_dim::{TwoDimBaselineMutator, TwoDimInputConverter},
+        BaselineByteConverter, BaselineInputGenerator, BaselineMessageMutator,
+        BaselineSequenceMutator,
+        two_dim::{TwoDimBaselineGenerator, TwoDimBaselineMutator, TwoDimInputConverter},
     },
     corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{
@@ -41,6 +44,7 @@ use lsp_fuzz::{
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;
+use tempfile::tempdir;
 use tracing::info;
 use tuple_list::tuple_list;
 
@@ -172,6 +176,11 @@ impl TwoDimyBaseline {
         };
         nautilus_ctx.ctx.initialize(65535);
 
+        let nautilus_wd = tempdir().context("Creating temp directory for nautilus")?;
+        state.add_metadata(NautilusChunksMetadata::new(
+            nautilus_wd.path().as_os_str().to_str().unwrap().to_owned(),
+        ));
+
         let scheduler = common::scheduler(
             &mut state,
             &cov_observer,
@@ -258,10 +267,22 @@ impl TwoDimyBaseline {
 
         common::set_cpu_affinity(self.cpu_affinity);
 
-        let mut nautilus_ctx = libafl::generators::NautilusContext {
-            ctx: lsp_fuzz::lsp::metamodel::get_nautilus_context(),
-        };
-        nautilus_ctx.ctx.initialize(65535);
+        let mut generator = TwoDimBaselineGenerator::new(
+            self.language,
+            RandBytesGenerator::new(nonzero!(DEFAULT_MAX_SIZE)),
+            BaselineInputGenerator::new(NautilusGenerator::new(&nautilus_ctx)),
+        );
+        info!("Generating seeds");
+        state
+            .generate_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut generator,
+                &mut event_manager,
+                self.generate_seeds,
+            )
+            .context("Generating initial input")?;
+        info!(seeds = %state.corpus().count(), "Seed generation completed");
 
         let fuzz_result = fuzzer.fuzz_loop(
             &mut fuzz_stages,
