@@ -56,7 +56,7 @@ impl HasWorkspace for TwoDimBaselineInput {
         let mut file_path = workspace_root.join("main");
         file_path.set_extension(&self.file_name_extension);
         fs::write(file_path, self.code.target_bytes().as_ref())?;
-        todo!()
+        Ok(())
     }
 }
 

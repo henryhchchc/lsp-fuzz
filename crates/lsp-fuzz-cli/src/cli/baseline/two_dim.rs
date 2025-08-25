@@ -53,9 +53,9 @@ use crate::{
     fuzzing::{ExecutorOptions, FuzzerStateDir, common},
 };
 
-/// Fuzz a Language Server Protocol (LSP) server using BytesInput.
+/// Fuzz a Language Server Protocol (LSP) server using two dimensional inputs.
 #[derive(Debug, clap::Parser)]
-pub struct TwoDimyBaseline {
+pub struct TwoDimBaseline {
     /// Directory containing the fuzzer states.
     #[clap(long)]
     state: FuzzerStateDir,
@@ -94,9 +94,6 @@ pub struct TwoDimyBaseline {
     #[clap(long)]
     no_asan: bool,
 
-    #[clap(long)]
-    seeds: PathBuf,
-
     /// Maximum size of generated inputs in bytes.
     #[clap(long, default_value_t = 8192)]
     max_input_size: usize,
@@ -105,7 +102,7 @@ pub struct TwoDimyBaseline {
     language: Language,
 }
 
-impl TwoDimyBaseline {
+impl TwoDimBaseline {
     pub fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         self.state.create().context("Crating state dir")?;
         let mut shmem_provider =
