@@ -4,7 +4,7 @@ use std::{
 };
 
 use derive_new::new as New;
-use libafl::{HasMetadata, observers::Observer};
+use libafl::observers::Observer;
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,6 @@ pub trait HasWorkspace {
 
 impl<Input, State> Observer<Input, State> for WorkspaceObserver
 where
-    State: HasMetadata,
     Input: HasWorkspace,
 {
     fn pre_exec(&mut self, _state: &mut State, input: &Input) -> Result<(), libafl::Error> {
