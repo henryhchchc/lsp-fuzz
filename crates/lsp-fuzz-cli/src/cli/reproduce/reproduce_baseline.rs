@@ -15,8 +15,16 @@ use libafl::{
     inputs::{
         BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
     },
+    observers::Observer,
 };
-use lsp_fuzz::baseline::{BaselineByteConverter, BaselineInput};
+use lsp_fuzz::{
+    baseline::{
+        BaselineByteConverter, BaselineInput,
+        two_dim::{TwoDimBaselineInput, TwoDimInputConverter},
+    },
+    execution::workspace_observer::WorkspaceObserver,
+};
+use lsp_fuzz_grammars::Language;
 use nix::libc;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tracing::{info, warn};
@@ -38,9 +46,16 @@ pub struct ReproduceBaseline {
     #[clap(long, short)]
     target_executable: PathBuf,
 
+    /// The path to the temporary directory.
+    #[clap(long, env = "AFL_TMPDIR")]
+    temp_dir: Option<PathBuf>,
+
     /// The path to the target executable.
     #[clap(long, short)]
     target_args: Vec<String>,
+
+    #[clap(long)]
+    language: Option<Language>,
 
     /// The path to the output file.
     #[clap(long, short)]
@@ -60,6 +75,7 @@ pub struct ReproduceBaseline {
 pub enum BaselineMode {
     Binary,
     Grammar,
+    TwoDim,
 }
 
 impl ReproduceBaseline {
@@ -87,6 +103,8 @@ impl ReproduceBaseline {
             nautilus_ctx
         });
 
+        let temp_dir = self.temp_dir.unwrap_or_else(std::env::temp_dir);
+
         let reproduce_one = |input_file: PathBuf| {
             let input_id = input_file
                 .file_name()
@@ -94,6 +112,7 @@ impl ReproduceBaseline {
                 .to_str()
                 .context("The file name is not valid UTF-8")?
                 .to_owned();
+            let mut workspace_observer = WorkspaceObserver::new(temp_dir.clone());
             let input_bytes = match self.baseline_mode {
                 BaselineMode::Binary => {
                     let input = BaselineInput::<BytesInput>::from_file(&input_file)
@@ -108,6 +127,22 @@ impl ReproduceBaseline {
                     let input = BaselineInput::<NautilusInput>::from_file(&input_file)
                         .with_context(|| format!("Loading input file: {}", input_file.display()))?;
                     gram_input_converter.to_bytes(&input).to_vec()
+                }
+                BaselineMode::TwoDim => {
+                    let mut two_dim_input_converter = TwoDimInputConverter::new(
+                        temp_dir.clone(),
+                        self.language
+                            .context("Language is required for 2D baseline")?
+                            .lsp_language_id()
+                            .to_owned(),
+                        BaselineByteConverter::new(NautilusBytesConverter::new(nautilus_context)),
+                    );
+                    let input = TwoDimBaselineInput::from_file(&input_file)
+                        .with_context(|| format!("Loading input file: {}", input_file.display()))?;
+                    workspace_observer
+                        .pre_exec(&mut (), &input)
+                        .with_context(|| format!("Preparing workspace for input: {}", input_id))?;
+                    two_dim_input_converter.to_bytes(&input).to_vec()
                 }
             };
             info!("Reproducing crash for input {}", input_id);
