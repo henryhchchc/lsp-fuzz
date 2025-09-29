@@ -13,6 +13,8 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 
 The pre-print will be available in early October.
 
+[Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
+
 ## Experiment Data
 
 The experiment data for evaluating LSPFuzz is available at [https://doi.org/10.5281/zenodo.17052142](https://doi.org/10.5281/zenodo.17052142).
