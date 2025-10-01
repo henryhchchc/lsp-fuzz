@@ -11,9 +11,8 @@ Hengcheng Zhu, Songqiang Chen, Valerio Terragni, Lili Wei, Jiarong Wu, Yepang Li
 **LSPFuzz: Hunting Bugs in Language Servers.**
 In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Automated Software Engineering._ Seoul, South Korea. November 2025.
 
-The pre-print will be available in early October.
-
 [Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
+| [Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf)
 
 ## Experiment Data
 
