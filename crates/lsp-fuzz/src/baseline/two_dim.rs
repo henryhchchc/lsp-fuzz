@@ -64,7 +64,7 @@ impl HasWorkspace for TwoDimBaselineInput {
 pub struct TwoDimInputConverter<'a> {
     workspace_root: PathBuf,
     lang_id: String,
-    editor_ops_coverter: BaselineByteConverter<NautilusBytesConverter<'a>>,
+    editor_ops_converter: BaselineByteConverter<NautilusBytesConverter<'a>>,
 }
 
 impl ToTargetBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
@@ -128,7 +128,7 @@ impl ToTargetBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
         let bytes: Vec<_> = requests
             .flat_map(|it| it.to_lsp_payload())
             .chain(
-                self.editor_ops_coverter
+                self.editor_ops_converter
                     .to_target_bytes(&input.editor_operations)
                     .to_vec(),
             )
