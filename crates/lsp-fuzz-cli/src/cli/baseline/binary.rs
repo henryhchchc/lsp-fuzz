@@ -9,7 +9,7 @@ use libafl::{
     feedbacks::{MaxMapFeedback, TimeFeedback},
     generators::RandBytesGenerator,
     inputs::{
-        BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
+        BytesInput, Input, NautilusBytesConverter, NautilusInput, NopToTargetBytes, ToTargetBytes,
     },
     monitors::SimpleMonitor,
     mutators::{HavocScheduledMutator, havoc_mutations_no_crossover},
@@ -165,14 +165,16 @@ impl BinaryBaseline {
             self.cycle_power_schedule,
         );
 
-        let target_bytes_converter = BaselineByteConverter::new(NopBytesConverter::default());
+        let target_bytes_converter = BaselineByteConverter::new(NopToTargetBytes::default());
 
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzerBuilder::new()
-            .bytes_converter(target_bytes_converter)
+            .target_bytes_converter(target_bytes_converter)
             .input_filter(NopInputFilter)
-            .build(scheduler, feedback, objective)
-            .context("Building fuzzer")?;
+            .scheduler(scheduler)
+            .feedback(feedback)
+            .objective(objective)
+            .build();
 
         let mut fuzz_stages = {
             // Create a standard havoc mutator for BytesInput
@@ -249,7 +251,7 @@ impl BinaryBaseline {
                 nautilus_seed
                     .messages()
                     .map(|msg| {
-                        let bytes = seed_converter.to_bytes(msg).to_vec();
+                        let bytes = seed_converter.to_target_bytes(msg).to_vec();
                         BytesInput::new(bytes)
                     })
                     .collect(),

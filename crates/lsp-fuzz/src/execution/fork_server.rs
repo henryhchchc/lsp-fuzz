@@ -511,14 +511,9 @@ impl NeoForkServer {
         sigset.add(Signal::SIGINT);
 
         // Wait for data with timeout
-        let sret = nix::sys::select::pselect(
-            None,
-            &mut readfds,
-            None,
-            None,
-            Some(timeout),
-            Some(&sigset),
-        )?;
+        let sret =
+            nix::sys::select::pselect(None, &mut readfds, None, None, Some(timeout), Some(&sigset))
+                .afl_context("Fail to pselect with the child")?;
 
         if sret > 0 {
             // Data is available, read it

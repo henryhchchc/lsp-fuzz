@@ -13,7 +13,7 @@ use anyhow::Context;
 use libafl::{
     generators::NautilusContext,
     inputs::{
-        BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
+        BytesInput, Input, NautilusBytesConverter, NautilusInput, NopToTargetBytes, ToTargetBytes,
     },
     observers::Observer,
 };
@@ -118,15 +118,15 @@ impl ReproduceBaseline {
                     let input = BaselineInput::<BytesInput>::from_file(&input_file)
                         .with_context(|| format!("Loading input file: {}", input_file.display()))?;
                     let mut bytes_input_converter =
-                        BaselineByteConverter::new(NopBytesConverter::default());
-                    bytes_input_converter.to_bytes(&input).to_vec()
+                        BaselineByteConverter::new(NopToTargetBytes::default());
+                    bytes_input_converter.to_target_bytes(&input).to_vec()
                 }
                 BaselineMode::Grammar => {
                     let mut gram_input_converter =
                         BaselineByteConverter::new(NautilusBytesConverter::new(nautilus_context));
                     let input = BaselineInput::<NautilusInput>::from_file(&input_file)
                         .with_context(|| format!("Loading input file: {}", input_file.display()))?;
-                    gram_input_converter.to_bytes(&input).to_vec()
+                    gram_input_converter.to_target_bytes(&input).to_vec()
                 }
                 BaselineMode::TwoDim => {
                     let mut two_dim_input_converter = TwoDimInputConverter::new(
@@ -142,7 +142,7 @@ impl ReproduceBaseline {
                     workspace_observer
                         .pre_exec(&mut (), &input)
                         .with_context(|| format!("Preparing workspace for input: {}", input_id))?;
-                    two_dim_input_converter.to_bytes(&input).to_vec()
+                    two_dim_input_converter.to_target_bytes(&input).to_vec()
                 }
             };
             info!("Reproducing crash for input {}", input_id);

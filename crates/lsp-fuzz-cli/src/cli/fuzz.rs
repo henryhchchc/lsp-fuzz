@@ -181,9 +181,11 @@ impl FuzzCommand {
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzerBuilder::new()
             .input_filter(NopInputFilter)
-            .bytes_converter(LspInputBytesConverter::new(temp_dir.clone()))
-            .build(scheduler, feedback, objective)
-            .context("Building fuzzer")?;
+            .target_bytes_converter(LspInputBytesConverter::new(temp_dir.clone()))
+            .scheduler(scheduler)
+            .feedback(feedback)
+            .objective(objective)
+            .build();
 
         let mut fuzz_stages = {
             let mutation_stage = {

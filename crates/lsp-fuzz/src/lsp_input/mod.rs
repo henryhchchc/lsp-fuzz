@@ -14,7 +14,7 @@ use libafl::{
     HasMetadata,
     corpus::CorpusId,
     generators::Generator,
-    inputs::{BytesInput, HasTargetBytes, Input, InputToBytes},
+    inputs::{BytesInput, HasTargetBytes, Input, ToTargetBytes},
     mutators::{MutationResult, Mutator},
     state::{HasCorpus, HasMaxSize, HasRand},
 };
@@ -187,8 +187,8 @@ pub struct LspInputBytesConverter {
     workspace_root: PathBuf,
 }
 
-impl InputToBytes<LspInput> for LspInputBytesConverter {
-    fn to_bytes<'a>(&mut self, input: &'a LspInput) -> OwnedSlice<'a, u8> {
+impl ToTargetBytes<LspInput> for LspInputBytesConverter {
+    fn to_target_bytes<'a>(&mut self, input: &'a LspInput) -> OwnedSlice<'a, u8> {
         let input_hash = input.workspace_hash();
         let workspace_dir = self
             .workspace_root

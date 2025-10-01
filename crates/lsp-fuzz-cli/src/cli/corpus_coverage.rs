@@ -10,7 +10,7 @@ use derive_new::new as New;
 use libafl::{
     generators::NautilusContext,
     inputs::{
-        BytesInput, Input, InputToBytes, NautilusBytesConverter, NautilusInput, NopBytesConverter,
+        BytesInput, Input, NautilusBytesConverter, NautilusInput, NopToTargetBytes, ToTargetBytes,
     },
 };
 use lsp_fuzz::{
@@ -64,14 +64,14 @@ pub struct ExperimentalCovByteGen {
 impl CovInputBytesGenerator<LspInput> for ExperimentalCovByteGen {
     fn generate_bytes(&self, input: &LspInput) -> Vec<u8> {
         let mut converter = LspInputBytesConverter::new(self.temp_dir.path().to_owned());
-        converter.to_bytes(input).to_vec()
+        converter.to_target_bytes(input).to_vec()
     }
 }
 
 impl CovInputBytesGenerator<BaselineInput<BytesInput>> for ExperimentalCovByteGen {
     fn generate_bytes(&self, input: &BaselineInput<BytesInput>) -> Vec<u8> {
-        let mut converter = BaselineByteConverter::new(NopBytesConverter::default());
-        converter.to_bytes(input).to_vec()
+        let mut converter = BaselineByteConverter::new(NopToTargetBytes::default());
+        converter.to_target_bytes(input).to_vec()
     }
 }
 
@@ -87,6 +87,6 @@ impl CovInputBytesGenerator<BaselineInput<NautilusInput>> for ExperimentalCovByt
         });
         let mut converter =
             BaselineByteConverter::new(NautilusBytesConverter::new(nautilus_context));
-        converter.to_bytes(input).to_vec()
+        converter.to_target_bytes(input).to_vec()
     }
 }

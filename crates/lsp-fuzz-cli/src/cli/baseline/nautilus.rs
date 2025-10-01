@@ -176,10 +176,12 @@ impl NautilusBaseline {
         let target_bytes_converter = BaselineByteConverter::new(nautilus_bytes_converter);
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzerBuilder::new()
-            .bytes_converter(target_bytes_converter)
+            .target_bytes_converter(target_bytes_converter)
             .input_filter(NopInputFilter)
-            .build(scheduler, feedback, objective)
-            .context("Building fuzzer")?;
+            .scheduler(scheduler)
+            .feedback(feedback)
+            .objective(objective)
+            .build();
 
         let mut fuzz_stages = {
             let mutations = tuple_list![

@@ -12,7 +12,7 @@ use derive_new::new as New;
 use libafl::{
     generators::Generator,
     inputs::{
-        BytesInput, HasTargetBytes, Input, InputToBytes, NautilusBytesConverter, NautilusInput,
+        BytesInput, HasTargetBytes, Input, NautilusBytesConverter, NautilusInput, ToTargetBytes,
     },
     mutators::{MutationResult, Mutator},
     state::{HasMaxSize, HasRand},
@@ -67,8 +67,8 @@ pub struct TwoDimInputConverter<'a> {
     editor_ops_coverter: BaselineByteConverter<NautilusBytesConverter<'a>>,
 }
 
-impl InputToBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
-    fn to_bytes<'a>(
+impl ToTargetBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
+    fn to_target_bytes<'a>(
         &mut self,
         input: &'a TwoDimBaselineInput,
     ) -> libafl_bolts::ownedref::OwnedSlice<'a, u8> {
@@ -129,7 +129,7 @@ impl InputToBytes<TwoDimBaselineInput> for TwoDimInputConverter<'_> {
             .flat_map(|it| it.to_lsp_payload())
             .chain(
                 self.editor_ops_coverter
-                    .to_bytes(&input.editor_operations)
+                    .to_target_bytes(&input.editor_operations)
                     .to_vec(),
             )
             .collect();

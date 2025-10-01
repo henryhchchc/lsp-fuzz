@@ -10,9 +10,9 @@ use std::{
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
-    HasBytesConverter, HasMetadata,
+    HasMetadata, HasTargetBytesConverter,
     executors::{Executor, ExitKind, HasObservers},
-    inputs::InputToBytes,
+    inputs::ToTargetBytes,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
 };
@@ -373,8 +373,8 @@ where
     State: HasExecutions + HasMetadata,
     OBS: ObserversTuple<I, State>,
     SHM: ShMem,
-    Z: HasBytesConverter,
-    Z::Converter: InputToBytes<I>,
+    Z: HasTargetBytesConverter,
+    Z::Converter: ToTargetBytes<I>,
 {
     fn run_target(
         &mut self,
@@ -384,7 +384,7 @@ where
         input: &I,
     ) -> Result<ExitKind, libafl::Error> {
         // Transfer input to the fork server
-        let bytes = fuzzer.converter_mut().to_bytes(input);
+        let bytes = fuzzer.target_bytes_converter_mut().to_target_bytes(input);
         let input_bytes = bytes;
         self.fuzz_input.send(&input_bytes)?;
 

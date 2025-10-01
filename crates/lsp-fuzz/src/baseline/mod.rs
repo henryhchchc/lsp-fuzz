@@ -7,7 +7,7 @@ use std::{
 use derive_new::new as New;
 use libafl::{
     generators::Generator,
-    inputs::{Input, InputToBytes},
+    inputs::{Input, ToTargetBytes},
     mutators::{MutationResult, Mutator},
     state::HasRand,
 };
@@ -64,17 +64,17 @@ pub struct BaselineByteConverter<MessageConverter> {
     inner: MessageConverter,
 }
 
-impl<Message, Converter> InputToBytes<BaselineInput<Message>> for BaselineByteConverter<Converter>
+impl<Message, Converter> ToTargetBytes<BaselineInput<Message>> for BaselineByteConverter<Converter>
 where
-    Converter: InputToBytes<Message>,
+    Converter: ToTargetBytes<Message>,
 {
-    fn to_bytes<'a>(
+    fn to_target_bytes<'a>(
         &mut self,
         input: &'a BaselineInput<Message>,
     ) -> libafl_bolts::ownedref::OwnedSlice<'a, u8> {
         let mut bytes = Vec::new();
         for message in input.messages.iter() {
-            let message_bytes = self.inner.to_bytes(message);
+            let message_bytes = self.inner.to_target_bytes(message);
             let header = format!("Content-Length: {}\r\n\r\n", message_bytes.len());
             bytes.extend(header.into_bytes());
             bytes.extend(message_bytes.to_vec());
