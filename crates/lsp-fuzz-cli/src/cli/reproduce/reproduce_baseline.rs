@@ -117,8 +117,7 @@ impl ReproduceBaseline {
                 BaselineMode::Binary => {
                     let input = BaselineInput::<BytesInput>::from_file(&input_file)
                         .with_context(|| format!("Loading input file: {}", input_file.display()))?;
-                    let mut bytes_input_converter =
-                        BaselineByteConverter::new(NopToTargetBytes::default());
+                    let mut bytes_input_converter = BaselineByteConverter::new(NopToTargetBytes);
                     bytes_input_converter.to_target_bytes(&input).to_vec()
                 }
                 BaselineMode::Grammar => {

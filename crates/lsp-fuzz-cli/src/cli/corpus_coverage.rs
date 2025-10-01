@@ -70,7 +70,7 @@ impl CovInputBytesGenerator<LspInput> for ExperimentalCovByteGen {
 
 impl CovInputBytesGenerator<BaselineInput<BytesInput>> for ExperimentalCovByteGen {
     fn generate_bytes(&self, input: &BaselineInput<BytesInput>) -> Vec<u8> {
-        let mut converter = BaselineByteConverter::new(NopToTargetBytes::default());
+        let mut converter = BaselineByteConverter::new(NopToTargetBytes);
         converter.to_target_bytes(input).to_vec()
     }
 }

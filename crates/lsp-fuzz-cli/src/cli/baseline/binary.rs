@@ -165,7 +165,7 @@ impl BinaryBaseline {
             self.cycle_power_schedule,
         );
 
-        let target_bytes_converter = BaselineByteConverter::new(NopToTargetBytes::default());
+        let target_bytes_converter = BaselineByteConverter::new(NopToTargetBytes);
 
         // A fuzzer with feedback and a corpus scheduler
         let mut fuzzer = StdFuzzerBuilder::new()
