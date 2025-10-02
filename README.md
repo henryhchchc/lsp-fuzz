@@ -75,7 +75,7 @@ lsp-fuzz-cli fuzz \
   --lsp-executable <fuzz-target> \ # The executable file of the LSP server to fuzz target
   --language-fragments Language=<fragment-output>\ # The file containing the mined code fragments
   --coverage-map-size <coverage-map-size> \ # The size of the coverage map to use for coverage-guided fuzzing
-  --time-budget 24h
+  --time-budget 24 # The time budget for fuzzing in hours
 ```
 
 ### Reproduce Detected Crashes
