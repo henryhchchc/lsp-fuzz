@@ -21,7 +21,7 @@ use super::GlobalOptions;
 
 /// Extracts derivation fragments from a set of source files
 #[derive(Debug, clap::Parser)]
-pub(super) struct MineGrammarFragments {
+pub(super) struct MineCodeFragments {
     /// The directory to search for source files
     #[clap(long, short)]
     search_directory: PathBuf,
@@ -35,7 +35,7 @@ pub(super) struct MineGrammarFragments {
     output: PathBuf,
 }
 
-impl MineGrammarFragments {
+impl MineCodeFragments {
     pub(super) fn run(self, global_options: GlobalOptions) -> anyhow::Result<()> {
         let source_files = self.find_source_files()?;
 

@@ -1,6 +1,6 @@
 mod export;
 mod fuzz;
-mod mine_grammar_fragments;
+mod mine_code_fragments;
 mod reproduce;
 
 use std::{cmp::max, collections::HashMap, str::FromStr};
@@ -8,7 +8,7 @@ use std::{cmp::max, collections::HashMap, str::FromStr};
 use anyhow::{Context, bail};
 use export::ExportCommand;
 use fuzz::FuzzCommand;
-use mine_grammar_fragments::MineGrammarFragments;
+use mine_code_fragments::MineCodeFragments;
 use reproduce::{reproduce_all::ReproduceAll, reproduce_one::ReproduceOne};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -29,9 +29,9 @@ impl Cli {
             .context("Setting up rayon")?;
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
+            Command::MineCodeFragments(cmd) => cmd.run(self.global_options),
             Command::Fuzz(cmd) => cmd.run(self.global_options),
             Command::Export(cmd) => cmd.run(self.global_options),
-            Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
         }
@@ -66,7 +66,7 @@ impl GlobalOptions {
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Fuzz(Box<FuzzCommand>),
-    MineGrammarFragments(MineGrammarFragments),
+    MineCodeFragments(MineCodeFragments),
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
@@ -109,7 +109,7 @@ where
 pub fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
     if s.chars().last().is_some_and(|it| it.is_alphabetic()) {
         let (size, unit) = s.split_at(s.len() - 1);
-        let muiltiplier = match unit.to_uppercase().as_str() {
+        let multiplier = match unit.to_uppercase().as_str() {
             "B" => 1 << 0,
             "K" => 1 << 10,
             "M" => 1 << 20,
@@ -118,7 +118,7 @@ pub fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
             _ => bail!("Invalid unit"),
         };
         let base_size: usize = size.parse()?;
-        Ok(base_size * muiltiplier)
+        Ok(base_size * multiplier)
     } else {
         Ok(s.parse()?)
     }

@@ -14,6 +14,92 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 [Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
 | [Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf)
 
+## Usage
+
+### Preparation
+
+1. Prepare a fuzz target compatible with [AFL++](https://github.com/AFLplusplus/AFLplusplus).
+   It is highly recommended to use the [LTO mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.lto.md) and [persistence mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.persistent_mode.md).
+
+   ```c++
+   #include "your_header_file.h"
+
+   #ifndef __AFL_FUZZ_TESTCASE_LEN
+    ssize_t fuzz_len;
+    #define __AFL_FUZZ_TESTCASE_LEN fuzz_len
+    unsigned char fuzz_buf[1024000];
+    #define __AFL_FUZZ_TESTCASE_BUF fuzz_buf
+    #define __AFL_FUZZ_INIT() void sync(void);
+    #define __AFL_LOOP(x) ((fuzz_len = read(0, fuzz_buf, sizeof(fuzz_buf))) > 0 ? 1 : 0)
+    #define __AFL_INIT() sync()
+   #endif
+
+   __AFL_FUZZ_INIT();
+
+   int main() {
+
+    #ifdef __AFL_HAVE_MANUAL_CONTROL
+      __AFL_INIT();
+    #endif
+
+    // Perform some one-time initialization for the target LSP server.
+
+    const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
+    while (__AFL_LOOP(10000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        // Read from `buf` for `len` for LSP inputs, as if they were stdin.
+    }
+    return 0;
+   }
+   ```
+
+2. Obtaining the coverage map size
+
+```bash
+AFL_DUMP_MAP_SIZE=1 ./fuzz-target
+```
+
+3. Mine code fragments for code generation.
+
+```bash
+lsp-fuzz-cli mine-code-fragments \
+  --search-directory <code-dir> \ # A directory containing code files of the target language of the LSP servers
+  --output <fragment-output> # The file to store the mined code fragments
+```
+
+### Start Fuzzing
+
+```bash
+lsp-fuzz-cli fuzz \
+  --state <state-dir> \ # The directory to store the fuzzing state (e.g., generated inputs, found crashes)
+  --lsp-executable <fuzz-target> \ # The executable file of the LSP server to fuzz target
+  --language-fragments Language=<fragment-output>\ # The file containing the mined code fragments
+  --coverage-map-size <coverage-map-size> \ # The size of the coverage map to use for coverage-guided fuzzing
+  --time-budget 24h
+```
+
+### Reproduce Detected Crashes
+
+1. Export the generated crash inducing inputs
+
+```bash
+lsp-fuzz-cli export \
+  --input <state-dir>/solutions \ # The directory containing the generated crash inducing inputs
+  --output <export-directory> # The directory to store the exported crash inducing inputs
+```
+
+2. Feed the exported input to the LSP server
+
+For each exported inputs, there will be two directories, `workspace` is the code folder and `requests` contains the LSP requests.
+To reproduce the crash, run the following command:
+
+```bash
+cat requests/* | ./target-lsp-server
+```
+
+Note that `target-lsp-server` is not the fuzz target.
+Make sure it reads requests from `stdin`.
+
 ## Experiment Data
 
 The experiment data for evaluating LSPFuzz is available at [https://doi.org/10.5281/zenodo.17052142](https://doi.org/10.5281/zenodo.17052142).
