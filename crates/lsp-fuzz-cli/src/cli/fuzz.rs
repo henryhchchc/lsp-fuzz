@@ -47,7 +47,7 @@ use tuple_list::tuple_list;
 use super::{GlobalOptions, parse_hash_map};
 use crate::{
     fuzzing::{
-        AblationMode, ExecutorOptions, FuzzerStateDir,
+        ExecutorOptions, FuzzerStateDir,
         common::{self},
     },
     language_fragments::load_grammar_lookup,
@@ -93,9 +93,6 @@ pub(super) struct FuzzCommand {
 
     #[clap(long)]
     no_asan: bool,
-
-    #[clap(long, value_enum, default_value_t = AblationMode::Full)]
-    ablation_mode: AblationMode,
 
     #[clap(long, value_parser = parse_hash_map::<Language, PathBuf>)]
     language_fragments: HashMap<Language, PathBuf>,
@@ -189,13 +186,7 @@ impl FuzzCommand {
 
         let mut fuzz_stages = {
             let mutation_stage = {
-                let generators_config = match self.ablation_mode {
-                    AblationMode::Full => GeneratorsConfig::full(),
-                    AblationMode::NoServerFeedback => GeneratorsConfig::no_server_feedback(),
-                    AblationMode::NoContextAwareness | AblationMode::AllOff => {
-                        GeneratorsConfig::no_context_awareness()
-                    }
-                };
+                let generators_config = GeneratorsConfig::full();
                 let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(
                     text_document_mutations(&grammar_ctx, &generators_config),
                     6,

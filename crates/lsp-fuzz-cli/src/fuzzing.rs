@@ -73,11 +73,3 @@ pub struct ExecutorOptions {
     #[clap(long, env = "AFL_DEBUG", value_parser = BoolishValueParser::new())]
     pub debug_afl: bool,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-pub enum AblationMode {
-    Full,
-    NoServerFeedback,
-    NoContextAwareness,
-    AllOff,
-}
