@@ -19,7 +19,7 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 ### Preparation
 
 1. Prepare a fuzz target compatible with [AFL++](https://github.com/AFLplusplus/AFLplusplus).
-   It is highly recommended to use the [LTO mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.lto.md) and [persistence mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.persistent_mode.md).
+   It is highly recommended to use the [LTO mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.lto.md) and [persistent mode](https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.persistent_mode.md).
 
    ```c++
    #include "your_header_file.h"
@@ -48,10 +48,15 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
     while (__AFL_LOOP(10000)) {
         int len = __AFL_FUZZ_TESTCASE_LEN;
         // Read from `buf` for `len` for LSP inputs, as if they were stdin.
+        // Process the LSP inputs.
+        // Release resources and reset states
     }
     return 0;
    }
    ```
+
+> [!NOTE]
+> Although persistent mode can significantly improve the fuzzing efficiency, users need to make sure the resource are properly released and states are reset in the fuzzing loop.
 
 2. Obtaining the coverage map size
 
