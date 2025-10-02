@@ -1,5 +1,3 @@
-mod baseline;
-mod corpus_coverage;
 mod export;
 mod fuzz;
 mod mine_grammar_fragments;
@@ -8,20 +6,12 @@ mod reproduce;
 use std::{cmp::max, collections::HashMap, str::FromStr};
 
 use anyhow::{Context, bail};
-use baseline::{binary::BinaryBaseline, nautilus::NautilusBaseline};
-use corpus_coverage::CatInput;
 use export::ExportCommand;
 use fuzz::FuzzCommand;
-use libafl::inputs::{BytesInput, NautilusInput};
-use lsp_fuzz::{baseline::BaselineInput, lsp_input::LspInput};
 use mine_grammar_fragments::MineGrammarFragments;
-use reproduce::{
-    reproduce_all::ReproduceAll, reproduce_baseline::ReproduceBaseline, reproduce_one::ReproduceOne,
-};
+use reproduce::{reproduce_all::ReproduceAll, reproduce_one::ReproduceOne};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-use crate::cli::baseline::two_dim::TwoDimBaseline;
 
 #[derive(Debug, clap::Parser)]
 #[command(version, about, styles = clap::builder::Styles::styled())]
@@ -40,17 +30,10 @@ impl Cli {
         setup_logger(&self.global_options).context("Setting up logger")?;
         match self.command {
             Command::Fuzz(cmd) => cmd.run(self.global_options),
-            Command::BaselineNautilus(cmd) => cmd.run(self.global_options),
-            Command::BaselineBinary(cmd) => cmd.run(self.global_options),
-            Command::Baseline2D(cmd) => cmd.run(self.global_options),
             Command::Export(cmd) => cmd.run(self.global_options),
             Command::MineGrammarFragments(cmd) => cmd.run(self.global_options),
             Command::ReproduceOne(cmd) => cmd.run(self.global_options),
             Command::ReproduceAll(cmd) => cmd.run(self.global_options),
-            Command::CatInput(cmd) => cmd.run(self.global_options),
-            Command::CatBinInput(cmd) => cmd.run(self.global_options),
-            Command::CatGramInput(cmd) => cmd.run(self.global_options),
-            Command::ReproduceBaseline(cmd) => cmd.run(self.global_options),
         }
     }
 }
@@ -83,18 +66,10 @@ impl GlobalOptions {
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Fuzz(Box<FuzzCommand>),
-    BaselineNautilus(Box<NautilusBaseline>),
-    BaselineBinary(Box<BinaryBaseline>),
-    #[command(name = "baseline-2d")]
-    Baseline2D(Box<TwoDimBaseline>),
     MineGrammarFragments(MineGrammarFragments),
     Export(ExportCommand),
     ReproduceAll(ReproduceAll),
     ReproduceOne(ReproduceOne),
-    ReproduceBaseline(ReproduceBaseline),
-    CatInput(CatInput<LspInput>),
-    CatBinInput(CatInput<BaselineInput<BytesInput>>),
-    CatGramInput(CatInput<BaselineInput<NautilusInput>>),
 }
 
 fn setup_logger(global_opts: &GlobalOptions) -> anyhow::Result<()> {

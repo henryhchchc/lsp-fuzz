@@ -25,7 +25,6 @@ use serde::Serialize;
 use tracing::{info, warn};
 
 pub mod reproduce_all;
-pub mod reproduce_baseline;
 pub mod reproduce_one;
 
 fn json_rpc_messages<'a>(

@@ -5,9 +5,7 @@
 pub(crate) mod stolen;
 
 pub mod afl;
-pub mod baseline;
 pub mod corpus;
-pub mod coverage;
 pub mod debug;
 pub mod execution;
 pub mod file_system;
