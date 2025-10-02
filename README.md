@@ -47,7 +47,7 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
     const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
     while (__AFL_LOOP(10000)) {
         int len = __AFL_FUZZ_TESTCASE_LEN;
-        // Read from `buf` for `len` for LSP inputs, as if they were stdin.
+        // Read `len` bytes from `buf` for LSP inputs, as if they read from stdin.
         // Process the LSP inputs.
         // Release resources and reset states
     }
