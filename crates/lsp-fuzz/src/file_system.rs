@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
 };
 
 use libafl::inputs::HasTargetBytes;
@@ -32,9 +32,9 @@ impl<F> FileSystemDirectory<F> {
     }
 
     pub fn get(&self, name: &str) -> Option<&FileSystemEntry<F>> {
-        if let Some((first_seg, remainder)) = name.split_once('/')
+        if let Some((dir_name, remainder)) = name.split_once(path::MAIN_SEPARATOR)
             && let Some(dir_entry @ FileSystemEntry::Directory(inner_dir)) =
-                self.inner.get(first_seg)
+                self.inner.get(dir_name)
         {
             if remainder.is_empty() {
                 Some(dir_entry)
