@@ -9,18 +9,25 @@ preferred-citation:
     authors:
     - family-names: Zhu
       given-names: Hengcheng
+      orcid: https://orcid.org/0000-0002-3082-5957
     - family-names: Chen
       given-names: Songqiang
+      orcid: https://orcid.org/0000-0002-1220-8728
     - family-names: Terragni
       given-names: Valerio
+      orcid: https://orcid.org/0000-0001-5885-9297
     - family-names: Wei
       given-names: Lili
+      orcid: https://orcid.org/0000-0002-2428-4111
     - family-names: Wu
       given-names: Jiarong
+      orcid: https://orcid.org/0000-0001-6126-303X
     - family-names: Liu
       given-names: Yepang
+      orcid: https://orcid.org/0000-0001-8147-8126
     - family-names: Cheung
       given-names: Shing-Chi
+      orcid: https://orcid.org/0000-0002-3508-7172
     conference:
         name: "The 40th IEEE/ACM International Conference on Automated Software Engineering"
         alias: ASE 2025
