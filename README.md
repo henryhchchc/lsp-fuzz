@@ -14,6 +14,8 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 [Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
 | [Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf)
 
+If you use LSPFuzz for academic purposes, please cite the above paper.
+
 ## Usage
 
 ### Preparation
