@@ -1,23 +1,25 @@
 cff-version: 1.2.0
 message: "If you use LSPFuzz for academic purpose, please cite the following paper."
-title: "LSPFuzz: Hunting Bugs in Language Servers"
-type: conference-paper
-authors:
-  - family-names: Zhu
-    given-names: Hengcheng
-  - family-names: Chen
-    given-names: Songqiang
-  - family-names: Terragni
-    given-names: Valerio
-  - family-names: Wei
-    given-names: Lili
-  - family-names: Wu
-    given-names: Jiarong
-  - family-names: Liu
-    given-names: Yepang
-  - family-names: Cheung
-    given-names: Shing-Chi
-conference:
-  name: "Proceedings of the 40th IEEE/ACM International Conference on Automated Software Engineering"
-  location: "Seoul, South Korea"
-  date: 2025-11
+title: LSPFuzz
+preferred-citation:
+    title: "LSPFuzz: Hunting Bugs in Language Servers"
+    type: conference-paper
+    authors:
+    - family-names: Zhu
+        given-names: Hengcheng
+    - family-names: Chen
+        given-names: Songqiang
+    - family-names: Terragni
+        given-names: Valerio
+    - family-names: Wei
+        given-names: Lili
+    - family-names: Wu
+        given-names: Jiarong
+    - family-names: Liu
+        given-names: Yepang
+    - family-names: Cheung
+        given-names: Shing-Chi
+    conference:
+    name: "Proceedings of the 40th IEEE/ACM International Conference on Automated Software Engineering"
+    location: "Seoul, South Korea"
+    date: 2025-11
