@@ -139,6 +139,7 @@ cat requests/* | ./target-lsp-server
 
 Note that `target-lsp-server` is the actual LSP server under test, not the fuzz target.
 Make sure it reads requests from `stdin`.
+To reproduce bugs caught by sanitizers, `target-lsp-server` should be compiled with sanitizers enabled.
 
 ## Experiment Data
 
