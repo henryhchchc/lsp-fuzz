@@ -22,6 +22,9 @@ preferred-citation:
     - family-names: Cheung
       given-names: Shing-Chi
     conference:
-        name: "Proceedings of the 40th IEEE/ACM International Conference on Automated Software Engineering"
-        location: "Seoul, South Korea"
-        date: 2025-11
+        name: "The 40th IEEE/ACM International Conference on Automated Software Engineering"
+        alias: ASE 2025
+        country: KR
+        city: Seoul
+        date-start: 2025-11-16
+        date-end: 2025-11-20
