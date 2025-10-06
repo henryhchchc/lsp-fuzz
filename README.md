@@ -29,6 +29,7 @@ If you use LSPFuzz for academic purposes, please cite the above paper.
    #include "your_header_file.h"
 
    #ifndef __AFL_FUZZ_TESTCASE_LEN
+    // The following definitions allow compilation without the AFL++ compiler.
     ssize_t fuzz_len;
     #define __AFL_FUZZ_TESTCASE_LEN fuzz_len
     const uint8_t fuzz_buf[1024000];
@@ -55,8 +56,8 @@ If you use LSPFuzz for academic purposes, please cite the above paper.
         ssize_t len = __AFL_FUZZ_TESTCASE_LEN;
         // [Input Processing]
         // Process an input here:
-        //   1. Read `len` bytes from `buf` for LSP inputs, as if they read from stdin.
-        //   2. Process the LSP inputs.
+        //   1. Read `len` bytes from `buf` for LSP inputs, as if they were read from `stdin`.
+        //   2. Process the LSP inputs. Note that the input contains the `Content-Length` headers.
         //   3. Release resources and reset states
         // Or call `LLVMFuzzerTestOneInput(buf, len)` here.
     }
