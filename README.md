@@ -13,6 +13,7 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 
 [Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
 | [Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf)
+| [Experiment Data](https://doi.org/10.5281/zenodo.17052142)
 
 If you use LSPFuzz for academic purposes, please cite the above paper.
 
@@ -142,7 +143,3 @@ cat requests/* | ./target-lsp-server
 Note that `target-lsp-server` is the actual LSP server under test, not the fuzz target.
 Make sure it reads requests from `stdin`.
 To reproduce bugs caught by sanitizers, `target-lsp-server` should be compiled with sanitizers enabled.
-
-## Experiment Data
-
-The experiment data for evaluating LSPFuzz is available at [https://doi.org/10.5281/zenodo.17052142](https://doi.org/10.5281/zenodo.17052142).
