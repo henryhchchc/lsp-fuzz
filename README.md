@@ -88,7 +88,7 @@ lsp-fuzz-cli mine-code-fragments \
 lsp-fuzz-cli fuzz \
   --state <state-dir> \ # The directory to store the fuzzing state (e.g., generated inputs, found crashes)
   --lsp-executable <fuzz-target> \ # The executable file of the LSP server to fuzz target
-  --language-fragments Language=<fragment-output>\ # The file containing the mined code fragments
+  --language-fragments Language=<fragment-output>\ # Comma-separated list of files containing the mined code fragments, for example, `C=c.frag,CPlusPlus=cpp.frag`
   --coverage-map-size <coverage-map-size> \ # The size of the coverage map to use for coverage-guided fuzzing
   --time-budget 24 # The time budget for fuzzing in hours
 ```
