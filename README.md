@@ -5,7 +5,8 @@ It is implemented based on [LibAFL](https://github.com/AFLplusplus/LibAFL).
 
 ## Technical Details
 
-To understand how LFPFuzz works, please checkout the following research paper:
+LSPFuzz is equipped with a two-stage mutation pipeline that produces valid yet diverse inputs to trigger various analysis routines in LSP servers.
+To learn more about how it works, please check out the following research paper:
 
 Hengcheng Zhu, Songqiang Chen, Valerio Terragni, Lili Wei, Jiarong Wu, Yepang Liu, and Shing-Chi Cheung.
 **LSPFuzz: Hunting Bugs in Language Servers.**
