@@ -103,6 +103,9 @@ where
 #[derive(Debug, Serialize, Deserialize, SerdeAny, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 struct CacheCorpusId(CorpusId);
 
+/// A cached corpus that stores test cases in a cache.
+/// This is to replace the [`libafl::corpus::CachedOnDiskCorpus`] which is causing serious performance issues.
+/// See https://github.com/AFLplusplus/LibAFL/pull/3408
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProperCachedCorpus<Inner> {
     inner: Inner,
