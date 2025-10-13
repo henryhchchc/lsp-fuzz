@@ -56,10 +56,10 @@ impl Named for LspResponseFeedback {
 
 impl<State> StateInitializer<State> for LspResponseFeedback where State: HasMetadata {}
 
-impl<EM, OT, State> Feedback<EM, LspInput, OT, State> for LspResponseFeedback
+impl<EM, Observers, State> Feedback<EM, LspInput, Observers, State> for LspResponseFeedback
 where
     State: HasMetadata + HasExecutions + HasCorpus<LspInput>,
-    OT: MatchNameRef,
+    Observers: MatchNameRef,
     EM: EventFirer<LspInput, State>,
 {
     fn is_interesting(
@@ -67,7 +67,7 @@ where
         _state: &mut State,
         _manager: &mut EM,
         _input: &LspInput,
-        _observers: &OT,
+        _observers: &Observers,
         _exit_kind: &ExitKind,
     ) -> Result<bool, libafl::Error> {
         Ok(false)
@@ -77,7 +77,7 @@ where
         &mut self,
         state: &mut State,
         _manager: &mut EM,
-        observers: &OT,
+        observers: &Observers,
         testcase: &mut Testcase<LspInput>,
     ) -> Result<(), libafl::Error> {
         state

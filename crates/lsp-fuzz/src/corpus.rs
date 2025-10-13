@@ -35,7 +35,7 @@ impl<const KIND: bool> Named for TestCaseFileNameFeedback<KIND> {
 
 impl<const KIND: bool, State> StateInitializer<State> for TestCaseFileNameFeedback<KIND> {}
 
-impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback<CORPUS>
+impl<State, EM, I, Observers> Feedback<EM, I, Observers, State> for TestCaseFileNameFeedback<CORPUS>
 where
     State: HasExecutions + HasStartTime + HasCorpus<I>,
 {
@@ -44,7 +44,7 @@ where
         _state: &mut State,
         _manager: &mut EM,
         _input: &I,
-        _observers: &OT,
+        _observers: &Observers,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<bool, libafl::Error> {
         Ok(false)
@@ -54,7 +54,7 @@ where
         &mut self,
         state: &mut State,
         _manager: &mut EM,
-        _observers: &OT,
+        _observers: &Observers,
         testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.corpus().peek_free_id();
@@ -67,7 +67,8 @@ where
     }
 }
 
-impl<State, EM, I, OT> Feedback<EM, I, OT, State> for TestCaseFileNameFeedback<SOLUTION>
+impl<State, EM, I, Observers> Feedback<EM, I, Observers, State>
+    for TestCaseFileNameFeedback<SOLUTION>
 where
     State: HasExecutions + HasStartTime + HasSolutions<I>,
 {
@@ -76,7 +77,7 @@ where
         _state: &mut State,
         _manager: &mut EM,
         _input: &I,
-        _observers: &OT,
+        _observers: &Observers,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<bool, libafl::Error> {
         Ok(false)
@@ -86,7 +87,7 @@ where
         &mut self,
         state: &mut State,
         _manager: &mut EM,
-        _observers: &OT,
+        _observers: &Observers,
         testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.solutions().peek_free_id();
