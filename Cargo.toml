@@ -9,7 +9,7 @@ edition = "2024"
 [workspace.dependencies]
 ahash = { version = "0.8" }
 anyhow = { version = "1", features = ["backtrace"] }
-const-str = "0.6"
+const-str = "0.7"
 ctrlc = "3.4"
 derive_more = { version = "2", features = ["full"] }
 bitflags = "2.6.0"
@@ -18,7 +18,7 @@ indexmap = { version = "2", features = ["serde"] }
 memmap2 = "0.9"
 ordermap = { version = "0.5", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
-fastbloom = { version = "0.9.0", features = ["serde"] }
+fastbloom = { version = "0.14.0", features = ["serde"] }
 itertools = "0.*"
 libafl = { version = "0.15", features = [
     "errors_backtrace",
@@ -31,7 +31,7 @@ lcov = "0.8.1"
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", branch = "dev", features = [
     "hash",
 ] }
-nix = { version = "0.29", features = ["resource", "signal", "poll", "fs"] }
+nix = { version = "0.30", features = ["resource", "signal", "poll", "fs"] }
 num_cpus = "1.16"
 os_pipe = "1.2.1"
 rayon = "1"
