@@ -34,9 +34,6 @@ updates:
       timezone: Asia/Hong_Kong
     open-pull-requests-limit: 10
     rebase-strategy: "auto"
-    labels:
-      - "dependencies"
-      - "ci"
     commit-message:
       prefix: "deps"
       include: "scope"
