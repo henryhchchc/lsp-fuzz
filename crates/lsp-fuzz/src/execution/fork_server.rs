@@ -8,7 +8,7 @@ use std::{
     ffi::OsString,
     io::{self, Read, Write},
     os::{
-        fd::{AsRawFd, BorrowedFd, FromRawFd},
+        fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd},
         unix::process::CommandExt,
     },
     process::{self, Child, Command, Stdio},
@@ -111,10 +111,12 @@ impl<'a, SHM: ShMem> From<&'a FuzzInput<SHM>> for FuzzInputSetup<'a> {
 
 // File descriptor constants used for fork server communication
 mod fd {
+    use std::os::fd::RawFd;
+
     /// Control file descriptor - used to send commands to the fork server
-    pub const CONTROL: i32 = 198;
+    pub const CONTROL: RawFd = 198;
     /// Status file descriptor - used to receive status from the fork server
-    pub const STATUS: i32 = CONTROL + 1;
+    pub const STATUS: RawFd = CONTROL + 1;
 }
 
 /// The [`NeoForkServer`] is a communication channel with a child process that forks on request of the fuzzer.
@@ -265,20 +267,36 @@ impl NeoForkServer {
             let child_reader_fd = child_reader.as_raw_fd();
             let child_writer_fd = child_writer.as_raw_fd();
             let output_capture_fd = stdout_capture_fd.as_raw_fd();
-            let communication_fds = [
-                rx.as_raw_fd(),
-                tx.as_raw_fd(),
-                child_writer_fd,
-                child_reader_fd,
-            ];
+            let tx_fd = tx.as_raw_fd();
+            let rx_fd = rx.as_raw_fd();
             move || {
-                use nix::unistd::{close, dup2};
-                dup2(output_capture_fd, nix::libc::STDOUT_FILENO).map_err(io::Error::from)?;
-                dup2(child_reader_fd, fd::CONTROL).map_err(io::Error::from)?;
-                dup2(child_writer_fd, fd::STATUS).map_err(io::Error::from)?;
-                for fd in communication_fds {
-                    close(fd).map_err(io::Error::from)?;
+                // This closure runs in the child process
+                use nix::unistd::dup2_raw;
+
+                // SAFETY: `output_capture_fd` is a valid file descriptor from `as_raw_fd`.
+                unsafe {
+                    let output_capture_fd = OwnedFd::from_raw_fd(output_capture_fd);
+                    dup2_raw(output_capture_fd, nix::libc::STDOUT_FILENO)
+                        .map_err(io::Error::from)?;
                 }
+
+                // SAFETY: `child_reader_fd` is a valid file descriptor from `as_raw_fd`.
+                unsafe {
+                    let child_reader_fd = OwnedFd::from_raw_fd(child_reader_fd);
+                    dup2_raw(child_reader_fd, fd::CONTROL).map_err(io::Error::from)?;
+                }
+
+                // SAFETY: `child_writer_fd` is a valid file descriptor from `as_raw_fd`.
+                unsafe {
+                    let child_writer_fd = OwnedFd::from_raw_fd(child_writer_fd);
+                    dup2_raw(child_writer_fd, fd::STATUS).map_err(io::Error::from)?;
+                }
+
+                // Close these file descriptors by dropping OwnedFd.
+                // SAFETY: `tx_fd` and `rx_fd` are valid file descriptors from `as_raw_fd`.
+                let _ = unsafe { OwnedFd::from_raw_fd(tx_fd) };
+                let _ = unsafe { OwnedFd::from_raw_fd(rx_fd) };
+
                 Ok(())
             }
         };
