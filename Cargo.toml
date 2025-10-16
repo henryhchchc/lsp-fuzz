@@ -9,7 +9,7 @@ edition = "2024"
 [workspace.dependencies]
 ahash = { version = "0.8" }
 anyhow = { version = "1", features = ["backtrace"] }
-const-str = "0.6"
+const-str = "0.7"
 ctrlc = "3.4"
 derive_more = { version = "2", features = ["full"] }
 bitflags = "2.6.0"
