@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, mem::variant_count, sync::OnceLock};
+use std::{collections::BTreeSet, sync::OnceLock};
 
 use tree_sitter_language::LanguageFn;
 
@@ -50,8 +50,12 @@ impl Language {
     /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
     /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
     pub fn ts_highlight_query(&self) -> &'static tree_sitter::Query {
-        static QUERIES: [OnceLock<tree_sitter::Query>; variant_count::<Language>()] =
-            [const { OnceLock::new() }; variant_count::<Language>()];
+        const VARIANT_COUNT: usize = 12;
+        // Use `variant_count` when stabilized.
+        // static QUERIES: [OnceLock<tree_sitter::Query>; variant_count::<Language>()] =
+        //     [const { OnceLock::new() }; variant_count::<Language>()];
+        static QUERIES: [OnceLock<tree_sitter::Query>; VARIANT_COUNT] =
+            [const { OnceLock::new() }; VARIANT_COUNT];
 
         let query_idx = (*self as u8) as usize;
         QUERIES[query_idx].get_or_init(|| {
