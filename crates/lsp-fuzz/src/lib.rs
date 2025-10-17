@@ -1,6 +1,4 @@
 #![warn(missing_debug_implementations, rust_2018_idioms)]
-// Nightly features
-#![feature(process_setsid)]
 
 pub(crate) mod stolen;
 
