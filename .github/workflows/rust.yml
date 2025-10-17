@@ -22,7 +22,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly
+          toolchain: stable
       - name: Build
         run: cargo build --verbose
       - name: Run tests
