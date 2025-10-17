@@ -1,4 +1,4 @@
-name: Rust
+name: Rust CI
 
 permissions:
   contents: read
