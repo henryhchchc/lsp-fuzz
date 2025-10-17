@@ -29,7 +29,6 @@ walkdir = "2.5.0"
 rayon.workspace = true
 zstd.workspace = true
 num_cpus.workspace = true
-rustversion.workspace = true
 
 [features]
 profiling = ["lsp-fuzz/profiling"]
