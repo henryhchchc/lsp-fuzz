@@ -16,7 +16,7 @@ bitflags = "2.6.0"
 derive-new = "0.7"
 indexmap = { version = "2", features = ["serde"] }
 memmap2 = "0.9"
-ordermap = { version = "0.5", features = ["serde"] }
+ordermap = { version = "1.0", features = ["serde"] }
 clap = { version = "4", features = ["derive", "color", "env", "unicode"] }
 fastbloom = { version = "0.14.0", features = ["serde"] }
 itertools = "0.*"
