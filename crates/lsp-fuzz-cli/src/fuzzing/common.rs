@@ -4,7 +4,7 @@ use anyhow::Context;
 use core_affinity::CoreId;
 use libafl::{
     HasMetadata, HasNamedMetadata,
-    corpus::{HasTestcase, InMemoryOnDiskCorpus, OnDiskCorpus},
+    corpus::{CachedOnDiskCorpus, HasTestcase, OnDiskCorpus},
     feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, Feedback, NewHashFeedback},
     inputs::Input,
@@ -17,7 +17,7 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, Named, tuples::MatchName};
 use lsp_fuzz::{
-    corpus::{ProperCachedCorpus, TestCaseFileNameFeedback, corpus_kind::SOLUTION},
+    corpus::{TestCaseFileNameFeedback, corpus_kind::SOLUTION},
     execution::FuzzTargetInfo,
     fuzz_target::StaticTargetBinaryInfo,
     stages::StopOnReceived,
@@ -72,16 +72,14 @@ where
 pub fn create_corpus<I>(
     corpus_path: &Path,
     solution_path: &Path,
-) -> anyhow::Result<(ProperCachedCorpus<InMemoryOnDiskCorpus<I>>, OnDiskCorpus<I>)>
+) -> anyhow::Result<(CachedOnDiskCorpus<I>, OnDiskCorpus<I>)>
 where
     I: Input,
 {
     const CACHE_SIZE: usize = 4096;
-    let inner_corpus =
-        InMemoryOnDiskCorpus::with_meta_format_and_prefix(corpus_path, None, None, false)
+    let corpus =
+        CachedOnDiskCorpus::with_meta_format_and_prefix(corpus_path, CACHE_SIZE, None, None, false)
             .context("Creating corpus")?;
-    let corpus = ProperCachedCorpus::new(inner_corpus, CACHE_SIZE);
-
     let solutions = OnDiskCorpus::with_meta_format_and_prefix(solution_path, None, None, false)
         .context("Creating solution corpus")?;
 

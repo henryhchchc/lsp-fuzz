@@ -52,9 +52,11 @@ tuple_list = "0.1"
 zstd = { version = "0.13", features = ["zstdmt"], default-features = false }
 
 [patch.crates-io]
-# Keep this until https://github.com/AFLplusplus/LibAFL/pull/3436 has been released
-libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "e074a0d996b30eff53e781922433683e9c7bd75d" }
-libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "e074a0d996b30eff53e781922433683e9c7bd75d" }
+# Keep this until the following PRs has been released
+# - https://github.com/AFLplusplus/LibAFL/pull/3436
+# - https://github.com/AFLplusplus/LibAFL/pull/3408
+libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
+libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
 
 [profile.release]
 debug = true
