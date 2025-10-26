@@ -42,9 +42,19 @@ pub mod messages;
 pub mod ops_curiosity;
 pub mod server_response;
 
+/// An entry in the LSP server workspace
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspaceEntry {
+    /// A text document that will be sent to the LSP server
+    ///
+    /// A `textDocument/didOpen` will be issued for this entry after LSP server initialization.
     SourceFile(TextDocument),
+
+    /// A skeleton file within the workspace
+    ///
+    /// The file will not be sent to the LSP server after initialization.
+    /// It is only written to the workspace directory for LSP servers that needs it.
+    /// (e.g., `package.json`, `Cargo.toml`).
     Skeleton(Vec<u8>),
 }
 
