@@ -1,4 +1,8 @@
-use std::ops::{Deref, DerefMut, Index};
+use std::{
+    convert::Infallible,
+    ops::{Deref, DerefMut, Index},
+    str::FromStr,
+};
 
 use derive_more::{
     Debug,
@@ -67,10 +71,13 @@ impl HasLen for Utf8Input {
     }
 }
 
-impl From<&str> for Utf8Input {
-    fn from(value: &str) -> Self {
-        let inner = value.to_owned();
-        Self { inner }
+impl FromStr for Utf8Input {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            inner: s.to_owned(),
+        })
     }
 }
 

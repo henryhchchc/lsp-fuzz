@@ -215,13 +215,21 @@ impl<'a, F> Iterator for FilesIterMut<'a, F> {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
     fn test_get_simple_access() {
         let dir = FileSystemDirectory::<()>::from([
-            (Utf8Input::from("file1"), FileSystemEntry::File(())),
-            (Utf8Input::from("file2"), FileSystemEntry::File(())),
+            (
+                Utf8Input::from_str("file1").unwrap(),
+                FileSystemEntry::File(()),
+            ),
+            (
+                Utf8Input::from_str("file2").unwrap(),
+                FileSystemEntry::File(()),
+            ),
         ]);
 
         assert!(dir.get("file1").is_some());
@@ -234,16 +242,19 @@ mod test {
     #[test]
     fn test_get_nested_access() {
         let nested_dir = FileSystemDirectory::<()>::from([(
-            Utf8Input::from("nested_file"),
+            Utf8Input::from_str("nested_file").unwrap(),
             FileSystemEntry::File(()),
         )]);
 
         let dir = FileSystemDirectory::<()>::from([
             (
-                Utf8Input::from("subdir"),
+                Utf8Input::from_str("subdir").unwrap(),
                 FileSystemEntry::Directory(nested_dir),
             ),
-            (Utf8Input::from("file"), FileSystemEntry::File(())),
+            (
+                Utf8Input::from_str("file").unwrap(),
+                FileSystemEntry::File(()),
+            ),
         ]);
 
         assert!(dir.get("file").is_some());
@@ -262,17 +273,17 @@ mod test {
     #[test]
     fn test_get_deeply_nested() {
         let deepest = FileSystemDirectory::<()>::from([(
-            Utf8Input::from("target"),
+            Utf8Input::from_str("target").unwrap(),
             FileSystemEntry::File(()),
         )]);
 
         let middle = FileSystemDirectory::<()>::from([(
-            Utf8Input::from("next"),
+            Utf8Input::from_str("next").unwrap(),
             FileSystemEntry::Directory(deepest),
         )]);
 
         let dir = FileSystemDirectory::<()>::from([(
-            Utf8Input::from("first"),
+            Utf8Input::from_str("first").unwrap(),
             FileSystemEntry::Directory(middle),
         )]);
 
