@@ -199,9 +199,7 @@ impl FuzzCommand {
                 StdPowerMutationalStage::new(mutator)
             };
             let trigger_stop = common::trigger_stop_stage()?;
-            // Use `Duration::from_hours` when stabilized.
-            let timeout_stop =
-                TimeoutStopStage::new(Duration::from_secs(60 * 60 * self.time_budget));
+            let timeout_stop = TimeoutStopStage::new(Duration::from_hours(self.time_budget));
             tuple_list![
                 calibration_stage,
                 mutation_stage,
