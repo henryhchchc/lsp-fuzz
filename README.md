@@ -8,7 +8,7 @@ It is implemented based on [LibAFL](https://github.com/AFLplusplus/LibAFL).
 LSPFuzz is equipped with a two-stage mutation pipeline that produces valid yet diverse inputs to trigger various analysis routines in LSP servers.
 To learn more about how it works, please check out the following research paper:
 
-Hengcheng Zhu, Songqiang Chen, Valerio Terragni, Lili Wei, Jiarong Wu, Yepang Liu, and Shing-Chi Cheung.
+Hengcheng Zhu, Songqiang Chen, Valerio Terragni, Lili Wei, Yepang Liu, Jiarong Wu, and Shing-Chi Cheung.
 **LSPFuzz: Hunting Bugs in Language Servers.**
 In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Automated Software Engineering._ Seoul, South Korea. November 2025.
 
