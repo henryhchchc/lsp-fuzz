@@ -17,6 +17,7 @@ In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Auto
 | [📦Artifacts](https://doi.org/10.5281/zenodo.17052142)
 
 If you use LSPFuzz for academic purposes, please cite the above paper.
+The snapshot of the code that are used to conduct the experiments in the paper can be found at the [ase25-major-revision](https://github.com/henryhchchc/lsp-fuzz/releases/tag/ase25-major-revision) tag.
 
 ## Usage
 
