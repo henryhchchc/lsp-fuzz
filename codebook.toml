@@ -1,11 +1,7 @@
-dictionaries = []
 words = [
     "afl",
     "asan",
     "autodict",
+    "serde",
     "shmem",
 ]
-flag_words = []
-ignore_paths = []
-ignore_patterns = []
-use_global = true
