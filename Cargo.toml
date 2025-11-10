@@ -53,7 +53,7 @@ libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae7549
 libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
 
 # This is a custom version with tweaks required by lsp-fuzz
-lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev= "65cb0531a8201c7b5db92c8145942c3464eda341" }
+lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev= "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
 
 [profile.release]
 debug = true
