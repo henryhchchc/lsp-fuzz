@@ -172,7 +172,7 @@ impl Input for LspInput {
     {
         let file = File::create(path)?;
         let buf_writer = BufWriter::new(file);
-        serde_cbor::to_writer(buf_writer, self)
+        ciborium::into_writer(self, buf_writer)
             .map_err(|e| libafl::Error::serialize(format!("{e:#?}")))
     }
 
@@ -182,7 +182,7 @@ impl Input for LspInput {
     {
         let file = File::open(path)?;
         let buf_reader = std::io::BufReader::new(file);
-        serde_cbor::from_reader(buf_reader).map_err(|e| libafl::Error::serialize(format!("{e:#?}")))
+        ciborium::from_reader(buf_reader).map_err(|e| libafl::Error::serialize(format!("{e:#?}")))
     }
 }
 

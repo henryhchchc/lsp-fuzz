@@ -19,7 +19,7 @@ pub fn load_grammar_context(
 ) -> Result<GrammarContext, anyhow::Error> {
     let file = File::open(derivation_fragment_file).context("Opening derivation fragment")?;
     let reader = zstd::Decoder::new(BufReader::new(file))?;
-    let frags = serde_cbor::from_reader(reader).context("Deserializing derivation fragments")?;
+    let frags = ciborium::from_reader(reader).context("Deserializing derivation fragments")?;
     let grammar = Grammar::from_tree_sitter_grammar_json(lang, lang.grammar_json())?;
     let grammar_ctx = GrammarContext::new(grammar, frags);
     Ok(grammar_ctx)
