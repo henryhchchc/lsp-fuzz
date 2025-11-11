@@ -1,12 +1,10 @@
 use std::{
-    fs::File,
     io::{self, Read},
     path::Path,
     process::Stdio,
 };
 
 use anyhow::Context;
-use memmap2::Mmap;
 
 use crate::afl;
 
@@ -23,16 +21,13 @@ const PERSISTENT_MODE_SIGNATURE: &[u8] = b"##SIG_AFL_PERSISTENT##";
 const DEFER_FORK_SERVER_SIGNATURE: &[u8] = b"##SIG_AFL_DEFER_FORKSRV##";
 
 impl StaticTargetBinaryInfo {
-    pub fn scan(binary: &Path) -> io::Result<Self> {
-        let binary_file = File::open(binary)?;
-        // SAFETY: We are assuming that the file is not touched externally
-        let file_slice = unsafe { Mmap::map(&binary_file) }?;
+    pub fn scan(binary_file: &[u8]) -> io::Result<Self> {
         let is_afl_instrumented =
-            kmp::kmp_find(afl::SHMEM_ADDR_ENV.as_bytes(), &file_slice).is_some();
-        let is_persistent_mode = kmp::kmp_find(PERSISTENT_MODE_SIGNATURE, &file_slice).is_some();
+            kmp::kmp_find(afl::SHMEM_ADDR_ENV.as_bytes(), binary_file).is_some();
+        let is_persistent_mode = kmp::kmp_find(PERSISTENT_MODE_SIGNATURE, binary_file).is_some();
         let is_defer_fork_server =
-            kmp::kmp_find(DEFER_FORK_SERVER_SIGNATURE, &file_slice).is_some();
-        let uses_address_sanitizer = kmp::kmp_find(ASAN_SIGNATURE, &file_slice).is_some();
+            kmp::kmp_find(DEFER_FORK_SERVER_SIGNATURE, binary_file).is_some();
+        let uses_address_sanitizer = kmp::kmp_find(ASAN_SIGNATURE, binary_file).is_some();
         Ok(Self {
             is_afl_instrumented,
             is_persistent_mode,

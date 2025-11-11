@@ -16,7 +16,7 @@ libafl_bolts.workspace = true
 libcasr.workspace = true
 lsp-fuzz = { path = "../lsp-fuzz" }
 lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
-lcov.workspace = true
+memmap2.workspace = true
 nix.workspace = true
 serde.workspace = true
 serde_json.workspace = true

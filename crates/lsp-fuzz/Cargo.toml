@@ -21,7 +21,6 @@ graphviz-rust = { version = "0.9.6", default-features = false }
 indexmap.workspace = true
 itertools.workspace = true
 kmp = "0.1.1"
-lcov.workspace = true
 libafl.workspace = true
 libafl_bolts.workspace = true
 libc = "0.2.177"

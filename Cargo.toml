@@ -19,11 +19,10 @@ derive_more = { version = "2.0.1", features = ["full"] }
 fastbloom = { version = "0.14.0", features = ["serde"] }
 indexmap = { version = "2.12.0", features = ["serde"] }
 itertools = "0.*"
-lcov = "0.8.1"
 libafl = { version = "0.15.4", features = [ "errors_backtrace", "casr", "nautilus", ] }
 libafl_bolts = { version = "0.15.4" }
 libcasr = { version = "2", features = ["serde"] }
-lsp-types = { version = "0.97.0", features = [ "hash" ] }
+lsp-types = { version = "0.97.0", features = ["hash"] }
 memmap2 = "0.9.9"
 nix = { version = "0.30.1", features = ["resource", "signal", "poll", "fs"] }
 num_cpus = "1.17.0"
@@ -49,11 +48,11 @@ zstd = { version = "0.13.3", features = ["zstdmt"], default-features = false }
 # Keep this until the following PRs has been released
 # - https://github.com/AFLplusplus/LibAFL/pull/3436
 # - https://github.com/AFLplusplus/LibAFL/pull/3408
-libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
-libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git",  rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
+libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git", rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
+libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git", rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
 
 # This is a custom version with tweaks required by lsp-fuzz
-lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev= "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
+lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
 
 [profile.release]
 debug = true

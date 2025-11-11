@@ -146,9 +146,9 @@ where
 }
 
 /// Analyzes the fuzz target and returns information about its instrumentation status.
-pub fn analyze_fuzz_target(target_path: &Path) -> Result<StaticTargetBinaryInfo, anyhow::Error> {
+pub fn analyze_fuzz_target(binary_file: &[u8]) -> Result<StaticTargetBinaryInfo, anyhow::Error> {
     info!("Analyzing fuzz target");
-    let binary_info = StaticTargetBinaryInfo::scan(target_path).context("Analyzing fuzz target")?;
+    let binary_info = StaticTargetBinaryInfo::scan(binary_file).context("Analyzing fuzz target")?;
 
     if !binary_info.is_afl_instrumented {
         anyhow::bail!("The fuzz target is not instrumented with AFL++");

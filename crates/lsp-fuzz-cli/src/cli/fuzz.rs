@@ -1,5 +1,10 @@
 use std::{
-    collections::HashMap, fs::OpenOptions, io::BufWriter, ops::Not, path::PathBuf, time::Duration,
+    collections::HashMap,
+    fs::{File, OpenOptions},
+    io::BufWriter,
+    ops::Not,
+    path::PathBuf,
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -41,6 +46,7 @@ use lsp_fuzz::{
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;
+use memmap2::Mmap;
 use tracing::info;
 use tuple_list::tuple_list;
 
@@ -104,7 +110,13 @@ impl FuzzCommand {
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
-        let binary_info = common::analyze_fuzz_target(&self.execution.lsp_executable)?;
+        let binary_info = {
+            let binary_file =
+                File::open(&self.execution.lsp_executable).context("Opening fuzz target")?;
+            // SAFETY: we are assuming that the file is not touched externally.
+            let binary_file = unsafe { Mmap::map(&binary_file) }.context("Mapping fuzz target")?;
+            common::analyze_fuzz_target(&binary_file)?
+        };
 
         let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
             .context("Dumping map size")?;
