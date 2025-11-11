@@ -110,7 +110,7 @@ fn write_output(
             .context("Setting zstd encoder threads")?;
         enc.auto_finish()
     };
-    serde_cbor::to_writer(zstd_encoder, &result).context("Serializing derivation fragments")?;
+    ciborium::into_writer(&result, zstd_encoder).context("Serializing derivation fragments")?;
     Ok(())
 }
 

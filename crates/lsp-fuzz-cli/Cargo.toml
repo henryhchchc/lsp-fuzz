@@ -6,6 +6,7 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 core_affinity = "0.8.3"
+ciborium.workspace = true
 clap.workspace = true
 ctrlc.workspace = true
 derive-new.workspace = true
@@ -18,7 +19,6 @@ lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 lcov.workspace = true
 nix.workspace = true
 serde.workspace = true
-serde_cbor.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "chrono"] }
