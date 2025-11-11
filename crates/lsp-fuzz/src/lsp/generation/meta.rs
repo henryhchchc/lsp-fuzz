@@ -214,7 +214,7 @@ where
         let generated: &T = param_fragments
             .iter()
             .nth(selected_idx)
-            .expect("The index is witin the range");
+            .expect("The index is within the range");
         Ok(generated.clone())
     }
 }
