@@ -45,12 +45,6 @@ tuple_list = "0.1.3"
 zstd = { version = "0.13.3", features = ["zstdmt"], default-features = false }
 
 [patch.crates-io]
-# Keep this until the following PRs has been released
-# - https://github.com/AFLplusplus/LibAFL/pull/3436
-# - https://github.com/AFLplusplus/LibAFL/pull/3408
-libafl = { git = "https://github.com/AFLPlusPlus/LibAFL.git", rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
-libafl_bolts = { git = "https://github.com/AFLPlusPlus/LibAFL.git", rev = "f688ae75499cbd4d4907bd0a07f5124ff00b4bba" }
-
 # This is a custom version with tweaks required by lsp-fuzz
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
 
