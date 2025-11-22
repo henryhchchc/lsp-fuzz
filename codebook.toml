@@ -1,7 +1,7 @@
 words = [
-    "afl",
-    "asan",
-    "autodict",
-    "serde",
-    "shmem",
+  "afl",
+  "asan",
+  "autodict",
+  "serde",
+  "shmem",
 ]

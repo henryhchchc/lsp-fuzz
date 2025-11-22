@@ -1,19 +1,17 @@
 [package]
 name = "lsp-fuzz"
-edition.workspace = true
 version.workspace = true
+edition.workspace = true
 
 [dependencies]
-lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
-
 ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
 ciborium.workspace = true
 clap.workspace = true
 const-str.workspace = true
-derive-new.workspace = true
 derive_more.workspace = true
+derive-new.workspace = true
 dot-structures = "0.1.2"
 fastbloom.workspace = true
 fluent-uri = "0.4.1"
@@ -24,6 +22,7 @@ kmp = "0.1.1"
 libafl.workspace = true
 libafl_bolts.workspace = true
 libc = "0.2.177"
+lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 lsp-types.workspace = true
 memmap2.workspace = true
 nix.workspace = true

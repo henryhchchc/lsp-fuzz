@@ -1,13 +1,13 @@
 [package]
 name = "lsp-fuzz-cli"
-edition.workspace = true
 version.workspace = true
+edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-core_affinity = "0.8.3"
 ciborium.workspace = true
 clap.workspace = true
+core_affinity = "0.8.3"
 ctrlc.workspace = true
 derive-new.workspace = true
 itertools.workspace = true
@@ -18,17 +18,17 @@ lsp-fuzz = { path = "../lsp-fuzz" }
 lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 memmap2.workspace = true
 nix.workspace = true
+num_cpus.workspace = true
+os_pipe.workspace = true
+rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
-tracing-subscriber = { version = "0.3.20", features = ["env-filter", "chrono"] }
 tracing.workspace = true
-os_pipe.workspace = true
+tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter"] }
 tuple_list.workspace = true
 walkdir = "2.5.0"
-rayon.workspace = true
 zstd.workspace = true
-num_cpus.workspace = true
 
 [features]
 profiling = ["lsp-fuzz/profiling"]
