@@ -43,7 +43,7 @@ thiserror = "2.0.17"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0"
 tokio-util = { version = "0", features = ["full"] }
-tracing = "0.1.41"
+tracing = "0.1.44"
 tree-sitter = { version = "0.26.3" }
 tuple_list = "0.1.3"
 zstd = { version = "0.13.3", default-features = false, features = ["zstdmt"] }
