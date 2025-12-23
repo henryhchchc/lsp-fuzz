@@ -7,46 +7,46 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-ahash = { version = "0.8.12" }
-anyhow = { version = "1.0.100", features = ["backtrace"] }
-bitflags = "2.10.0"
-ciborium = "0.2.2"
-clap = { version = "4.5.50", features = ["color", "derive", "env", "unicode"] }
-const-str = "0.7.1"
+ahash = { version = "0.8" }
+anyhow = { version = "1.0", features = ["backtrace"] }
+bitflags = "2.10"
+ciborium = "0.2"
+clap = { version = "4.5", features = ["color", "derive", "env", "unicode"] }
+const-str = "0.7"
 ctrlc = "3.5"
-derive_more = { version = "2.0.1", features = ["full"] }
-derive-new = "0.7.0"
-fastbloom = { version = "0.14.0", features = ["serde"] }
-indexmap = { version = "2.12.0", features = ["serde"] }
+derive_more = { version = "2.0", features = ["full"] }
+derive-new = "0.7"
+fastbloom = { version = "0.14", features = ["serde"] }
+indexmap = { version = "2.12", features = ["serde"] }
 itertools = "0.*"
-libafl = { version = "0.15.4", features = [
+libafl = { version = "0.15", features = [
   "casr",
   "errors_backtrace",
   "nautilus",
 ] }
-libafl_bolts = { version = "0.15.4" }
+libafl_bolts = { version = "0.15" }
 libcasr = { version = "2", features = ["serde"] }
-lsp-types = { version = "0.97.0", features = ["hash"] }
-memmap2 = "0.9.9"
-nix = { version = "0.30.1", features = ["fs", "poll", "resource", "signal"] }
-num_cpus = "1.17.0"
-ordermap = { version = "1.0.0", features = ["serde"] }
-os_pipe = "1.2.3"
-rayon = "1.11.0"
-serde = "1.0.228"
-serde_json = { version = "1.0.145", features = ["preserve_order"] }
-smallbitvec = "2.6.0"
-smallvec = { version = "1.15.1", features = ["const_generics"] }
-static_assertions = "1.1.0"
-tempfile = "3.23.0"
-thiserror = "2.0.17"
+lsp-types = { version = "0.97", features = ["hash"] }
+memmap2 = "0.9"
+nix = { version = "0.30", features = ["fs", "poll", "resource", "signal"] }
+num_cpus = "1.17"
+ordermap = { version = "1.0", features = ["serde"] }
+os_pipe = "1.2"
+rayon = "1.11"
+serde = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
+smallbitvec = "2.6"
+smallvec = { version = "1.15", features = ["const_generics"] }
+static_assertions = "1.1"
+tempfile = "3.23"
+thiserror = "2.0"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0"
 tokio-util = { version = "0", features = ["full"] }
-tracing = "0.1.44"
-tree-sitter = { version = "0.26.3" }
-tuple_list = "0.1.3"
-zstd = { version = "0.13.3", default-features = false, features = ["zstdmt"] }
+tracing = "0.1"
+tree-sitter = { version = "0.26" }
+tuple_list = "0.1"
+zstd = { version = "0.13", default-features = false, features = ["zstdmt"] }
 
 [patch.crates-io]
 # This is a custom version with tweaks required by lsp-fuzz
@@ -56,3 +56,4 @@ lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b51
 opt-level = 3
 debug = true
 lto = true
+codegen-units = 1
