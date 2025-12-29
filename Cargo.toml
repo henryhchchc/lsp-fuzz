@@ -14,7 +14,7 @@ ciborium = "0.2"
 clap = { version = "4.5", features = ["color", "derive", "env", "unicode"] }
 const-str = "0.7"
 ctrlc = "3.5"
-derive_more = { version = "2.0", features = ["full"] }
+derive_more = { version = "2.1", features = ["full"] }
 derive-new = "0.7"
 fastbloom = { version = "0.14", features = ["serde"] }
 indexmap = { version = "2.12", features = ["serde"] }
