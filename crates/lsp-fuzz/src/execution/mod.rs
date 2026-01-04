@@ -388,8 +388,6 @@ where
         let input_bytes = bytes;
         self.fuzz_input.send(&input_bytes)?;
 
-        self.observers.pre_exec_child_all(state, input)?;
-
         self.clear_output_capture_file()
             .afl_context("Clearing output capture file")?;
 
@@ -419,8 +417,6 @@ where
                 .capture_stdout_content(output_reader)
                 .afl_context("Capturing target output")?;
         }
-        self.observers
-            .post_exec_child_all(state, input, &exit_kind)?;
         if exit_kind == ExitKind::Crash
             && let Some(ref mut asan_observer) = self.observers.asan_observer
             && let Some(ref asan_log_content) = read_asan_log(child_pid)?
