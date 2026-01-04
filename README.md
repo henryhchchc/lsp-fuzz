@@ -3,6 +3,14 @@
 LSPFuzz is a grey-box hybrid fuzzer that generates test cases for [Language Servers](https://microsoft.github.io/language-server-protocol/).
 It is implemented based on [LibAFL](https://github.com/AFLplusplus/LibAFL).
 
+## What is this?
+
+> Language server crashed five times in the past three minutes.
+
+> The code completions are suddenly gone when I was typing.
+
+Sound familiar? It should! Bugs in language servers can cause interruptions in your development workflow, without you doing anything wrong. LSPFuzz is designed to automatically find such bugs before they are shipped to you.
+
 ## Technical Details
 
 LSPFuzz is equipped with a two-stage mutation pipeline that produces valid yet diverse inputs to trigger various analysis routines in LSP servers.
