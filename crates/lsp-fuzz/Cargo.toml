@@ -21,7 +21,7 @@ itertools.workspace = true
 kmp = "0.1.1"
 libafl.workspace = true
 libafl_bolts.workspace = true
-libc = "0.2.179"
+libc = "0.2"
 lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
 lsp-types.workspace = true
 memmap2.workspace = true
