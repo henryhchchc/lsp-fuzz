@@ -76,11 +76,6 @@ A snapshot of the code used to conduct the experiments in the paper can be found
    }
    ```
 
-```
-> [!NOTE]
-> Although persistent mode can significantly improve fuzzing efficiency, users need to ensure that resources are properly released and states are reset in the fuzzing loop.
-```
-
 2. Obtain the coverage map size:
 
    ```bash
@@ -94,6 +89,9 @@ A snapshot of the code used to conduct the experiments in the paper can be found
      --search-directory <code-dir> \ # Directory containing code files of the target language for the LSP servers
      --output <fragment-output> # File to store the mined code fragments
    ```
+
+> [!CAUTION]
+> Although persistent mode can significantly improve fuzzing efficiency, users need to ensure that resources are properly released and states are reset in the fuzzing loop.
 
 ### Start Fuzzing
 
@@ -143,9 +141,6 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
    Within each `<input-id>` directory, there are two subdirectories: `workspace` and `requests`.
    The `workspace` directory contains the code files, and the `requests` directory contains the LSP requests that were sent to the LSP server during fuzzing.
 
-   > [!NOTE]
-   > Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_. Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust).
-
 2. Feed the exported input to the LSP server:
 
    To reproduce the crash, `cd` to a directory containing the exported inputs.
@@ -157,3 +152,6 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
    Note that `target-lsp-server` is the actual LSP server under test, not the fuzz target.
    Make sure it reads requests from `stdin` and the CLI options are properly set.
    To reproduce bugs caught by sanitizers, `target-lsp-server` should be compiled with sanitizers enabled.
+
+> [!IMPORTANT]
+> Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_. Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust).
