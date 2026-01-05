@@ -154,4 +154,9 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
    To reproduce bugs caught by sanitizers, `target-lsp-server` should be compiled with sanitizers enabled.
 
 > [!IMPORTANT]
-> Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_. Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust).
+> Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_. Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust – they are "pinned" to `<export-directory>`).
+
+## License
+
+LSPFuzz is released under the MIT License. See the [LICENSE](./LICENSE) file for details.
+The research paper and artifact are publicly available following the open-science policy.
