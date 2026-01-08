@@ -371,7 +371,6 @@ impl<EM, I, Z, State, MO, OBS, SHM> Executor<EM, I, State, Z>
 where
     Observers<MO, OBS>: ObserversTuple<I, State>,
     State: HasExecutions + HasMetadata,
-    OBS: ObserversTuple<I, State>,
     SHM: ShMem,
     Z: HasTargetBytesConverter,
     Z::Converter: ToTargetBytes<I>,
