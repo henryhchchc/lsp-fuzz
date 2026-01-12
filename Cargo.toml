@@ -30,7 +30,7 @@ lsp-types = { version = "0.97", features = ["hash"] }
 memmap2 = "0.9"
 nix = { version = "0.30", features = ["fs", "poll", "resource", "signal"] }
 num_cpus = "1.17"
-ordermap = { version = "1.0", features = ["serde"] }
+ordermap = { version = "1.1", features = ["serde"] }
 os_pipe = "1.2"
 rayon = "1.11"
 serde = "1.0"
