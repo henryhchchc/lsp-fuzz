@@ -17,7 +17,7 @@ ctrlc = "3.5"
 derive_more = { version = "2.1", features = ["full"] }
 derive-new = "0.7"
 fastbloom = { version = "0.14", features = ["serde"] }
-indexmap = { version = "2.12", features = ["serde"] }
+indexmap = { version = "2.13", features = ["serde"] }
 itertools = "0.*"
 libafl = { version = "0.15", features = [
   "casr",
