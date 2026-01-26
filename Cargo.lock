@@ -469,7 +469,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73736a89c4aff73035ba2ed2e565061954da00d4970fc9ac25dcc85a2a20d790"
 dependencies = [
  "dispatch2",
- "nix",
+ "nix 0.30.1",
  "windows-sys",
 ]
 
@@ -902,7 +902,7 @@ dependencies = [
  "libm",
  "log",
  "meminterval",
- "nix",
+ "nix 0.30.1",
  "num-traits",
  "postcard",
  "regex",
@@ -936,7 +936,7 @@ dependencies = [
  "log",
  "mach2",
  "miniz_oxide",
- "nix",
+ "nix 0.30.1",
  "num_enum",
  "once_cell",
  "postcard",
@@ -1042,7 +1042,7 @@ dependencies = [
  "lsp-fuzz-grammars",
  "lsp-types",
  "memmap2",
- "nix",
+ "nix 0.31.1",
  "ordermap",
  "os_pipe",
  "regex-syntax",
@@ -1077,7 +1077,7 @@ dependencies = [
  "lsp-fuzz",
  "lsp-fuzz-grammars",
  "memmap2",
- "nix",
+ "nix 0.31.1",
  "num_cpus",
  "os_pipe",
  "rayon",
@@ -1198,6 +1198,18 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "memoffset",
+]
+
+[[package]]
+name = "nix"
+version = "0.31.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "225e7cfe711e0ba79a68baeddb2982723e4235247aefce1482f2f16c27865b66"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
 ]
 
 [[package]]
