@@ -1055,7 +1055,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "trait-gen",
- "tree-sitter 0.26.3",
+ "tree-sitter 0.26.5",
  "tuple_list",
  "zstd",
 ]
@@ -1097,7 +1097,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "serde",
- "tree-sitter 0.26.3",
+ "tree-sitter 0.26.5",
  "tree-sitter-bibtex",
  "tree-sitter-c",
  "tree-sitter-cpp",
@@ -1953,9 +1953,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.26.3"
+version = "0.26.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "974d205cc395652cfa8b37daa053fe56eebd429acf8dc055503fee648dae981e"
+checksum = "12987371f54efc9b9306a20dc87ed5aaee9f320c8a8b115e28515c412b2efe39"
 dependencies = [
  "cc",
  "regex",
