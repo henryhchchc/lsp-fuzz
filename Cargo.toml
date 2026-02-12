@@ -38,7 +38,7 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 smallbitvec = "2.6"
 smallvec = { version = "1.15", features = ["const_generics"] }
 static_assertions = "1.1"
-tempfile = "3.24"
+tempfile = "3.25"
 thiserror = "2.0"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0"
