@@ -612,6 +612,17 @@ checksum = "4e7f34442dbe69c60fe8eaf58a8cafff81a1f278816d8ab4db255b3bef4ac3c4"
 dependencies = [
  "getrandom",
  "libm",
+ "siphasher",
+]
+
+[[package]]
+name = "fastbloom"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5373be179f80b5f1b4bd853a95adee710193b5ca284cb7f767e8e887ba80a7b"
+dependencies = [
+ "foldhash",
+ "libm",
  "rand",
  "serde",
  "siphasher",
@@ -892,7 +903,7 @@ dependencies = [
  "clap",
  "const_format",
  "const_panic",
- "fastbloom",
+ "fastbloom 0.14.1",
  "fs2",
  "hashbrown",
  "libafl_bolts",
@@ -1030,7 +1041,7 @@ dependencies = [
  "derive-new",
  "derive_more",
  "dot-structures",
- "fastbloom",
+ "fastbloom 0.15.0",
  "fluent-uri",
  "graphviz-rust",
  "indexmap",
