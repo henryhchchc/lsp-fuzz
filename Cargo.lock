@@ -614,9 +614,9 @@ dependencies = [
 
 [[package]]
 name = "fastbloom"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5373be179f80b5f1b4bd853a95adee710193b5ca284cb7f767e8e887ba80a7b"
+checksum = "01ce41532c1038044a485af216b83fd9a5f31916022eb691b83df540905b34ec"
 dependencies = [
  "foldhash",
  "libm",
@@ -1038,7 +1038,7 @@ dependencies = [
  "derive-new",
  "derive_more",
  "dot-structures",
- "fastbloom 0.15.0",
+ "fastbloom 0.16.0",
  "fluent-uri",
  "graphviz-rust",
  "indexmap",
