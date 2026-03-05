@@ -614,12 +614,13 @@ dependencies = [
 
 [[package]]
 name = "fastbloom"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01ce41532c1038044a485af216b83fd9a5f31916022eb691b83df540905b34ec"
+checksum = "ef975e30683b2d965054bb0a836f8973857c4ebf6acf274fe46617cd285060d8"
 dependencies = [
  "foldhash",
  "libm",
+ "portable-atomic",
  "rand",
  "serde",
  "siphasher",
@@ -1038,7 +1039,7 @@ dependencies = [
  "derive-new",
  "derive_more",
  "dot-structures",
- "fastbloom 0.16.0",
+ "fastbloom 0.17.0",
  "fluent-uri",
  "graphviz-rust",
  "indexmap",
@@ -1403,6 +1404,15 @@ name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
+
+[[package]]
+name = "portable-atomic"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "postcard"
