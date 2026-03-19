@@ -11,7 +11,7 @@ ahash = { version = "0.8" }
 anyhow = { version = "1.0" }
 bitflags = "2.11"
 ciborium = "0.2"
-clap = { version = "4.5", features = ["color", "derive", "env", "unicode"] }
+clap = { version = "4.6", features = ["color", "derive", "env", "unicode"] }
 const-str = "1.1"
 ctrlc = "3.5"
 derive_more = { version = "2.1", features = ["full"] }
