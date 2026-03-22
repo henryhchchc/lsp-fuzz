@@ -291,7 +291,7 @@ fn parse_payload() {
 
 #[test]
 fn sorbet_payload() {
-    use libafl_bolts::AsSlice;
     const PAYLOAD: &[u8] = b"Content-Length: 141\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":2,\"requestMethod\":\"sorbet/error\",\"error\":{\"code\":-32601,\"message\":\"Unsupported LSP method: textDocument/foldingRange\"}}";
-    dbg!(JsonRPCMessage::read_lsp_payload(&mut PAYLOAD.as_slice())).unwrap();
+    let mut payload_slice = PAYLOAD;
+    JsonRPCMessage::read_lsp_payload(&mut payload_slice).unwrap();
 }
