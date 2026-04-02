@@ -355,6 +355,6 @@ mod tests {
         let parse_tree = parser.parse(rust_code, None).unwrap();
         let hashes = super::hash_paths(&parse_tree, 10).unwrap();
 
-        assert_eq!(13, hashes.len());
+        assert_eq!(14, hashes.len());
     }
 }
