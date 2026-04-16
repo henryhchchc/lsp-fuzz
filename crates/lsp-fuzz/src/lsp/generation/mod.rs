@@ -2,15 +2,23 @@ use std::{marker::Sized, ops::Deref, result::Result};
 
 use super::HasPredefinedGenerators;
 use crate::lsp_input::LspInput;
-pub mod composition;
-pub mod consts;
+pub mod core;
 pub mod doc;
 pub mod doc_range;
-pub mod meta;
 pub mod numeric;
 pub mod position;
 pub mod server_feedback;
 pub mod string;
+
+pub use core::{
+    combinators::{
+        DefaultGenerator, FallbackGenerator, OneOfGenerator, OptionGenerator,
+        ParamFragmentGenerator,
+    },
+    composition::CompositionGenerator,
+    consts::ConstGenerator,
+    registry::GeneratorBag,
+};
 
 pub trait LspParamsGenerator<State> {
     type Output;

@@ -22,7 +22,7 @@ use crate::{
     lsp::{
         self, GeneratorsConfig, HasPredefinedGenerators, LspMessage, LspMessageMeta, MessageParam,
         code_context::CodeContextRef,
-        generation::{GenerationError, LspParamsGenerator, meta::DefaultGenerator},
+        generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
         json_rpc::MessageId,
     },
     macros::{append_randoms, prop_mutator},

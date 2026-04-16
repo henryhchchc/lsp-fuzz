@@ -8,7 +8,7 @@ use libafl::{
 use libafl_bolts::rands::Rand;
 use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
-use super::{GenerationError, HasPredefinedGenerators, LspParamsGenerator};
+use super::{GenerationError, GeneratorBag, HasPredefinedGenerators, LspParamsGenerator};
 use crate::{
     lsp_input::{
         LspInput,
@@ -82,42 +82,27 @@ where
         let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
-        let mut generators = Vec::new();
+        let mut generators = GeneratorBag::with_capacity(16);
         if config.ctx_awareness {
-            generators.extend([
-                Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator,
-                Rc::new(SelectInRandomDoc::new(ValidPosition::new())),
-            ]);
+            let valid = Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator;
+            generators.push_weighted(valid, 2);
             if config.grammar_ops_awareness {
-                generators.extend([
-                    node_type.clone(),
-                    node_type.clone(),
-                    node_type.clone(),
-                    steer.clone(),
-                    steer.clone(),
-                    steer.clone(),
-                ]);
+                generators.push_weighted(node_type.clone(), 3);
+                generators.push_weighted(steer.clone(), 3);
             }
             if config.feedback_guidance {
-                generators.extend([
-                    Rc::new(FeedbackPosInDoc::new(diag_nodes)) as Self::Generator,
-                    Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)),
-                    Rc::new(FeedbackPosInDoc::new(collected_symbols)),
-                    Rc::new(FeedbackPosInDoc::new(collected_symbols)),
-                    Rc::new(FeedbackPosInDoc::new(collected_symbols)),
-                ]);
+                generators.push(Rc::new(FeedbackPosInDoc::new(diag_nodes)) as _);
+                generators.push_weighted(Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)) as _, 2);
+                generators.push_weighted(Rc::new(FeedbackPosInDoc::new(collected_symbols)) as _, 3);
             }
             if config.invalid_positions {
                 generators.push(random_position);
             }
         } else {
-            generators.push(invalid_pos.clone());
-            generators.push(invalid_pos.clone());
-            generators.push(invalid_pos.clone());
-            generators.push(invalid_pos.clone());
+            generators.push_weighted(invalid_pos, 4);
         }
 
-        generators
+        generators.finish()
     }
 }
 

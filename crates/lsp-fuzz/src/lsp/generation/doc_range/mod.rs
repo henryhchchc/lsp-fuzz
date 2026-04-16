@@ -5,9 +5,9 @@ use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier, Uri};
 
-use super::{GenerationError, LspParamsGenerator};
+use super::{FallbackGenerator, GenerationError, GeneratorBag, LspParamsGenerator};
 use crate::{
-    lsp::{HasPredefinedGenerators, generation::meta::FallbackGenerator},
+    lsp::HasPredefinedGenerators,
     lsp_input::LspInput,
     text_document::{
         TextDocument,
@@ -102,30 +102,19 @@ where
     where
         State: HasRand,
     {
-        let mut generators: Vec<Self::Generator> = Vec::new();
+        let mut generators: GeneratorBag<Self::Generator> = GeneratorBag::with_capacity(16);
 
         type RINDGen<State> = RangeInDocGenerator<State, RandomDoc>;
         if config.ctx_awareness {
-            generators.extend(
-                [
-                    RINDGen::new(range_selectors::whole_range),
-                    RINDGen::new(range_selectors::random_valid_range),
-                    RINDGen::new(range_selectors::random_valid_range),
-                ]
-                .map(Rc::new)
-                .map(|it| it as _),
+            generators.push(Rc::new(RINDGen::new(range_selectors::whole_range)) as _);
+            generators.push_weighted(
+                Rc::new(RINDGen::new(range_selectors::random_valid_range)) as _,
+                2,
             );
             if config.grammar_ops_awareness {
-                generators.extend(
-                    [
-                        RINDGen::new(range_selectors::subtree_node_type),
-                        RINDGen::new(range_selectors::subtree_node_type),
-                        RINDGen::new(range_selectors::subtree_node_type),
-                        RINDGen::new(range_selectors::subtree_node_type),
-                        RINDGen::new(range_selectors::subtree_node_type),
-                    ]
-                    .map(Rc::new)
-                    .map(|it| it as _),
+                generators.push_weighted(
+                    Rc::new(RINDGen::new(range_selectors::subtree_node_type)) as _,
+                    5,
                 );
             }
             if config.invalid_ranges {
@@ -135,42 +124,30 @@ where
                         RINDGen::new(range_selectors::inverted_range),
                         RINDGen::new(range_selectors::random_invalid_range::<256, _>),
                     ]
+                    .into_iter()
                     .map(Rc::new)
                     .map(|it| it as _),
                 );
             }
             if config.feedback_guidance {
-                generators.extend(
-                    [
-                        RINDGen::new(range_selectors::diagnosed_range),
-                        RINDGen::new(range_selectors::diagnosed_parent),
-                        RINDGen::new(range_selectors::diagnosed_parent),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                        RINDGen::new(range_selectors::symbols_range),
-                    ]
-                    .map(|it| {
-                        FallbackGenerator::new(it, RINDGen::new(range_selectors::subtree_node_type))
-                    })
-                    .map(Rc::new)
-                    .map(|it| it as _),
+                let subtree = RINDGen::new(range_selectors::subtree_node_type);
+                let fallback = |range_gen| FallbackGenerator::new(range_gen, subtree.clone());
+
+                generators
+                    .push(Rc::new(fallback(RINDGen::new(range_selectors::diagnosed_range))) as _);
+                generators.push_weighted(
+                    Rc::new(fallback(RINDGen::new(range_selectors::diagnosed_parent))) as _,
+                    2,
+                );
+                generators.push_weighted(
+                    Rc::new(fallback(RINDGen::new(range_selectors::symbols_range))) as _,
+                    4,
                 );
             }
         } else {
-            generators.extend(
-                [
-                    InvalidSelectionGenerator::new(),
-                    InvalidSelectionGenerator::new(),
-                    InvalidSelectionGenerator::new(),
-                    InvalidSelectionGenerator::new(),
-                    InvalidSelectionGenerator::new(),
-                ]
-                .map(Rc::new)
-                .map(|it| it as _),
-            );
+            generators.push_weighted(Rc::new(InvalidSelectionGenerator::new()) as _, 5);
         };
 
-        generators
+        generators.finish()
     }
 }

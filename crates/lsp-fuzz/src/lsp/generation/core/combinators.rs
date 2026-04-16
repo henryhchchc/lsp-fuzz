@@ -1,13 +1,6 @@
 use std::marker::PhantomData;
 
-use libafl::{
-    HasMetadata,
-    state::{HasCurrentTestcase, HasRand},
-};
-use libafl_bolts::rands::Rand;
-use lsp_types::OneOf;
-
-use super::{GenerationError, LspParamsGenerator};
+use crate::lsp::generation::{GenerationError, LspParamsGenerator};
 use crate::{
     lsp::HasPredefinedGenerators,
     lsp_input::{
@@ -15,6 +8,12 @@ use crate::{
         server_response::metadata::{ContainsFragment, ParamFragments},
     },
 };
+use libafl::{
+    HasMetadata,
+    state::{HasCurrentTestcase, HasRand},
+};
+use libafl_bolts::rands::Rand;
+use lsp_types::OneOf;
 
 #[derive(Debug)]
 pub struct DefaultGenerator<T> {
@@ -201,8 +200,6 @@ where
             .choose(0..frag_len)
             .ok_or(GenerationError::NothingGenerated)?;
 
-        // We have to reborrow here. This is a pain in the ass.
-
         let testcase = state
             .current_testcase()
             .map_err(|_| GenerationError::NothingGenerated)?;
@@ -210,8 +207,8 @@ where
         let fragment_store = testcase
             .metadata::<ParamFragments>()
             .map_err(|_| GenerationError::NothingGenerated)?;
-        let param_fragments = fragment_store.fragments();
-        let generated: &T = param_fragments
+        let generated: &T = fragment_store
+            .fragments()
             .iter()
             .nth(selected_idx)
             .expect("The index is within the range");
