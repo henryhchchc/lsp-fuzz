@@ -3,7 +3,7 @@ use lsp_types::{
     SignatureHelpTriggerKind, TraceValue,
 };
 
-use super::{GenerationError, LspParamsGenerator};
+use crate::lsp::generation::{GenerationError, LspParamsGenerator};
 use crate::lsp_input::LspInput;
 
 #[derive(Debug, Clone)]

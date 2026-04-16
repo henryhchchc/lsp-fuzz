@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{GenerationError, LspParamsGenerator};
+use crate::lsp::generation::{GenerationError, LspParamsGenerator};
 use crate::{
     lsp::{Compose, HasPredefinedGenerators},
     lsp_input::LspInput,

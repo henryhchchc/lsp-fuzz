@@ -3,9 +3,9 @@ use std::{marker::PhantomData, num::NonZeroUsize, rc::Rc, result::Result};
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 
-use super::{GenerationError, LspParamsGenerator};
+use super::{DefaultGenerator, GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::{HasPredefinedGenerators, generation::meta::DefaultGenerator},
+    lsp::HasPredefinedGenerators,
     lsp_input::LspInput,
     text_document::{
         GrammarBasedMutation,

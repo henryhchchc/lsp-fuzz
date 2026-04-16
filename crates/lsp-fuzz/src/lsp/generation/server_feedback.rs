@@ -5,7 +5,7 @@ use lsp_types::{
 };
 use trait_gen::trait_gen;
 
-use super::meta::ParamFragmentGenerator;
+use super::ParamFragmentGenerator;
 use crate::{
     lsp::{GeneratorsConfig, HasPredefinedGenerators},
     lsp_input::LspInput,
