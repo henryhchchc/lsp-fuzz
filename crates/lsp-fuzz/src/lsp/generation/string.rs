@@ -5,7 +5,7 @@ use libafl_bolts::rands::Rand;
 
 use super::{DefaultGenerator, GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::HasPredefinedGenerators,
+    lsp::HasGenerators,
     lsp_input::LspInput,
     text_document::{
         GrammarBasedMutation,
@@ -90,7 +90,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for String
+impl<State> HasGenerators<State> for String
 where
     State: HasRand + HasMetadata,
 {

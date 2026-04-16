@@ -6,7 +6,7 @@ use lsp_types::TextDocumentIdentifier;
 
 use super::{GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::HasPredefinedGenerators,
+    lsp::HasGenerators,
     lsp_input::LspInput,
     text_document::mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
     utils::generate_random_uri_content,
@@ -61,7 +61,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for TextDocumentIdentifier
+impl<State> HasGenerators<State> for TextDocumentIdentifier
 where
     State: HasRand,
 {

@@ -7,7 +7,7 @@ use trait_gen::trait_gen;
 
 use super::ParamFragmentGenerator;
 use crate::{
-    lsp::{GeneratorsConfig, HasPredefinedGenerators},
+    lsp::{GeneratorsConfig, HasGenerators},
     lsp_input::LspInput,
 };
 
@@ -22,7 +22,7 @@ use crate::{
     CallHierarchyItem,
     DocumentLink,
 )]
-impl<State> HasPredefinedGenerators<State> for T
+impl<State> HasGenerators<State> for T
 where
     State: HasCurrentTestcase<LspInput> + HasRand,
 {

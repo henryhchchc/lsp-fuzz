@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::{GeneratorsConfig, HasPredefinedGenerators},
+    lsp::{GeneratorsConfig, HasGenerators},
     lsp_input::LspInput,
 };
 
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for ZeroToOne32
+impl<State> HasGenerators<State> for ZeroToOne32
 where
     State: HasRand,
 {
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for TabSize
+impl<State> HasGenerators<State> for TabSize
 where
     State: HasRand,
 {
