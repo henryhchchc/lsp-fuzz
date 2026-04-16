@@ -20,7 +20,7 @@ use tuple_list::{tuple_list, tuple_list_type};
 use super::LspInput;
 use crate::{
     lsp::{
-        self, GeneratorsConfig, HasPredefinedGenerators, LspMessage, LspMessageMeta, MessageParam,
+        self, GeneratorsConfig, HasGenerators, LspMessage, LspMessageMeta, MessageParam,
         code_context::CodeContextRef,
         generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
         json_rpc::MessageId,
@@ -289,7 +289,7 @@ use lsp_types::*;
     serde_json::Map<String, serde_json::Value>,
     serde_json::Value,
 )]
-impl<State: 'static> HasPredefinedGenerators<State> for P {
+impl<State: 'static> HasGenerators<State> for P {
     type Generator = DefaultGenerator<Self>;
 
     fn generators(
@@ -348,10 +348,10 @@ where
     }
 }
 
-impl<State, T> HasPredefinedGenerators<State> for Vec<T>
+impl<State, T> HasGenerators<State> for Vec<T>
 where
     State: HasRand,
-    T: HasPredefinedGenerators<State>,
+    T: HasGenerators<State>,
 {
     type Generator = VecGenerator<T::Generator>;
 
@@ -365,21 +365,21 @@ where
 pub struct AppendMessage<M, State>
 where
     M: LspMessageMeta,
-    M::Params: HasPredefinedGenerators<State>,
+    M::Params: HasGenerators<State>,
 {
     name: Cow<'static, str>,
-    generators: Vec<<M::Params as HasPredefinedGenerators<State>>::Generator>,
+    generators: Vec<<M::Params as HasGenerators<State>>::Generator>,
 }
 
 impl<M: LspMessageMeta, State> Debug for AppendMessage<M, State>
 where
-    M::Params: HasPredefinedGenerators<State>,
+    M::Params: HasGenerators<State>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let generators_desc = format!(
             "{} {}",
             self.generators.len(),
-            type_name::<<M::Params as HasPredefinedGenerators<State>>::Generator>()
+            type_name::<<M::Params as HasGenerators<State>>::Generator>()
         );
         f.debug_struct("AppendRandomlyGeneratedMessage")
             .field("generators", &generators_desc)
@@ -392,7 +392,7 @@ pub const MAX_MESSAGES: usize = 20;
 impl<M, State> AppendMessage<M, State>
 where
     M: LspMessageMeta,
-    M::Params: HasPredefinedGenerators<State>,
+    M::Params: HasGenerators<State>,
 {
     pub fn with_predefined(config: &GeneratorsConfig) -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
@@ -405,7 +405,7 @@ where
 impl<M, State> Named for AppendMessage<M, State>
 where
     M: LspMessageMeta,
-    M::Params: HasPredefinedGenerators<State>,
+    M::Params: HasGenerators<State>,
 {
     fn name(&self) -> &Cow<'static, str> {
         &self.name
@@ -416,7 +416,7 @@ impl<M, State> Mutator<LspInput, State> for AppendMessage<M, State>
 where
     State: HasRand,
     M: LspMessageMeta,
-    M::Params: HasPredefinedGenerators<State> + MessageParam<M>,
+    M::Params: HasGenerators<State> + MessageParam<M>,
 {
     fn mutate(
         &mut self,

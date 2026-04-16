@@ -1,6 +1,6 @@
 use std::{marker::Sized, ops::Deref, result::Result};
 
-use super::HasPredefinedGenerators;
+use super::HasGenerators;
 use crate::lsp_input::LspInput;
 pub mod core;
 pub mod doc;

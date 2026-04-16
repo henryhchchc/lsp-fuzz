@@ -8,7 +8,7 @@ use libafl::{
 use libafl_bolts::rands::Rand;
 use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
-use super::{GenerationError, GeneratorBag, HasPredefinedGenerators, LspParamsGenerator};
+use super::{GenerationError, GeneratorBag, HasGenerators, LspParamsGenerator};
 use crate::{
     lsp_input::{
         LspInput,
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for TextDocumentPositionParams
+impl<State> HasGenerators<State> for TextDocumentPositionParams
 where
     State: HasRand + HasMetadata + HasCurrentTestcase<LspInput>,
 {

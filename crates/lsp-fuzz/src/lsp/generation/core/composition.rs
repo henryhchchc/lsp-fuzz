@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 
 use crate::lsp::generation::{GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::{Compose, HasPredefinedGenerators},
+    lsp::{Compose, HasGenerators},
     lsp_input::LspInput,
 };
 
-impl<State, T, T1, T2> HasPredefinedGenerators<State> for T
+impl<State, T, T1, T2> HasGenerators<State> for T
 where
-    T1: HasPredefinedGenerators<State>,
-    T2: HasPredefinedGenerators<State>,
+    T1: HasGenerators<State>,
+    T2: HasGenerators<State>,
     T: Compose<Components = (T1, T2)>,
     T1::Generator: Clone,
     T2::Generator: Clone,

@@ -7,7 +7,7 @@ use lsp_types::{Range, TextDocumentIdentifier, Uri};
 
 use super::{FallbackGenerator, GenerationError, GeneratorBag, LspParamsGenerator};
 use crate::{
-    lsp::HasPredefinedGenerators,
+    lsp::HasGenerators,
     lsp_input::LspInput,
     text_document::{
         TextDocument,
@@ -90,7 +90,7 @@ where
     }
 }
 
-impl<State> HasPredefinedGenerators<State> for Selection
+impl<State> HasGenerators<State> for Selection
 where
     State: HasRand + HasCurrentTestcase<LspInput> + 'static,
 {

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::lsp::generation::{GenerationError, LspParamsGenerator};
 use crate::{
-    lsp::HasPredefinedGenerators,
+    lsp::HasGenerators,
     lsp_input::{
         LspInput,
         server_response::metadata::{ContainsFragment, ParamFragments},
@@ -80,10 +80,10 @@ where
     }
 }
 
-impl<State, A, B> HasPredefinedGenerators<State> for OneOf<A, B>
+impl<State, A, B> HasGenerators<State> for OneOf<A, B>
 where
-    A: HasPredefinedGenerators<State>,
-    B: HasPredefinedGenerators<State>,
+    A: HasGenerators<State>,
+    B: HasGenerators<State>,
     OneOfGenerator<A::Generator, B::Generator>: LspParamsGenerator<State, Output = OneOf<A, B>>,
 {
     type Generator = OneOfGenerator<A::Generator, B::Generator>;
@@ -97,9 +97,9 @@ where
     }
 }
 
-impl<State, T> HasPredefinedGenerators<State> for Option<T>
+impl<State, T> HasGenerators<State> for Option<T>
 where
-    T: HasPredefinedGenerators<State>,
+    T: HasGenerators<State>,
     OptionGenerator<T::Generator>: LspParamsGenerator<State, Output = Option<T>>,
 {
     type Generator = OptionGenerator<T::Generator>;

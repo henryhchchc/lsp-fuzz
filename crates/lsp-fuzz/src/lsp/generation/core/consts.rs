@@ -37,7 +37,7 @@ macro_rules! const_generators {
     (for $type: ty => [
         $($val: expr),*
     ]) => {
-        impl<State> crate::lsp::HasPredefinedGenerators<State> for $type {
+        impl<State> crate::lsp::HasGenerators<State> for $type {
             type Generator = &'static ConstGenerator<Self>;
 
             fn generators(_config: &crate::lsp::GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {

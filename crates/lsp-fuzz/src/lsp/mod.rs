@@ -36,7 +36,7 @@ where
     fn from_response_ref(response: &LspResponse) -> Option<&Self>;
 }
 
-pub trait HasPredefinedGenerators<State> {
+pub trait HasGenerators<State> {
     type Generator: LspParamsGenerator<State, Output = Self>;
 
     fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator>;
