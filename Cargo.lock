@@ -915,7 +915,6 @@ dependencies = [
  "num-traits",
  "postcard",
  "regex",
- "regex-syntax",
  "rustversion",
  "serde",
  "serde_json",

@@ -22,7 +22,6 @@ itertools = "0.*"
 libafl = { version = "0.15", features = [
   "casr",
   "errors_backtrace",
-  "nautilus",
 ] }
 libafl_bolts = { version = "0.15" }
 libcasr = { version = "2", features = ["serde"] }
