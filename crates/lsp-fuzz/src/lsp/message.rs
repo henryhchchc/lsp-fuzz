@@ -264,34 +264,18 @@ mod tests {
     fn test_localization() {
         let mut value = serde_json::json!({
             "uri": "lsp-fuzz://path/to/file",
-            "other_attr": {
-                "uri": "lsp-fuzz://path/to/other_file"
-            },
-            "some_arr": [
-                "lsp-fuzz://path/to/element",
-            ],
-            "other_arr": [
-                {
-                    "uri": "lsp-fuzz://path/to/element",
-                }
-            ]
+            "other_attr": { "uri": "lsp-fuzz://path/to/other_file" },
+            "some_arr": ["lsp-fuzz://path/to/element"],
+            "other_arr": [{ "uri": "lsp-fuzz://path/to/element" }]
         });
         super::localize_json_value(&mut value, "file:///path/to/workspace_dir/");
         assert_eq!(
             value,
             serde_json::json!({
                 "uri": "file:///path/to/workspace_dir/path/to/file",
-                "other_attr": {
-                    "uri": "file:///path/to/workspace_dir/path/to/other_file"
-                },
-                "some_arr": [
-                    "file:///path/to/workspace_dir/path/to/element",
-                ],
-                "other_arr": [
-                    {
-                        "uri": "file:///path/to/workspace_dir/path/to/element",
-                    }
-                ]
+                "other_attr": { "uri": "file:///path/to/workspace_dir/path/to/other_file" },
+                "some_arr": ["file:///path/to/workspace_dir/path/to/element"],
+                "other_arr": [{ "uri": "file:///path/to/workspace_dir/path/to/element" }]
             })
         );
     }
@@ -299,10 +283,7 @@ mod tests {
     #[test]
     fn test_decode_response() {
         let response = serde_json::json!({
-            "contents": {
-                "kind": "markdown",
-                "value": "**Documentation:** This is a test hover response"
-            }
+            "contents": { "kind": "markdown", "value": "**Documentation:** This is a test hover response" }
         });
         let LspResponse::HoverRequest(Some(response)) =
             LspResponse::try_from_json(HoverRequest::METHOD, response).unwrap()
@@ -323,38 +304,22 @@ mod tests {
     fn test_lift_localized_json() {
         let mut value = serde_json::json!({
             "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/file",
-            "other_attr": {
-                "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/other_file"
-            },
+            "other_attr": { "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/other_file" },
             "some_arr": [
                 "file:///path/to/lsp-fuzz-workspace_2333/path/to/element",
                 "file:///path/to/lsp-fuzz-workspace_2333/",
                 "file:///path/to/lsp-fuzz-workspace_2333",
             ],
-            "other_arr": [
-                {
-                    "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/element",
-                }
-            ]
+            "other_arr": [{ "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/element" }]
         });
         super::lift_localized_json(&mut value);
         assert_eq!(
             value,
             serde_json::json!({
                 "uri": "lsp-fuzz://path/to/file",
-                "other_attr": {
-                    "uri": "lsp-fuzz://path/to/other_file"
-                },
-                "some_arr": [
-                    "lsp-fuzz://path/to/element",
-                    "lsp-fuzz://",
-                    "lsp-fuzz://",
-                ],
-                "other_arr": [
-                    {
-                        "uri": "lsp-fuzz://path/to/element",
-                    }
-                ]
+                "other_attr": { "uri": "lsp-fuzz://path/to/other_file" },
+                "some_arr": ["lsp-fuzz://path/to/element", "lsp-fuzz://", "lsp-fuzz://"],
+                "other_arr": [{ "uri": "lsp-fuzz://path/to/element" }]
             })
         );
     }
