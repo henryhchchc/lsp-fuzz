@@ -129,17 +129,17 @@ where
                     }
                 }),
                 InlayHintRequest(Some(inlay_hints)) => {
-                    param_fragments.inlay_hints.extend(inlay_hints.into_iter());
+                    param_fragments.inlay_hints.extend(inlay_hints);
                 }
                 Completion(Some(res)) => {
                     let items = match res {
                         CompletionResponse::Array(items) => items,
                         CompletionResponse::List(list) => list.items,
                     };
-                    param_fragments.completion_items.extend(items.into_iter());
+                    param_fragments.completion_items.extend(items);
                 }
                 CodeLensRequest(Some(code_lens)) => {
-                    param_fragments.code_lens.extend(code_lens.into_iter());
+                    param_fragments.code_lens.extend(code_lens);
                 }
                 WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Nested(symbols))) => {
                     param_fragments.workspace_symbols.extend(symbols.clone());
@@ -161,7 +161,7 @@ where
                 }
                 DocumentSymbolRequest(Some(DocumentSymbolResponse::Nested(symbols))) => {
                     if let LspMessage::DocumentSymbolRequest(req) = req {
-                        let mut queue = VecDeque::from_iter(symbols.into_iter());
+                        let mut queue = VecDeque::from_iter(symbols);
                         while let Some(symbol) = queue.pop_front() {
                             let mut symbol = symbol.clone();
                             if let Some(children) = symbol.children.take() {
@@ -175,17 +175,13 @@ where
                     }
                 }
                 TypeHierarchyPrepare(Some(items)) => {
-                    param_fragments
-                        .type_hierarchy_items
-                        .extend(items.into_iter());
+                    param_fragments.type_hierarchy_items.extend(items);
                 }
                 CallHierarchyPrepare(Some(items)) => {
-                    param_fragments
-                        .call_hierarchy_items
-                        .extend(items.into_iter());
+                    param_fragments.call_hierarchy_items.extend(items);
                 }
                 DocumentLinkRequest(Some(links)) => {
-                    param_fragments.document_links.extend(links.into_iter());
+                    param_fragments.document_links.extend(links);
                 }
                 _ => {}
             }
