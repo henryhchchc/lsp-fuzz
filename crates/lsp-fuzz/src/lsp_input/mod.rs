@@ -59,6 +59,7 @@ pub enum WorkspaceEntry {
 }
 
 impl WorkspaceEntry {
+    #[must_use]
     pub const fn as_source_file(&self) -> Option<&TextDocument> {
         if let WorkspaceEntry::SourceFile(doc) = self {
             Some(doc)
@@ -67,6 +68,7 @@ impl WorkspaceEntry {
         }
     }
 
+    #[must_use]
     pub const fn as_source_file_mut(&mut self) -> Option<&mut TextDocument> {
         if let WorkspaceEntry::SourceFile(doc) = self {
             Some(doc)
@@ -75,6 +77,7 @@ impl WorkspaceEntry {
         }
     }
 
+    #[must_use]
     pub fn as_skeleton(&self) -> Option<&[u8]> {
         if let WorkspaceEntry::Skeleton(bytes) = self {
             Some(bytes.as_slice())
@@ -83,6 +86,7 @@ impl WorkspaceEntry {
         }
     }
 
+    #[must_use]
     pub const fn as_skeleton_mut(&mut self) -> Option<&mut Vec<u8>> {
         if let WorkspaceEntry::Skeleton(bytes) = self {
             Some(bytes)
@@ -120,6 +124,7 @@ impl LspInput {
     pub const NAME_PREFIX: &str = "input_";
     pub const PROROCOL_PREFIX: &str = "lsp-fuzz://";
 
+    #[must_use]
     pub fn root_uri() -> Uri {
         static WORKSPACE_ROOT_URI: LazyLock<lsp_types::Uri> =
             LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
@@ -141,6 +146,11 @@ impl LspInput {
     /// * `Some(&TextDocument)` - The found text document
     /// * `None` - If no text document exists at the given URI or if the entry is not a source file
     ///
+    /// # Panics
+    ///
+    /// Panics if `uri` does not start with [`LspInput::PROROCOL_PREFIX`].
+    ///
+    #[must_use]
     pub fn get_text_document(&self, uri: &lsp_types::Uri) -> Option<&TextDocument> {
         let path = uri
             .as_str()
@@ -158,11 +168,14 @@ impl LspInput {
 
 impl Input for LspInput {
     fn generate_name(&self, id: Option<CorpusId>) -> String {
-        let id_str = id.map(|it| it.to_string()).unwrap_or_else(|| {
-            let mut hasher = DefaultHasher::new();
-            self.hash(&mut hasher);
-            format!("h_{}", hasher.finish())
-        });
+        let id_str = id.map_or_else(
+            || {
+                let mut hasher = DefaultHasher::new();
+                self.hash(&mut hasher);
+                format!("h_{}", hasher.finish())
+            },
+            |it| it.to_string(),
+        );
         format!("{}{}", Self::NAME_PREFIX, id_str)
     }
 
@@ -222,13 +235,18 @@ impl HasWorkspace for LspInput {
 impl LspInput {
     pub const WORKSPACE_DIR_PREFIX: &str = "lsp-fuzz-workspace_";
 
+    /// Converts a localized `file://` workspace URI back into the virtual `lsp-fuzz://` form.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the lifted URI cannot be parsed back into a valid [`Uri`].
+    #[must_use]
     pub fn lift_uri(uri: &lsp_types::Uri) -> Cow<'_, lsp_types::Uri> {
         let uri_str = uri.as_str();
         if let Some(index) = uri_str.find(Self::WORKSPACE_DIR_PREFIX) {
             let in_workspace = uri_str[index..]
                 .find('/')
-                .map(|it| it + index + 1)
-                .unwrap_or(uri_str.len());
+                .map_or(uri_str.len(), |it| it + index + 1);
             let lifted = format!("{}/{}", Self::PROROCOL_PREFIX, &uri_str[in_workspace..]);
             Cow::Owned(lifted.parse().unwrap())
         } else {
@@ -236,6 +254,12 @@ impl LspInput {
         }
     }
 
+    /// Serializes the full LSP session into wire-format payload bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `workspace_dir` is not valid UTF-8.
+    #[must_use]
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
         let message_sequence = self.message_sequence();
 
@@ -260,6 +284,12 @@ impl LspInput {
         bytes
     }
 
+    /// Expands the stored input into the complete LSP session message stream.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a workspace source file path is not valid UTF-8 or if a generated virtual URI
+    /// cannot be parsed as an [`Uri`].
     pub fn message_sequence(&self) -> impl Iterator<Item = lsp::LspMessage> + use<'_> {
         #[allow(
             deprecated,
@@ -384,7 +414,7 @@ where
                 break code;
             }
         };
-        let mut text_document = TextDocument::new(language, document_content.to_vec());
+        let mut text_document = TextDocument::new(language, document_content.clone());
         text_document.update_metadata();
 
         let workspace = match language {

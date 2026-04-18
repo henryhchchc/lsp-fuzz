@@ -13,7 +13,8 @@ use libafl_bolts::{
     tuples::{Merge, NamedTuple},
 };
 use lsp_fuzz_grammars::WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES;
-use serde::{Deserialize, Serialize};
+use lsp_types::{PartialResultParams, Uri, WorkDoneProgressParams};
+use serde::{Deserialize, Deserializer, Serialize};
 use trait_gen::trait_gen;
 use tuple_list::{tuple_list, tuple_list_type};
 
@@ -34,9 +35,23 @@ use crate::{
     utils::{RandExt, ToLspPosition},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, Deref, DerefMut)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deref, DerefMut)]
 pub struct LspMessageSequence {
     inner: Vec<lsp::LspMessage>,
+}
+
+impl<'de> Deserialize<'de> for LspMessageSequence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct LspMessageSequenceRepr {
+            inner: Vec<lsp::LspMessage>,
+        }
+
+        LspMessageSequenceRepr::deserialize(deserializer).map(|repr| Self { inner: repr.inner })
+    }
 }
 
 #[derive(Debug)]
@@ -63,6 +78,7 @@ impl<'a> Iterator for EnumMessages<'a> {
 }
 
 impl LspMessageSequence {
+    #[must_use]
     pub fn enumerate_messages(&self) -> EnumMessages<'_> {
         EnumMessages {
             next_id: 0,
@@ -80,21 +96,39 @@ impl LspMessageSequence {
 
 fn calibrate_message(message: &mut LspMessage, input_edit: tree_sitter::InputEdit) {
     // Helper function to determine if a position is after the edit
-    fn is_after_edit(pos: &lsp_types::Position, edit: &tree_sitter::InputEdit) -> bool {
-        (pos.line as usize)
+    fn is_after_edit(pos: lsp_types::Position, edit: &tree_sitter::InputEdit) -> bool {
+        usize::try_from(pos.line)
+            .expect("u32 fits into usize on supported targets")
             .cmp(&edit.old_end_position.row)
-            .then_with(|| (pos.character as usize).cmp(&edit.old_end_position.column))
+            .then_with(|| {
+                usize::try_from(pos.character)
+                    .expect("u32 fits into usize on supported targets")
+                    .cmp(&edit.old_end_position.column)
+            })
             .is_ge()
+    }
+
+    fn adjust_component(current: u32, old_end: usize, new_end: usize) -> u32 {
+        if new_end >= old_end {
+            current.saturating_add(u32::try_from(new_end - old_end).unwrap_or(u32::MAX))
+        } else {
+            current.saturating_sub(u32::try_from(old_end - new_end).unwrap_or(u32::MAX))
+        }
     }
 
     // Helper function to update a position if it's after the edit
     fn update_position(pos: &mut lsp_types::Position, edit: &tree_sitter::InputEdit) {
-        if is_after_edit(pos, edit) {
-            let line_diff = edit.new_end_position.row as i64 - edit.old_end_position.row as i64;
-            let col_diff =
-                edit.new_end_position.column as i64 - edit.old_end_position.column as i64;
-            pos.line = (pos.line as i64 + line_diff) as u32;
-            pos.character = (pos.character as i64 + col_diff) as u32;
+        if is_after_edit(*pos, edit) {
+            pos.line = adjust_component(
+                pos.line,
+                edit.old_end_position.row,
+                edit.new_end_position.row,
+            );
+            pos.character = adjust_component(
+                pos.character,
+                edit.old_end_position.column,
+                edit.new_end_position.column,
+            );
         }
     }
 
@@ -132,8 +166,8 @@ where
         _doc: &TextDocument,
     ) -> Option<lsp_types::Position> {
         let rand = state.rand_mut();
-        let line = rand.between(0, self.rand_max) as _;
-        let character = rand.between(0, self.rand_max) as _;
+        let line = u32::try_from(rand.between(0, self.rand_max)).ok()?;
+        let character = u32::try_from(rand.between(0, self.rand_max)).ok()?;
         Some(lsp_types::Position { line, character })
     }
 }
@@ -156,8 +190,8 @@ where
             .flat_map(|(idx, line)| (0..line.len()).map(move |char| (idx, char)));
         let (line, char) = state.rand_mut().choose(positions)?;
         Some(lsp_types::Position {
-            line: line as _,
-            character: char as _,
+            line: u32::try_from(line).ok()?,
+            character: u32::try_from(char).ok()?,
         })
     }
 }
@@ -183,11 +217,26 @@ where
 #[derive(Debug, Clone, Copy, New)]
 pub struct HighlightSteer;
 
-#[derive(Debug, Serialize, Deserialize, Deref, DerefMut, libafl_bolts::SerdeAny)]
+#[derive(Debug, Serialize, Deref, DerefMut, libafl_bolts::SerdeAny)]
 pub struct HighlightGroupUsageMetadata {
     #[deref]
     #[deref_mut]
     inner: ahash::HashMap<String, usize>,
+}
+
+impl<'de> Deserialize<'de> for HighlightGroupUsageMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct HighlightGroupUsageMetadataRepr {
+            inner: ahash::HashMap<String, usize>,
+        }
+
+        HighlightGroupUsageMetadataRepr::deserialize(deserializer)
+            .map(|repr| Self { inner: repr.inner })
+    }
 }
 
 impl HighlightGroupUsageMetadata {
@@ -279,8 +328,6 @@ where
 prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::LspMessage>);
 
 pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::LspMessage, State>>;
-
-use lsp_types::*;
 
 #[trait_gen(P ->
     WorkDoneProgressParams,
@@ -382,6 +429,7 @@ where
             type_name::<<M::Params as HasGenerators<State>>::Generator>()
         );
         f.debug_struct("AppendRandomlyGeneratedMessage")
+            .field("name", &self.name)
             .field("generators", &generators_desc)
             .finish()
     }
@@ -394,6 +442,12 @@ where
     M: LspMessageMeta,
     M::Params: HasGenerators<State>,
 {
+    /// Creates an append mutator from the predefined generators for `M`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `M::Params::generators(config)` returns no generators.
+    #[must_use]
     pub fn with_predefined(config: &GeneratorsConfig) -> Self {
         let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
         let generators: Vec<_> = M::Params::generators(config).into_iter().collect();
@@ -528,6 +582,7 @@ append_randoms! {
     }
 }
 
+#[must_use]
 pub fn message_mutations<State>(
     config: &GeneratorsConfig,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<State>
@@ -540,6 +595,7 @@ where
         .merge(message_reductions())
 }
 
+#[must_use]
 pub fn message_reductions<State>() -> tuple_list_type![DropRandomMessage<State>]
 where
     State: HasRand,

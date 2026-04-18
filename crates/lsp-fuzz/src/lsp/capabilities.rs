@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports, reason = "There are too many")]
 use lsp_types::*;
 
 pub fn fuzzer_client_capabilities() -> ClientCapabilities {

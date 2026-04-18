@@ -28,6 +28,11 @@ use super::tree_sitter::TreeIter;
 /// A `HashMap` where the keys are static string slices representing the node types,
 /// and the values are vectors of byte slices representing the fragments of the code
 /// associated with each node type.
+///
+/// # Errors
+///
+/// Returns [`Error`] if parsing fails, the DOT graph cannot be generated or
+/// parsed, or the resulting graph does not match the expected format.
 pub fn extract_derivation_fragments<'n>(
     code: &[u8],
     parser: &mut tree_sitter::Parser,
@@ -36,7 +41,7 @@ pub fn extract_derivation_fragments<'n>(
     let (named, unnamed): (Vec<_>, Vec<_>) = tree
         .iter()
         // .filter(|it| !it.is_error())
-        .partition(|it| it.is_named());
+        .partition(tree_sitter::Node::is_named);
     let blacklist: HashSet<_> = unnamed.into_iter().map(|it| it.kind()).collect();
 
     let from_tree = named.into_iter().filter(|it| !it.is_error()).map(|it| {
@@ -155,7 +160,7 @@ fn node_range(tooltip: &str) -> Result<Range<usize>, Error> {
     let line = tooltip
         .lines()
         .find(|it| it.starts_with("range: "))
-        .map(|line| line.trim())
+        .map(str::trim)
         .ok_or(Error::DotGraphFormatMismatch("Cannot find range line"))?;
     let (start, end) = line
         .trim_start_matches("range: ")

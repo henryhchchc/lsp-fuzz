@@ -128,6 +128,10 @@ where
                     fluent_uri::Uri::from_str(&format!("lsp-fuzz://{uri_content}")).ok()?,
                 );
 
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "65536 is within the range of u32"
+                )]
                 let position = lsp_types::Position {
                     line: rand.below_or_zero(65536) as u32,
                     character: rand.below_or_zero(65536) as u32,

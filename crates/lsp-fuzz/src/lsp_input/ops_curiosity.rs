@@ -38,6 +38,7 @@ pub struct CuriosityFeedback<const MAX_DEPTH: usize> {
 }
 
 impl<const MAX_DEPTH: usize> CuriosityFeedback<MAX_DEPTH> {
+    #[must_use]
     pub fn new(observer: &OpsBehaviorObserver<MAX_DEPTH>, opt_in_threshold: u64) -> Self {
         Self {
             observer_handle: observer.handle(),
@@ -110,35 +111,34 @@ where
         let behavior_data: &HashSet<OpsBehaviorData<MAX_DEPTH>> = observer
             .observed_behavior()
             .afl_context("Observer did not observe any behavior.")?;
-        behavior_data.iter().for_each(|it| {
+        for it in behavior_data {
             metadata.merge(it);
-        });
+        }
         Ok(())
     }
 }
 
 fn analyze_behavior_data<const MAX_DEPTH: usize>(
     input: &LspInput,
-) -> Result<HashSet<OpsBehaviorData<MAX_DEPTH>>, libafl::Error> {
+) -> HashSet<OpsBehaviorData<MAX_DEPTH>> {
     let mut data = HashSet::new();
     for op in input.messages.iter() {
         if let Some(doc) = op.document()
             && let Some(doc) = input.get_text_document(&doc.uri)
         {
             if let Some(position) = op.position()
-                && let Some(ops_data) = digest_ops_data(op, doc, position)
+                && let Some(ops_data) = digest_ops_data(op, doc, *position)
             {
                 data.insert(ops_data);
             }
             if let Some(_range) = op.range() {
-                continue;
                 // let ops_data = digest_range_data(op, doc, range, max_syn_depth);
                 // data.extend(ops_data);
             }
         }
     }
 
-    Ok(data)
+    data
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -151,7 +151,7 @@ pub struct OpsBehaviorData<const MAX_DEPTH: usize> {
 fn digest_ops_data<const MAX_DEPTH: usize>(
     op: &LspMessage,
     doc: &TextDocument,
-    position: &lsp_types::Position,
+    position: lsp_types::Position,
 ) -> Option<OpsBehaviorData<MAX_DEPTH>> {
     let ts_point = tree_sitter::Point {
         row: position.line as usize,
@@ -165,7 +165,7 @@ fn digest_ops_data<const MAX_DEPTH: usize>(
         && !node.is_missing()
     {
         let language = doc.language();
-        let node_path = iter::successors(Some(node), |it| it.parent())
+        let node_path = iter::successors(Some(node), tree_sitter::Node::parent)
             .take(MAX_DEPTH)
             .map(|it| it.grammar_id())
             .collect();
@@ -209,7 +209,7 @@ fn _digest_range_data<const MAX_DEPTH: usize>(
             {
                 let language = doc.language();
                 let ops_method = op.method();
-                let node_path = iter::successors(Some(node), |it| it.parent())
+                let node_path = iter::successors(Some(node), tree_sitter::Node::parent)
                     .take(MAX_DEPTH)
                     .map(|it| it.grammar_id())
                     .collect();
@@ -224,29 +224,33 @@ fn _digest_range_data<const MAX_DEPTH: usize>(
     data
 }
 
+#[must_use]
 pub fn hash_node_path<H: Hasher>(
     node: tree_sitter::Node<'_>,
     max_syn_depth: usize,
     hasher: &mut H,
 ) -> Option<()> {
-    let syn_signature: Vec<_> = iter::successors(Some(node), |it| it.parent())
+    let syn_signature: Vec<_> = iter::successors(Some(node), tree_sitter::Node::parent)
         .map(|node| node.grammar_id())
         .collect();
     if syn_signature.len() > max_syn_depth {
         None
     } else {
-        syn_signature.into_iter().for_each(|it| it.hash(hasher));
+        for it in syn_signature {
+            it.hash(hasher);
+        }
         Some(())
     }
 }
 
+#[must_use]
 pub fn hash_paths(parse_tree: &tree_sitter::Tree, max_depth: usize) -> Option<HashSet<u64>> {
     let mut hashes = HashSet::new();
 
     let mut queue = VecDeque::new();
-    let hasher = AHasher::default();
+    let initial_hasher = AHasher::default();
     let root_node = parse_tree.root_node();
-    queue.push_back((root_node, hasher, 0));
+    queue.push_back((root_node, initial_hasher, 0));
     while let Some((node, mut hasher, depth)) = queue.pop_front() {
         if depth >= max_depth {
             return None;
@@ -268,6 +272,7 @@ fn hash_node(hasher: &mut AHasher, node: tree_sitter::Node<'_>) {
     hasher.write_u16(node.grammar_id());
 }
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Serialize, Deserialize, Deref, DerefMut, SerdeAny)]
 pub struct ObservedOpsBehaviors {
     inner: BloomFilter,
@@ -304,6 +309,7 @@ impl<const MAX_DEPTH: usize> OpsBehaviorObserver<MAX_DEPTH> {
         }
     }
 
+    #[must_use]
     pub const fn observed_behavior(&self) -> Option<&HashSet<OpsBehaviorData<MAX_DEPTH>>> {
         self.observed_behavior.as_ref()
     }
@@ -327,7 +333,7 @@ impl<State, const MAX_DEPTH: usize> Observer<LspInput, State> for OpsBehaviorObs
         input: &LspInput,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<(), libafl::Error> {
-        let data = analyze_behavior_data(input).afl_context("Analyzing behavior data")?;
+        let data = analyze_behavior_data(input);
         self.observed_behavior = Some(data);
         Ok(())
     }

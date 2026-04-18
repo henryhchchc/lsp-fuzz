@@ -1,3 +1,5 @@
+lints.workspace = true
+
 [package]
 name = "lsp-fuzz-grammars"
 version.workspace = true

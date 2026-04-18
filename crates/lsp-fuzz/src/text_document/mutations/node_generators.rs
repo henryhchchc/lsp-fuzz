@@ -38,7 +38,7 @@ where
         state: &mut State,
     ) -> Option<Vec<u8>> {
         let fragments = grammar_context.node_fragments(node.kind());
-        state.rand_mut().choose(fragments).map(|it| it.to_vec())
+        state.rand_mut().choose(fragments).map(<[u8]>::to_vec)
     }
 }
 

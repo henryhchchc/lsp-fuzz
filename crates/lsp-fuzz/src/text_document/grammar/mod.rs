@@ -75,10 +75,12 @@ impl Display for DerivationSequence {
 }
 
 impl DerivationSequence {
+    #[must_use]
     pub fn new(symbols: Vec<Symbol>) -> Self {
         Self { symbols }
     }
 
+    #[must_use]
     pub fn symbols(&self) -> &[Symbol] {
         &self.symbols
     }
@@ -117,23 +119,32 @@ impl Display for Grammar {
 }
 
 impl Grammar {
+    #[must_use]
     pub const fn language(&self) -> Language {
         self.language
     }
 
+    #[must_use]
     pub fn start_symbol(&self) -> &str {
         self.start_symbol.as_str()
     }
 
+    #[must_use]
     pub const fn derivation_rules(&self) -> &IndexMap<String, IndexSet<DerivationSequence>> {
         &self.derivation_rules
     }
 
+    /// Validates that every referenced non-terminal has a corresponding production rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any derivation references a non-terminal that is not present in
+    /// `self.derivation_rules`.
     pub fn validate(&self) -> Result<(), anyhow::Error> {
         for symbol in self.derivation_rules.values().flatten().flatten() {
             match symbol {
                 Symbol::NonTerminal(name) if !self.derivation_rules.contains_key(name) => {
-                    bail!("Missing rule for non-terminal symbol: {}", name);
+                    bail!("Missing rule for non-terminal symbol: {name}");
                 }
                 _ => {}
             }

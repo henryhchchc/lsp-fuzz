@@ -27,9 +27,7 @@ pub struct ReplaceNodeMutation<'a, TS, NodeSel, NodeGen> {
     _phantom: PhantomData<TS>,
 }
 
-impl<'a, TS, NodeSel: Clone, NodeGen: Clone> Clone
-    for ReplaceNodeMutation<'a, TS, NodeSel, NodeGen>
-{
+impl<TS, NodeSel: Clone, NodeGen: Clone> Clone for ReplaceNodeMutation<'_, TS, NodeSel, NodeGen> {
     fn clone(&self) -> Self {
         Self {
             grammar_lookup: self.grammar_lookup,
@@ -96,7 +94,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let node_range = selected_node.range();
-        let input_edit = doc.splice(node_range, replacement.to_vec());
+        let input_edit = doc.splice(node_range, replacement);
         input.messages.calibrate(doc_uri, input_edit);
         Ok(MutationResult::Mutated)
     }
@@ -205,6 +203,6 @@ where
             .choose(char::MIN..char::MAX)
             .expect("There must be a char inside this range.");
         string.replace_range(idx..idx + picked.len_utf8(), &new_char.to_string());
-        *content = string.into_bytes()
+        *content = string.into_bytes();
     }
 }

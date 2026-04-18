@@ -26,6 +26,7 @@ pub struct Utf8Input {
 }
 
 impl Utf8Input {
+    #[must_use]
     pub fn new(inner: String) -> Self {
         Self { inner }
     }
@@ -87,6 +88,7 @@ impl Equivalent<Utf8Input> for str {
     }
 }
 
+#[must_use]
 pub fn utf8_mutations() -> impl TupleList {
     tuple_list![
         mutators::CharInsertMutator,
@@ -97,6 +99,7 @@ pub fn utf8_mutations() -> impl TupleList {
     ]
 }
 
+#[must_use]
 pub fn file_name_mutations() -> impl TupleList {
     tuple_list![
         mutators::CharInsertMutator,
@@ -107,12 +110,14 @@ pub fn file_name_mutations() -> impl TupleList {
     ]
 }
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Default, Clone, Serialize, Deserialize, libafl_bolts::SerdeAny)]
 pub struct UTF8Tokens {
     content: IndexSet<String>,
 }
 
 impl UTF8Tokens {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             content: IndexSet::new(),
@@ -123,10 +128,12 @@ impl UTF8Tokens {
         self.content.insert(token);
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.content.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
     }

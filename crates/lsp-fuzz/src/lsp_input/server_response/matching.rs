@@ -26,6 +26,7 @@ impl<'a> RequestResponseMatching<'a> {
             .filter_map(|it| Notification::Params::from_message_ref(it))
     }
 
+    #[must_use]
     pub fn find_response_of(&self, request: &LspMessage) -> Option<&LspResponse> {
         self.responses.get(request)
     }
@@ -76,14 +77,14 @@ impl<'a> RequestResponseMatching<'a> {
                         }
                     }
                 }
-                _ => {}
+                JsonRPCMessage::Response { .. } => {}
             }
         }
 
         Ok(Self {
             responses,
-            notifications,
             errors,
+            notifications,
             requests_from_server,
         })
     }

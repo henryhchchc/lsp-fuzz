@@ -22,6 +22,13 @@ impl Named for WorkspaceObserver {
 
 pub trait HasWorkspace {
     fn workspace_hash(&self) -> u64;
+
+    /// Creates the on-disk workspace layout rooted at `workspace_root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns any I/O error encountered while creating directories or files
+    /// for the workspace.
     fn setup_workspace(&self, workspace_root: &Path) -> Result<(), std::io::Error>;
 }
 

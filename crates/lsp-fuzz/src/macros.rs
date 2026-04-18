@@ -20,6 +20,13 @@ macro_rules! lsp_responses {
                 }
             }
 
+            /// Decodes a response payload for the given LSP method.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`crate::lsp::message::MessageDecodeError`] if `method`
+            /// is not handled by this enum or if `json` cannot be deserialized
+            /// into the corresponding response type.
             pub fn try_from_json(method: impl AsRef<str>, json: serde_json::Value) -> Result<Self, crate::lsp::message::MessageDecodeError> {
                 let result = match method.as_ref() {
                     $(<::lsp_types::request::$res_variant as ::lsp_types::request::Request>::METHOD => {
@@ -131,6 +138,13 @@ macro_rules! lsp_messages {
                 <M::Params as crate::lsp::MessageParam<M>>::into_message(params)
             }
 
+            /// Decodes a message payload for the given LSP method.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`crate::lsp::message::MessageDecodeError`] if `method`
+            /// is not handled by this enum or if `json` cannot be deserialized
+            /// into the corresponding parameter type.
             pub fn try_from_json(method: impl AsRef<str>, json: serde_json::Value) -> Result<Self, crate::lsp::message::MessageDecodeError> {
                 let result = match method.as_ref() {
                     $(

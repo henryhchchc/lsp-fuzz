@@ -35,7 +35,7 @@ pub mod mutations;
 pub const LINE_SEP: u8 = b'\n';
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(from = "_TextDocumentSerialized", into = "_TextDocumentSerialized")]
+#[serde(from = "TextDocumentSerialized", into = "TextDocumentSerialized")]
 pub struct TextDocument {
     language: Language,
     content: Vec<u8>,
@@ -53,6 +53,12 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Builds parse metadata for a document from its language and current content.
+    ///
+    /// # Panics
+    ///
+    /// Panics if tree-sitter fails to produce a parse tree for `content`.
+    #[must_use]
     pub fn generate(language: Language, content: &[u8]) -> Self {
         let mut parser = language.tree_sitter_parser();
         let parse_tree = parser
@@ -60,8 +66,8 @@ impl Metadata {
             .expect("Cannot parse input content");
         let mut result = Self {
             parse_tree,
-            node_type_ranges: Default::default(),
-            node_signatures: Default::default(),
+            node_type_ranges: HashMap::default(),
+            node_signatures: HashMap::default(),
         };
         result.update_node_info();
         result
@@ -72,7 +78,7 @@ impl Metadata {
             .parse_tree
             .root_node()
             .iter()
-            .into_group_map_by(|it| it.kind_id())
+            .into_group_map_by(tree_sitter::Node::kind_id)
             .into_iter()
             .map(|(k, v)| (k, v.into_iter().map(|it| it.range()).collect()))
             .collect();
@@ -82,7 +88,7 @@ impl Metadata {
             .iter()
             .filter(|it| it.child_count() == 0)
             .into_group_map_by(|&it| {
-                std::iter::successors(Some(it), |it| it.parent())
+                std::iter::successors(Some(it), tree_sitter::Node::parent)
                     .take(SIGNATURE_LEVEL)
                     .map(|it| it.kind_id())
                     .collect()
@@ -109,19 +115,31 @@ impl Hash for TextDocument {
 }
 
 impl TextDocument {
+    /// Creates a text document and eagerly computes parse-derived metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics if tree-sitter fails to produce an initial parse tree for `content`.
+    #[must_use]
     pub fn new(language: Language, content: Vec<u8>) -> Self {
         let metadata = Metadata::generate(language, &content);
         Self {
-            content,
             language,
+            content,
             metadata,
         }
     }
 
+    #[must_use]
     pub const fn metadata(&self) -> &Metadata {
         &self.metadata
     }
 
+    /// Reparses the current content and refreshes cached node indexes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if incremental reparsing fails.
     pub fn update_metadata(&mut self) {
         let mut parser = self.language.tree_sitter_parser();
         self.metadata.parse_tree = parser
@@ -130,18 +148,22 @@ impl TextDocument {
         self.metadata.update_node_info();
     }
 
+    #[must_use]
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(&self.content)
     }
 
+    #[must_use]
     pub fn lines(&self) -> impl DoubleEndedIterator<Item = &[u8]> {
         self.content.as_slice().split(|&it| it == LINE_SEP)
     }
 
+    #[must_use]
     pub const fn content(&self) -> &[u8] {
         self.content.as_slice()
     }
 
+    #[must_use]
     pub fn node_starts_in_range(&self, range: lsp_types::Range) -> Vec<tree_sitter::Point> {
         let start_point = tree_sitter::Point {
             row: range.start.line as usize,
@@ -235,6 +257,7 @@ fn edit_for_node_replacement(
     }
 }
 
+#[must_use]
 pub fn measure_fragment<const LINE_SEP: u8>(fragment: &[u8]) -> (usize, usize) {
     let mut rows = 0;
     let mut cols = 0;
@@ -265,9 +288,10 @@ type ReplaceNodeInRandomRoc<'a, NodeSel, NodeGen> =
     ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen>;
 type NodeMutationInRandomDoc<'a, Mut, NodeSel> = NodeContentMutation<'a, Mut, RandomDoc, NodeSel>;
 
+#[must_use]
 pub fn text_document_mutations<'g, State>(
     grammar_lookup: &'g GrammarContextLookup,
-    genearators_config: &GeneratorsConfig,
+    generators_config: &GeneratorsConfig,
 ) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'g, State>
 where
     State: HasRand + HasMaxSize + HasMetadata,
@@ -314,13 +338,13 @@ where
         tuple_list![
             recover_from_error,
             produce_missing_node,
-            generate_mismatched.with_probability(genearators_config.invalid_code_frequency),
-            terminal_truncation.with_probability(genearators_config.invalid_code_frequency),
-            // terminal_char_mutation.with_probability(genearators_config.invalid_code_frequency),
+            generate_mismatched.with_probability(generators_config.invalid_code_frequency),
+            terminal_truncation.with_probability(generators_config.invalid_code_frequency),
+            // terminal_char_mutation.with_probability(generators_config.invalid_code_frequency),
             drop_terminal
                 .clone()
-                .with_probability(genearators_config.invalid_code_frequency),
-            drop_terminal.with_probability(genearators_config.invalid_code_frequency),
+                .with_probability(generators_config.invalid_code_frequency),
+            drop_terminal.with_probability(generators_config.invalid_code_frequency),
         ]
     };
     correct_code_mutations.merge(incorrect_code_mutations)
@@ -328,22 +352,22 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename = "TextDocument")]
-struct _TextDocumentSerialized {
+struct TextDocumentSerialized {
     language: Language,
     content: Vec<u8>,
 }
 
-impl From<TextDocument> for _TextDocumentSerialized {
+impl From<TextDocument> for TextDocumentSerialized {
     fn from(document: TextDocument) -> Self {
-        _TextDocumentSerialized {
+        Self {
             language: document.language,
             content: document.content,
         }
     }
 }
 
-impl From<_TextDocumentSerialized> for TextDocument {
-    fn from(serialized: _TextDocumentSerialized) -> Self {
+impl From<TextDocumentSerialized> for TextDocument {
+    fn from(serialized: TextDocumentSerialized) -> Self {
         Self::new(serialized.language, serialized.content)
     }
 }

@@ -217,7 +217,7 @@ fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
             localize_json_value(value, workspace_uri);
         }),
         String(str_val) if str_val.starts_with(LspInput::PROROCOL_PREFIX) => {
-            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri)
+            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri);
         }
         _ => {}
     }

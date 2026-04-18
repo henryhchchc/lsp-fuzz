@@ -38,7 +38,7 @@ impl Cli {
     }
 }
 
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, Clone, Copy, clap::Parser)]
 struct GlobalOptions {
     #[clap(long, default_value = "info")]
     default_log_level: LevelFilter,
@@ -107,7 +107,7 @@ where
 }
 
 pub fn parse_size(s: &str) -> Result<usize, anyhow::Error> {
-    if s.chars().last().is_some_and(|it| it.is_alphabetic()) {
+    if s.chars().last().is_some_and(char::is_alphabetic) {
         let (size, unit) = s.split_at(s.len() - 1);
         let multiplier = match unit.to_uppercase().as_str() {
             "B" => 1 << 0,

@@ -116,6 +116,7 @@ const HEADER_SEP: &str = ": ";
 const HEADER_BODY_SEP: &str = "\r\n\r\n";
 
 impl JsonRPCMessage {
+    #[must_use]
     pub fn request(
         id: impl Into<MessageId>,
         method: Cow<'static, str>,
@@ -129,6 +130,7 @@ impl JsonRPCMessage {
         }
     }
 
+    #[must_use]
     pub const fn notification(method: Cow<'static, str>, params: serde_json::Value) -> Self {
         Self::Notification {
             jsonrpc: JsonRPC20,
@@ -137,6 +139,7 @@ impl JsonRPCMessage {
         }
     }
 
+    #[must_use]
     pub fn response(
         id: Option<impl Into<MessageId>>,
         result: Option<serde_json::Value>,
@@ -150,6 +153,7 @@ impl JsonRPCMessage {
         }
     }
 
+    #[must_use]
     pub const fn id(&self) -> Option<&MessageId> {
         match self {
             Self::Request { id, .. } => Some(id),
@@ -158,6 +162,7 @@ impl JsonRPCMessage {
         }
     }
 
+    #[must_use]
     pub const fn method(&self) -> Option<&Cow<'_, str>> {
         if let Self::Request { method, .. } | Self::Notification { method, .. } = self {
             Some(method)
@@ -166,6 +171,12 @@ impl JsonRPCMessage {
         }
     }
 
+    /// Serializes the message into an LSP payload with `Content-Length` framing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `serde_json` fails to serialize the message.
+    #[must_use]
     pub fn to_lsp_payload(&self) -> Vec<u8> {
         let content =
             serde_json::to_vec(self).expect("Serialization of serde_json::Value cannot fail.");
@@ -184,6 +195,12 @@ impl JsonRPCMessage {
 
 impl JsonRPCMessage {
     // It does not compile without `R: Read`.
+    /// Reads one LSP-framed JSON-RPC message from `reader`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload headers are malformed, the `Content-Length`
+    /// header is missing, the body cannot be read completely, or the JSON body is invalid.
     pub fn read_lsp_payload<R: Read + BufRead + ?Sized>(reader: &mut R) -> io::Result<Self> {
         use io::{Error, ErrorKind::InvalidData};
         let content_size = Self::read_headers(reader)?.ok_or(Error::new(

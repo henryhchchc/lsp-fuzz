@@ -9,6 +9,10 @@ use anyhow::Context;
 use crate::afl;
 
 #[derive(Debug)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "This public analysis result intentionally exposes independent binary feature flags."
+)]
 pub struct StaticTargetBinaryInfo {
     pub is_afl_instrumented: bool,
     pub is_persistent_mode: bool,
@@ -21,6 +25,12 @@ const PERSISTENT_MODE_SIGNATURE: &[u8] = b"##SIG_AFL_PERSISTENT##";
 const DEFER_FORK_SERVER_SIGNATURE: &[u8] = b"##SIG_AFL_DEFER_FORKSRV##";
 
 impl StaticTargetBinaryInfo {
+    /// Scans a target binary image for AFL++ and sanitizer signatures.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error if reading the binary data source failed before calling this
+    /// function. This implementation currently does not produce its own error values.
     pub fn scan(binary_file: &[u8]) -> io::Result<Self> {
         let is_afl_instrumented =
             kmp::kmp_find(afl::SHMEM_ADDR_ENV.as_bytes(), binary_file).is_some();
@@ -37,6 +47,17 @@ impl StaticTargetBinaryInfo {
     }
 }
 
+/// Runs the target binary with `AFL_DUMP_MAP_SIZE=1` and parses the reported map size.
+///
+/// # Errors
+///
+/// Returns an error if spawning the target fails, reading its stdout fails, or the emitted map
+/// size cannot be parsed as a `usize`.
+///
+/// # Panics
+///
+/// Panics if the spawned child process does not expose a piped stdout after this function
+/// explicitly requested one.
 pub fn dump_map_size(binary: &Path) -> Result<usize, anyhow::Error> {
     let mut cmd = std::process::Command::new(binary);
     let mut child = cmd

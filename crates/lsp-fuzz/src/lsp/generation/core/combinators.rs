@@ -21,6 +21,7 @@ pub struct DefaultGenerator<T> {
 }
 
 impl<T> DefaultGenerator<T> {
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -161,6 +162,7 @@ pub struct ParamFragmentGenerator<T> {
 }
 
 impl<T> ParamFragmentGenerator<T> {
+    #[must_use]
     pub const fn new(enabled: bool) -> Self {
         Self {
             enabled,

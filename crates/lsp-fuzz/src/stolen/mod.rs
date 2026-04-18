@@ -9,4 +9,5 @@
 mod tree_sitter_generate;
 
 #[rustfmt::skip]
+#[allow(clippy::pedantic)]
 mod upstream;

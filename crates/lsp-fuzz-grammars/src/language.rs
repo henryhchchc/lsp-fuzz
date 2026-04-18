@@ -15,7 +15,8 @@ pub(super) struct LanguageInfo {
 
 impl Language {
     #[inline]
-    const fn info(&self) -> LanguageInfo {
+    #[must_use]
+    const fn info(self) -> LanguageInfo {
         match self {
             Language::C => language_data::C,
             Language::CPlusPlus => language_data::CPP,
@@ -32,11 +33,18 @@ impl Language {
         }
     }
 
-    pub fn file_extensions<'a>(&self) -> BTreeSet<&'a str> {
+    #[must_use]
+    pub fn file_extensions<'a>(self) -> BTreeSet<&'a str> {
         self.info().extensions.iter().copied().collect()
     }
 
-    pub fn tree_sitter_parser(&self) -> tree_sitter::Parser {
+    /// Build a parser configured for this language.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the bundled tree-sitter language cannot be installed into the parser.
+    #[must_use]
+    pub fn tree_sitter_parser(self) -> tree_sitter::Parser {
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&self.ts_language())
@@ -49,7 +57,12 @@ impl Language {
     /// See the following two links for common highlight groups
     /// - [Neovim](https://neovim.io/doc/user/treesitter.html#treesitter-highlight-groups)
     /// - [Zed](https://zed.dev/docs/extensions/languages#syntax-highlighting)
-    pub fn ts_highlight_query(&self) -> &'static tree_sitter::Query {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the bundled highlight query for this language is invalid.
+    #[must_use]
+    pub fn ts_highlight_query(self) -> &'static tree_sitter::Query {
         const VARIANT_COUNT: usize = 12;
         // Use `variant_count` when stabilized.
         // static QUERIES: [OnceLock<tree_sitter::Query>; variant_count::<Language>()] =
@@ -57,7 +70,7 @@ impl Language {
         static QUERIES: [OnceLock<tree_sitter::Query>; VARIANT_COUNT] =
             [const { OnceLock::new() }; VARIANT_COUNT];
 
-        let query_idx = (*self as u8) as usize;
+        let query_idx = (self as u8) as usize;
         QUERIES[query_idx].get_or_init(|| {
             let query_src = self.info().highlight_query;
             tree_sitter::Query::new(&self.ts_language(), query_src)
@@ -65,17 +78,20 @@ impl Language {
         })
     }
 
-    pub fn ts_language(&self) -> tree_sitter::Language {
+    #[must_use]
+    pub fn ts_language(self) -> tree_sitter::Language {
         tree_sitter::Language::new(self.info().ts_language_fn)
     }
 
-    pub const fn grammar_json<'a>(&self) -> &'a str {
+    #[must_use]
+    pub const fn grammar_json<'a>(self) -> &'a str {
         self.info().grammar_json
     }
 
     /// The language identifier used by the Language Server Protocol
-    /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
-    pub const fn lsp_language_id<'a>(&self) -> &'a str {
+    /// See <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem>
+    #[must_use]
+    pub const fn lsp_language_id<'a>(self) -> &'a str {
         self.info().lsp_language_id
     }
 }

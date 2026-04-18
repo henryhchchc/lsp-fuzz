@@ -23,6 +23,11 @@ pub use core::{
 pub trait LspParamsGenerator<State> {
     type Output;
 
+    /// Produces parameters for an LSP message from the current state and input.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GenerationError`] when generation fails or produces no value.
     fn generate(
         &self,
         state: &mut State,

@@ -51,7 +51,10 @@ where
         testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.corpus().peek_free_id();
-        let time = (current_time() - *state.start_time()).as_secs();
+        let time = current_time()
+            .checked_sub(*state.start_time())
+            .unwrap_or_default()
+            .as_secs();
         let exec = *state.executions();
 
         let file_name = format!("id_{id}_time_{time}_exec_{exec}");
@@ -84,7 +87,10 @@ where
         testcase: &mut Testcase<I>,
     ) -> Result<(), libafl::Error> {
         let CorpusId(id) = state.solutions().peek_free_id();
-        let time = (current_time() - *state.start_time()).as_secs();
+        let time = current_time()
+            .checked_sub(*state.start_time())
+            .unwrap_or_default()
+            .as_secs();
         let exec = *state.executions();
 
         let file_name = format!("id_{id}_time_{time}_exec_{exec}");
@@ -93,5 +99,6 @@ where
     }
 }
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Serialize, Deserialize, SerdeAny, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 struct CacheCorpusId(CorpusId);

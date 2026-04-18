@@ -47,6 +47,10 @@ tree-sitter = { version = "0.26" }
 tuple_list = "0.1"
 zstd = { version = "0.13", default-features = false, features = ["zstdmt"] }
 
+[workspace.lints.clippy]
+enum_glob_use = { level = "allow", priority = 1 }
+pedantic = "warn"
+
 [patch.crates-io]
 # This is a custom version with tweaks required by lsp-fuzz
 lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }

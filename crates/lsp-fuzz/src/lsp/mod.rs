@@ -57,6 +57,7 @@ impl<Head, Tail> Compose for (Head, Tail) {
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GeneratorsConfig {
     pub invalid_ranges: bool,
@@ -69,6 +70,7 @@ pub struct GeneratorsConfig {
 }
 
 impl GeneratorsConfig {
+    #[must_use]
     pub fn full() -> Self {
         Self {
             invalid_ranges: true,
@@ -84,6 +86,7 @@ impl GeneratorsConfig {
         }
     }
 
+    #[must_use]
     pub fn no_server_feedback() -> Self {
         Self {
             invalid_ranges: true,
@@ -99,6 +102,7 @@ impl GeneratorsConfig {
         }
     }
 
+    #[must_use]
     pub fn no_context_awareness() -> Self {
         Self {
             invalid_ranges: true,

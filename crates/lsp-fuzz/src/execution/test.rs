@@ -4,7 +4,7 @@ use libafl::observers::{AsanBacktraceObserver, ObserverWithHashField};
 
 #[test]
 fn rust_asan() {
-    const ASAN_LOG: &str = r#"
+    const ASAN_LOG: &str = r"
     AddressSanitizer:DEADLYSIGNAL
     =================================================================
     ==1312799==ERROR: AddressSanitizer: ABRT on unknown address 0x45930014081f (pc 0x7ffff7c8ba6c bp 0x00000014081f sp 0x7fffffffdc00 T0)
@@ -22,9 +22,9 @@ fn rust_asan() {
     SUMMARY: AddressSanitizer: ABRT (/lib64/libc.so.6+0x8ba6c) (BuildId: d78a44ae94f1d320342e0ff6c2315b2b589063f8)
     ==1312799==ABORTING
     fish: Job 1, './target/x86_64-unknown-linux-g…' terminated by signal SIGABRT (Abort)
-    "#;
+    ";
 
-    const ASAN_LOG_WO_REG: &str = r#"
+    const ASAN_LOG_WO_REG: &str = r"
     AddressSanitizer:DEADLYSIGNAL
     =================================================================
     ==1312799==ERROR: AddressSanitizer: ABRT on unknown address 0x45930014081f (pc 0x7ffff7c8ba6c bp 0x00000014081f sp 0x7fffffffdc00 T0)
@@ -36,7 +36,7 @@ fn rust_asan() {
     AddressSanitizer can not provide additional info.
     SUMMARY: AddressSanitizer: ABRT (/lib64/libc.so.6+0x8ba6c) (BuildId: d78a44ae94f1d320342e0ff6c2315b2b589063f8)
     ==1312799==ABORTING
-    "#;
+    ";
 
     let mut obs = AsanBacktraceObserver::new("test");
     let empty_hash = obs.hash();

@@ -9,13 +9,13 @@ use libafl::{
 use libafl_bolts::{Named, rands::Rand};
 
 #[derive(Debug)]
-pub struct FallbackMutator<Frist, Second> {
-    first: Frist,
+pub struct FallbackMutator<First, Second> {
+    first: First,
     second: Second,
 }
 
-impl<Frist, Second> FallbackMutator<Frist, Second> {
-    pub const fn new(first: Frist, second: Second) -> Self {
+impl<First, Second> FallbackMutator<First, Second> {
+    pub const fn new(first: First, second: Second) -> Self {
         Self { first, second }
     }
 }
@@ -41,11 +41,11 @@ where
         state: &mut State,
         input: &mut I,
     ) -> Result<MutationResult, libafl::Error> {
-        let first_reult = self.first.mutate(state, input)?;
-        if first_reult == MutationResult::Skipped {
+        let first_result = self.first.mutate(state, input)?;
+        if first_result == MutationResult::Skipped {
             self.second.mutate(state, input)
         } else {
-            Ok(first_reult)
+            Ok(first_result)
         }
     }
 
@@ -255,10 +255,9 @@ where
         state: &mut State,
         input: &mut Option<I>,
     ) -> Result<MutationResult, libafl::Error> {
-        input
-            .as_mut()
-            .map(|it| self.mutator.mutate(state, it))
-            .unwrap_or(Ok(MutationResult::Skipped))
+        input.as_mut().map_or(Ok(MutationResult::Skipped), |it| {
+            self.mutator.mutate(state, it)
+        })
     }
 
     fn post_exec(

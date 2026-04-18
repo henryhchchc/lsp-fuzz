@@ -1,4 +1,6 @@
+#[allow(clippy::wildcard_imports, reason = "There are too many")]
 use lsp_types::*;
+use ordermap::OrderMap;
 use trait_gen::trait_gen;
 use tuple_list::{TupleList, tuple_list_type};
 
@@ -347,7 +349,7 @@ impl Compose for FormattingOptions {
         Self {
             tab_size,
             insert_spaces,
-            properties: Default::default(),
+            properties: OrderMap::default(),
             trim_trailing_whitespace,
             insert_final_newline,
             trim_final_newlines,

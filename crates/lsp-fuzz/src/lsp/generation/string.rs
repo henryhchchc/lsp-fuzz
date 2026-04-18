@@ -19,6 +19,7 @@ use crate::{
 pub struct UTF8TokensGenerator;
 
 impl UTF8TokensGenerator {
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -55,6 +56,7 @@ pub struct TerminalTextGenerator<DocSel> {
 }
 
 impl<DocSel> TerminalTextGenerator<DocSel> {
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             _phantom: PhantomData,

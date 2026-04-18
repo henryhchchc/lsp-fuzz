@@ -54,7 +54,7 @@ fn find_crashing_request(
             "Sending message to target"
         );
         match target_stdin.write_all(&jsonrpc.to_lsp_payload()) {
-            Ok(_) => {}
+            Ok(()) => {}
             Err(e) if e.kind() == ErrorKind::BrokenPipe => {}
             Err(e) => Err(e).context("Sending message to target")?,
         }

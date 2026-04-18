@@ -25,6 +25,7 @@ use tracing::warn;
 
 use crate::{lsp_input::LspInput, utils::AflContext};
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, SerdeAny)]
 #[repr(transparent)]
 pub struct LastCleanupDir(u64);
@@ -82,7 +83,7 @@ where
                         dir = %workspace_dir.display(),
                         err = %err,
                         "Failed to remove workspace directory"
-                    )
+                    );
                 });
             }
         });
@@ -157,7 +158,7 @@ where
     ) -> Result<(), libafl::Error> {
         let start_time = *state.start_time();
         let current_time = libafl_bolts::current_time();
-        if current_time - start_time > self.timeout {
+        if current_time.checked_sub(start_time).unwrap_or_default() > self.timeout {
             let executions = state.executions();
             let event = EventWithStats::with_current_time(Event::Stop, *executions);
             manager.fire(state, event)?;
@@ -199,7 +200,10 @@ where
     ) -> Result<(), libafl::Error> {
         let corpus_count = state.corpus().count();
         let solutions_count = state.solutions().count();
-        let time = (current_time() - *state.start_time()).as_secs();
+        let time = current_time()
+            .checked_sub(*state.start_time())
+            .unwrap_or_default()
+            .as_secs();
         let exec = *state.executions();
 
         let cov_feedback_meta = state

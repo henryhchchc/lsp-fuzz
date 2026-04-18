@@ -105,23 +105,20 @@ pub(super) struct FuzzCommand {
 }
 
 impl FuzzCommand {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Need to put in one method for type inference"
+    )]
     pub(super) fn run(self, global_options: GlobalOptions) -> Result<(), anyhow::Error> {
         self.state.create().context("Crating state dir")?;
         let mut shmem_provider =
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
-        let binary_info = {
-            let binary_file =
-                File::open(&self.execution.lsp_executable).context("Opening fuzz target")?;
-            // SAFETY: we are assuming that the file is not touched externally.
-            let binary_file = unsafe { Mmap::map(&binary_file) }.context("Mapping fuzz target")?;
-            common::analyze_fuzz_target(&binary_file)?
-        };
-
+        let binary_info = self.check_binary().context("Checking binary")?;
         let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
             .context("Dumping map size")?;
-
         info!("Detected coverage map size: {}", map_size);
+
         let mut coverage_shmem = shmem_provider
             .new_shmem(map_size)
             .context("Creating shared memory")?;
@@ -290,5 +287,13 @@ impl FuzzCommand {
             }
             err @ Err(_) => err.context("In fuzz loop"),
         }
+    }
+
+    fn check_binary(&self) -> Result<fuzz_target::StaticTargetBinaryInfo, anyhow::Error> {
+        let binary_file =
+            File::open(&self.execution.lsp_executable).context("Opening fuzz target")?;
+        // SAFETY: we are assuming that the file is not touched externally.
+        let binary_file = unsafe { Mmap::map(&binary_file) }.context("Mapping fuzz target")?;
+        common::analyze_fuzz_target(&binary_file)
     }
 }

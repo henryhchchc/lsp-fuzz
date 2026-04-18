@@ -36,15 +36,22 @@ pub(super) struct MineCodeFragments {
 }
 
 impl MineCodeFragments {
+    #[allow(clippy::needless_pass_by_value)]
     pub(super) fn run(self, global_options: GlobalOptions) -> anyhow::Result<()> {
-        let source_files = self.find_source_files()?;
+        let MineCodeFragments {
+            search_directory,
+            language,
+            output,
+        } = self;
+        let zstd_threads = global_options.parallel_workers();
+        let source_files = find_source_files(&search_directory, language)?;
 
         info!("Found {} source files", source_files.len());
         let extracted_fragments: Vec<_> = source_files
             .into_par_iter()
             .inspect(|source_file_path| info!("Parsing: {}", source_file_path.display()))
-            .map(|source_file| extract_fragmemts(&source_file, &self.language))
-            .filter_map(|it| it.transpose())
+            .map(|source_file| extract_fragments(&source_file, language))
+            .filter_map(Result::transpose)
             .collect::<Result<_, _>>()?;
         let mut code = Vec::new();
         let mut fragments = HashMap::new();
@@ -72,57 +79,59 @@ impl MineCodeFragments {
 
         info!("Serializing fragments");
         let result = DerivationFragments::new(code, fragments);
-        write_output(&self.output, result, global_options.parallel_workers())
-            .context("Writing output")?;
+        write_output(&output, &result, zstd_threads).context("Writing output")?;
 
         Ok(())
     }
+}
 
-    fn find_source_files(&self) -> Result<Vec<PathBuf>, anyhow::Error> {
-        let extensions = self.language.file_extensions();
-        let source_files: Vec<_> = walkdir::WalkDir::new(&self.search_directory)
-            .into_iter()
-            .filter_ok(|it| {
-                it.metadata().is_ok_and(|it| it.is_file())
-                    && it
-                        .path()
-                        .extension()
-                        .map(|it| it.to_string_lossy())
-                        .is_some_and(|ext| extensions.contains(ext.as_ref()))
-            })
-            .map_ok(|it| it.into_path())
-            .try_collect()
-            .context("Searching for source file")?;
-        Ok(source_files)
-    }
+fn find_source_files(
+    search_directory: &Path,
+    language: Language,
+) -> Result<Vec<PathBuf>, anyhow::Error> {
+    let extensions = language.file_extensions();
+    let source_files: Vec<_> = walkdir::WalkDir::new(search_directory)
+        .into_iter()
+        .filter_ok(|it| {
+            it.metadata().is_ok_and(|it| it.is_file())
+                && it
+                    .path()
+                    .extension()
+                    .map(|it| it.to_string_lossy())
+                    .is_some_and(|ext| extensions.contains(ext.as_ref()))
+        })
+        .map_ok(walkdir::DirEntry::into_path)
+        .try_collect()
+        .context("Searching for source file")?;
+    Ok(source_files)
 }
 
 fn write_output(
     output_path: &Path,
-    result: DerivationFragments,
+    result: &DerivationFragments,
     zstd_threads: usize,
 ) -> Result<(), anyhow::Error> {
     let output_file = File::create(output_path).context("Creating output file")?;
     let output_writer = BufWriter::new(output_file);
     let zstd_encoder = {
         let mut enc = zstd::Encoder::new(output_writer, 19).context("Creating zstd encoder")?;
-        enc.multithread(zstd_threads as u32)
+        enc.multithread(u32::try_from(zstd_threads).context("Converting zstd thread count")?)
             .context("Setting zstd encoder threads")?;
         enc.auto_finish()
     };
-    ciborium::into_writer(&result, zstd_encoder).context("Serializing derivation fragments")?;
+    ciborium::into_writer(result, zstd_encoder).context("Serializing derivation fragments")?;
     Ok(())
 }
 
 type ExtractedFragments<'a> = (Vec<u8>, HashMap<Cow<'a, str>, Vec<Range<usize>>>);
 
-fn extract_fragmemts<'a>(
+fn extract_fragments<'a>(
     source_file_path: &Path,
-    self_language: &Language,
+    language: Language,
 ) -> anyhow::Result<Option<ExtractedFragments<'a>>> {
     let file_content = std::fs::read(source_file_path)
         .with_context(|| format!("Reading: {}", source_file_path.display()))?;
-    let mut parser = self_language.tree_sitter_parser();
+    let mut parser = language.tree_sitter_parser();
     match extract_derivation_fragments(&file_content, &mut parser) {
         Ok(fragemnts) => Ok(Some((file_content, fragemnts))),
         Err(fragment_extraction::Error::DotGraphParsing(msg)) => {

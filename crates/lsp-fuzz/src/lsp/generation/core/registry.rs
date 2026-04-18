@@ -4,12 +4,14 @@ pub struct GeneratorBag<G> {
 }
 
 impl<G> GeneratorBag<G> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             generators: Vec::new(),
         }
     }
 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             generators: Vec::with_capacity(capacity),
@@ -40,6 +42,7 @@ impl<G> GeneratorBag<G> {
         self.generators.extend(iter);
     }
 
+    #[must_use]
     pub fn finish(self) -> Vec<G> {
         self.generators
     }

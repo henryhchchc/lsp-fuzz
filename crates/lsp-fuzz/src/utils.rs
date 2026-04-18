@@ -205,13 +205,14 @@ where
 }
 
 pub fn generate_random_uri_content<R: Rand>(rand: &mut R, max_length: usize) -> String {
+    static AVAILABLE_CHARS: &str =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./";
+
     let length = if max_length > 0 {
         rand.below_or_zero(max_length) + 1 // Ensure we generate at least one character
     } else {
         0
     };
-    static AVAILABLE_CHARS: &str =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./";
 
     let mut result = String::with_capacity(length);
     for _ in 0..length {
@@ -242,8 +243,14 @@ pub trait ToLspPosition {
 impl ToLspPosition for tree_sitter::Point {
     fn to_lsp_position(&self) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.row as _,
-            character: self.column as _,
+            line: self
+                .row
+                .try_into()
+                .expect("The row is too large to fit into a LSP request"),
+            character: self
+                .column
+                .try_into()
+                .expect("The column is too large to fit into a LSP request"),
         }
     }
 }

@@ -12,12 +12,14 @@ use super::{
 };
 use crate::utils::RandExt;
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Serialize, Deserialize, libafl_bolts::SerdeAny)]
 pub struct GrammarContextLookup {
     inner: HashMap<Language, GrammarContext>,
 }
 
 impl GrammarContextLookup {
+    #[must_use]
     pub fn get(&self, language: Language) -> Option<&GrammarContext> {
         self.inner.get(&language)
     }
@@ -41,6 +43,10 @@ pub struct GrammarContext {
 }
 
 impl GrammarContext {
+    /// # Panics
+    ///
+    /// Panics if the configured tree-sitter language cannot be installed into a parser.
+    #[must_use]
     pub fn create_parser(&self) -> tree_sitter::Parser {
         let mut parser = tree_sitter::Parser::new();
         parser
@@ -49,6 +55,13 @@ impl GrammarContext {
         parser
     }
 
+    /// # Errors
+    ///
+    /// Returns a [`tree_sitter::LanguageError`] if parser creation fails for the current grammar.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `tree_sitter::Parser::parse` unexpectedly returns `None`.
     pub fn parse_source_code(
         &self,
         source_code: impl AsRef<[u8]>,
@@ -58,14 +71,17 @@ impl GrammarContext {
         Ok(tree)
     }
 
+    #[must_use]
     pub fn language(&self) -> Language {
         self.grammar.language()
     }
 
+    #[must_use]
     pub fn node_fragments(&self, node_kind: &str) -> FragmentsIter<'_> {
         self.node_fragments.get(node_kind).unwrap_or_default()
     }
 
+    #[must_use]
     pub fn start_symbol(&self) -> &str {
         self.grammar.start_symbol()
     }
@@ -94,6 +110,10 @@ where
 {
     const DEFAULT_REDURSION_LIMIT: usize = 5;
 
+    /// # Errors
+    ///
+    /// Returns [`DerivationError::NoFragmentAvailable`] when neither a derivation rule nor a
+    /// fallback fragment can be selected for `node_kind`.
     pub fn generate(&self, node_kind: &str, state: &mut State) -> Result<Vec<u8>, DerivationError> {
         self.generate_recursively(node_kind, state, Some(Self::DEFAULT_REDURSION_LIMIT))
     }
@@ -122,7 +142,7 @@ where
         } else {
             self.selection_strategy
                 .select_fragment(state, node_kind, self.grammar_context)
-                .map(|it| it.to_vec())
+                .map(<[u8]>::to_vec)
                 .ok_or(DerivationError::NoFragmentAvailable)
         }
     }
@@ -133,11 +153,11 @@ where
         term: &Terminal,
     ) -> Result<Vec<u8>, DerivationError> {
         match term {
-            Terminal::Immediate(content) => Ok(content.to_vec()),
+            Terminal::Immediate(content) => Ok(content.clone()),
             Terminal::Named(name) | Terminal::Auxiliary(name) => self
                 .selection_strategy
                 .select_fragment(state, name, self.grammar_context)
-                .map(|it| it.to_vec())
+                .map(<[u8]>::to_vec)
                 .ok_or(DerivationError::NoFragmentAvailable),
         }
     }
@@ -190,6 +210,7 @@ where
 #[derive(Debug)]
 pub struct RuleUsageSteer;
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Serialize, Deserialize, Default, libafl_bolts::SerdeAny)]
 pub struct RuleUsageStats {
     inner: ahash::HashMap<(Language, String), Vec<usize>>,
@@ -219,13 +240,13 @@ where
     ) -> Option<&'a DerivationSequence> {
         let language = grammar_context.language();
         let rules = grammar_context.grammar.derivation_rules().get(node_kind)?;
-        let stats = state.metadata_or_insert_with::<RuleUsageStats>(Default::default);
-        let stats = stats
+        let usage_stats = state.metadata_or_insert_with::<RuleUsageStats>(Default::default);
+        let rule_stats = usage_stats
             .inner
             .entry((language, node_kind.to_owned()))
             .or_insert(vec![0; rules.len()]);
-        let usage_bounds = max(1, *stats.iter().max()?);
-        let weights: Vec<_> = stats.iter().map(|it| usage_bounds - it).collect();
+        let usage_bounds = max(1, *rule_stats.iter().max()?);
+        let weights: Vec<_> = rule_stats.iter().map(|it| usage_bounds - it).collect();
 
         // Weighted selection
         let chosen_idx = state
@@ -233,14 +254,14 @@ where
             .weighted_choose(weights.into_iter().enumerate())?;
 
         // Have to reborrow which is a PITA.
-        let stats = state
+        let usage_stats = state
             .metadata_mut::<RuleUsageStats>()
             .expect("We inserted it before");
-        let stats = stats
+        let rule_stats = usage_stats
             .inner
             .get_mut(&(language, node_kind.to_owned()))
             .expect("We inserted it before");
-        stats[chosen_idx] += 1;
+        rule_stats[chosen_idx] += 1;
         rules.get_index(chosen_idx)
     }
 }
@@ -270,6 +291,7 @@ pub struct FragmentsIter<'a> {
 }
 
 impl DerivationFragments {
+    #[must_use]
     pub fn get(&self, node_kind: &str) -> Option<FragmentsIter<'_>> {
         let ranges = self.fragments.get(node_kind)?;
         Some(FragmentsIter {

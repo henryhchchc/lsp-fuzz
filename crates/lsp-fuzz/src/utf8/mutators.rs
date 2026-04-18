@@ -200,13 +200,15 @@ pub struct CharShiftMutator {
 
 impl CharShiftMutator {
     /// Create a new `CharShiftMutator` with an empty blacklist.
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            blacklisted_chars: Default::default(),
+            blacklisted_chars: HashSet::default(),
         }
     }
 
     /// Create a new `CharShiftMutator` with a custom blacklist.
+    #[must_use]
     pub fn with_blacklisted_chars(blacklisted_chars: HashSet<char>) -> Self {
         Self { blacklisted_chars }
     }

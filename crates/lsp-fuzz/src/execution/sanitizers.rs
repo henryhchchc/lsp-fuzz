@@ -40,7 +40,12 @@ pub enum LogPath {
 }
 
 /// Common sanitizer options shared between different sanitizer types
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "We are modelling ASAN options"
+)]
 pub struct SanitizerOptions {
     /// If set, use the online symbolizer from common sanitizer runtime to turn virtual addresses to file/line locations
     pub symbolize: bool,
@@ -210,7 +215,7 @@ pub struct SanitizerOptions {
     /// Program exit status if tool found an error
     pub exitcode: i32,
 
-    /// Call abort() instead of _exit() after error report
+    /// Call `abort()` instead of `_exit()` after error report
     pub abort_on_error: bool,
 
     /// Additional options file path

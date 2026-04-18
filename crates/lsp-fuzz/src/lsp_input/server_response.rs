@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{HashSet, VecDeque},
-};
+use std::{borrow::Cow, collections::HashSet};
 
 use derive_more::Debug;
 use libafl::{
@@ -16,10 +13,24 @@ use libafl_bolts::{
     Named,
     tuples::{Handle, Handled, MatchNameRef},
 };
-use lsp_types::{
-    CompletionResponse, DocumentSymbolResponse, OneOf, WorkspaceSymbolResponse,
-    notification::PublishDiagnostics,
-};
+use lsp_types::notification::PublishDiagnostics;
+
+fn collect_diagnostics(matching: &matching::RequestResponseMatching<'_>) -> HashSet<Diagnostic> {
+    let mut diagnostics = HashSet::new();
+
+    for pub_diag in matching.find_notifications::<PublishDiagnostics>() {
+        let uri = LspInput::lift_uri(&pub_diag.uri);
+        for diag_item in &pub_diag.diagnostics {
+            let diag = Diagnostic {
+                uri: uri.as_ref().clone(),
+                range: diag_item.range,
+            };
+            diagnostics.insert(diag);
+        }
+    }
+
+    diagnostics
+}
 use metadata::{Diagnostic, LspResponseInfo, ParamFragments, SymbolRange};
 use tracing::warn;
 
@@ -40,6 +51,7 @@ pub struct LspResponseFeedback {
 }
 
 impl LspResponseFeedback {
+    #[must_use]
     pub fn new(observer: &LspOutputObserver) -> Self {
         Self {
             observer_handle: observer.handle(),
@@ -101,18 +113,7 @@ where
             return Ok(());
         };
 
-        let mut diagnostics = HashSet::new();
-
-        for pub_diag in matching.find_notifications::<PublishDiagnostics>() {
-            let uri = LspInput::lift_uri(&pub_diag.uri);
-            for diag_item in pub_diag.diagnostics.iter() {
-                let diag = Diagnostic {
-                    uri: uri.as_ref().clone(),
-                    range: diag_item.range,
-                };
-                diagnostics.insert(diag);
-            }
-        }
+        let diagnostics = collect_diagnostics(&matching);
 
         let mut param_fragments = ParamFragments::default();
         let mut symbol_ranges = HashSet::new();
@@ -120,48 +121,30 @@ where
         for (req, res) in matching.responses {
             use LspResponse::*;
             match res {
-                CodeActionRequest(Some(cas)) => cas.iter().cloned().for_each(|ca| match ca {
-                    lsp_types::CodeActionOrCommand::Command(command) => {
-                        param_fragments.commands.insert(command);
-                    }
-                    lsp_types::CodeActionOrCommand::CodeAction(code_action) => {
-                        param_fragments.code_actions.insert(code_action);
-                    }
-                }),
-                InlayHintRequest(Some(inlay_hints)) => {
-                    param_fragments.inlay_hints.extend(inlay_hints);
+                CodeActionRequest(cas) => {
+                    param_fragments.collect_code_actions(cas);
                 }
-                Completion(Some(res)) => {
-                    let items = match res {
-                        CompletionResponse::Array(items) => items,
-                        CompletionResponse::List(list) => list.items,
-                    };
-                    param_fragments.completion_items.extend(items);
+                InlayHintRequest(inlay_hints) => {
+                    param_fragments.collect_inlay_hints(inlay_hints);
                 }
-                CodeLensRequest(Some(code_lens)) => {
-                    param_fragments.code_lens.extend(code_lens);
+                Completion(completion) => {
+                    param_fragments.collect_completion_items(completion);
                 }
-                WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Nested(symbols))) => {
-                    param_fragments.workspace_symbols.extend(symbols.clone());
-                    symbol_ranges.extend(symbols.into_iter().filter_map(|sym| {
-                        if let OneOf::Left(it) = sym.location {
-                            Some(SymbolRange::new(it.uri, it.range))
-                        } else {
-                            None
-                        }
-                    }));
+                CodeLensRequest(code_lens) => {
+                    param_fragments.collect_code_lens(code_lens);
                 }
-                WorkspaceSymbolRequest(Some(WorkspaceSymbolResponse::Flat(symbols)))
-                | DocumentSymbolRequest(Some(DocumentSymbolResponse::Flat(symbols))) => {
-                    symbol_ranges.extend(
-                        symbols.into_iter().map(|sym| {
-                            SymbolRange::new(sym.location.uri.clone(), sym.location.range)
-                        }),
-                    );
+                WorkspaceSymbolRequest(Some(lsp_types::WorkspaceSymbolResponse::Nested(
+                    symbols,
+                ))) => {
+                    param_fragments.collect_workspace_symbols(Some(symbols), &mut symbol_ranges);
                 }
-                DocumentSymbolRequest(Some(DocumentSymbolResponse::Nested(symbols))) => {
+                WorkspaceSymbolRequest(Some(lsp_types::WorkspaceSymbolResponse::Flat(symbols)))
+                | DocumentSymbolRequest(Some(lsp_types::DocumentSymbolResponse::Flat(symbols))) => {
+                    ParamFragments::collect_flat_symbol_ranges(Some(symbols), &mut symbol_ranges);
+                }
+                DocumentSymbolRequest(Some(lsp_types::DocumentSymbolResponse::Nested(symbols))) => {
                     if let LspMessage::DocumentSymbolRequest(req) = req {
-                        let mut queue = VecDeque::from_iter(symbols);
+                        let mut queue = std::collections::VecDeque::from_iter(symbols);
                         while let Some(symbol) = queue.pop_front() {
                             let mut symbol = symbol.clone();
                             if let Some(children) = symbol.children.take() {
@@ -174,14 +157,14 @@ where
                         }
                     }
                 }
-                TypeHierarchyPrepare(Some(items)) => {
-                    param_fragments.type_hierarchy_items.extend(items);
+                TypeHierarchyPrepare(items) => {
+                    param_fragments.collect_type_hierarchy_items(items);
                 }
-                CallHierarchyPrepare(Some(items)) => {
-                    param_fragments.call_hierarchy_items.extend(items);
+                CallHierarchyPrepare(items) => {
+                    param_fragments.collect_call_hierarchy_items(items);
                 }
-                DocumentLinkRequest(Some(links)) => {
-                    param_fragments.document_links.extend(links);
+                DocumentLinkRequest(links) => {
+                    param_fragments.collect_document_links(links);
                 }
                 _ => {}
             }

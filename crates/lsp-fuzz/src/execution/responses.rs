@@ -22,16 +22,23 @@ impl Named for LspOutputObserver {
 }
 
 impl LspOutputObserver {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             captured_messages: Vec::new(),
         }
     }
 
+    #[must_use]
     pub fn captured_messages(&self) -> &[JsonRPCMessage] {
         &self.captured_messages
     }
 
+    /// Captures every complete LSP payload available from `reader`.
+    ///
+    /// # Errors
+    ///
+    /// Returns any I/O error encountered while reading from `reader`.
     pub fn capture_stdout_content<R: BufRead>(&mut self, mut reader: R) -> io::Result<()> {
         while let Ok(message) = JsonRPCMessage::read_lsp_payload(&mut reader) {
             self.captured_messages.push(message);

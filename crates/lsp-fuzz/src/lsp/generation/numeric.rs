@@ -25,6 +25,10 @@ where
         state: &mut State,
         _input: &LspInput,
     ) -> Result<ZeroToOne32, GenerationError> {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "We are generating a random number here"
+        )]
         Ok(ZeroToOne32(state.rand_mut().next_float() as f32))
     }
 }
@@ -57,10 +61,14 @@ where
 
     fn generate(&self, state: &mut State, _input: &LspInput) -> Result<TabSize, GenerationError> {
         let rand = state.rand_mut();
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "We never exceed the range of u32"
+        )]
         let value = rand
             .choose(&self.candidates)
             .copied()
-            .unwrap_or_else(|| rand.next() as u32);
+            .unwrap_or_else(|| rand.below_or_zero(u32::MAX as usize) as u32);
         Ok(TabSize(value))
     }
 }

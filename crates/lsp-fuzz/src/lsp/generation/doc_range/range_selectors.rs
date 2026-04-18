@@ -11,13 +11,19 @@ use crate::{
     utils::{ToLspRange, ToTreeSitterPoint},
 };
 
+fn usize_to_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
 fn lsp_whole_range(doc: &TextDocument) -> Range {
     let start = lsp_types::Position::default();
     let end = doc
         .lines()
         .enumerate()
         .last()
-        .map(|(line_idx, line)| lsp_types::Position::new(line_idx as _, line.len() as _))
+        .map(|(line_idx, line)| {
+            lsp_types::Position::new(usize_to_u32(line_idx), usize_to_u32(line.len()))
+        })
         .unwrap_or_default();
     lsp_types::Range::new(start, end)
 }
@@ -38,12 +44,12 @@ pub(super) fn random_valid_range<State: HasRand>(
     let end_line_idx = rand.between(start_line_idx, lines.len() - 1);
     let end_line = lines[end_line_idx];
     let start = Position {
-        line: start_line_idx as u32,
-        character: rand.below_or_zero(start_line.len()) as u32,
+        line: usize_to_u32(start_line_idx),
+        character: usize_to_u32(rand.below_or_zero(start_line.len())),
     };
     let end = Position {
-        line: end_line_idx as u32,
-        character: rand.below_or_zero(end_line.len()) as u32,
+        line: usize_to_u32(end_line_idx),
+        character: usize_to_u32(rand.below_or_zero(end_line.len())),
     };
     Range { start, end }
 }
@@ -55,12 +61,12 @@ pub(super) fn random_invalid_range<const MAX_RAND: usize, State: HasRand>(
 ) -> Range {
     let rand = state.rand_mut();
     let start = Position {
-        line: rand.below_or_zero(MAX_RAND) as u32,
-        character: rand.below_or_zero(MAX_RAND) as u32,
+        line: usize_to_u32(rand.below_or_zero(MAX_RAND)),
+        character: usize_to_u32(rand.below_or_zero(MAX_RAND)),
     };
     let end = Position {
-        line: rand.below_or_zero(MAX_RAND) as u32,
-        character: rand.below_or_zero(MAX_RAND) as u32,
+        line: usize_to_u32(rand.below_or_zero(MAX_RAND)),
+        character: usize_to_u32(rand.below_or_zero(MAX_RAND)),
     };
     Range { start, end }
 }

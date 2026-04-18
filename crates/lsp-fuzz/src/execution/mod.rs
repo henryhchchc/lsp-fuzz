@@ -3,7 +3,7 @@ use std::{
     fs,
     io::{self, BufReader, Seek, Write},
     marker::PhantomData,
-    mem::{self, transmute},
+    mem,
     os::fd::AsFd,
     path::PathBuf,
 };
@@ -53,6 +53,11 @@ pub enum FuzzInput<SHM> {
 }
 
 impl<SHM: ShMem> FuzzInput<SHM> {
+    /// Sends a serialized fuzz input to the target using the configured transport.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input cannot be written to the underlying file or shared memory.
     pub fn send(&mut self, input_bytes: &[u8]) -> Result<(), libafl::Error> {
         match self {
             FuzzInput::Stdin(file) | FuzzInput::File(file) => file.write_buf(input_bytes),
@@ -127,6 +132,12 @@ where
     SHM: ShMem,
 {
     /// Create and initialize a new LSP executor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the fork server cannot be initialized, the output capture file cannot
+    /// be created, or the target's runtime options are incompatible with the configured observers
+    /// or input transport.
     pub fn start<A>(
         target_info: FuzzTargetInfo,
         mut config: FuzzExecutionConfig<'_, SHM, MO, OBS>,
@@ -135,7 +146,7 @@ where
         MO: AsRef<A> + AsMut<A>,
         A: Truncate + HasLen + MapObserver,
     {
-        let args = target_info.args.into_iter().map(|it| it.into()).collect();
+        let args = target_info.args.into_iter().map(Into::into).collect();
 
         let mut asan_options = vec![
             "detect_odr_violation=0",
@@ -219,7 +230,7 @@ where
             map_observer: config.map_observer,
             responses_observer: config.responses_observer,
             asan_observer: config.asan_observer,
-            other_observers: config.other_observers,
+            extra: config.other_observers,
         };
 
         Ok(Self {
@@ -249,7 +260,7 @@ pub struct Observers<MO, OBS> {
     map_observer: MO,
     asan_observer: Option<AsanBacktraceObserver>,
     responses_observer: LspOutputObserver,
-    other_observers: OBS,
+    extra: OBS,
 }
 
 impl<MO, OBS> MatchName for Observers<MO, OBS>
@@ -259,35 +270,33 @@ where
 {
     fn match_name<T>(&self, name: &str) -> Option<&T> {
         if type_eq::<T, MO>() && self.map_observer.name() == name {
-            Some(unsafe { transmute::<&MO, &T>(&self.map_observer) })
+            Some(unsafe { &*(&raw const self.map_observer).cast::<T>() })
         } else if let Some(ref asan_observer) = self.asan_observer
             && type_eq::<T, AsanBacktraceObserver>()
             && asan_observer.name() == name
         {
-            Some(unsafe { transmute::<&AsanBacktraceObserver, &T>(asan_observer) })
+            Some(unsafe { &*std::ptr::from_ref(asan_observer).cast::<T>() })
         } else if type_eq::<T, LspOutputObserver>() && self.responses_observer.name() == name {
-            Some(unsafe { transmute::<&LspOutputObserver, &T>(&self.responses_observer) })
+            Some(unsafe { &*(&raw const self.responses_observer).cast::<T>() })
         } else {
             #[allow(deprecated, reason = "Fallback call")]
-            self.other_observers.match_name(name)
+            self.extra.match_name(name)
         }
     }
 
     fn match_name_mut<T>(&mut self, name: &str) -> Option<&mut T> {
         if type_eq::<T, MO>() && self.map_observer.name() == name {
-            Some(unsafe { transmute::<&mut MO, &mut T>(&mut self.map_observer) })
+            Some(unsafe { &mut *(&raw mut self.map_observer).cast::<T>() })
         } else if let Some(ref mut asan_observer) = self.asan_observer
             && type_eq::<T, AsanBacktraceObserver>()
             && asan_observer.name() == name
         {
-            Some(unsafe { transmute::<&mut AsanBacktraceObserver, &mut T>(asan_observer) })
+            Some(unsafe { &mut *std::ptr::from_mut(asan_observer).cast::<T>() })
         } else if type_eq::<T, LspOutputObserver>() && self.responses_observer.name() == name {
-            Some(unsafe {
-                transmute::<&mut LspOutputObserver, &mut T>(&mut self.responses_observer)
-            })
+            Some(unsafe { &mut *(&raw mut self.responses_observer).cast::<T>() })
         } else {
             #[allow(deprecated, reason = "Fallback call")]
-            self.other_observers.match_name_mut(name)
+            self.extra.match_name_mut(name)
         }
     }
 }
@@ -303,7 +312,7 @@ where
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.pre_exec(state, input)?;
         }
-        self.other_observers.pre_exec_all(state, input)?;
+        self.extra.pre_exec_all(state, input)?;
         Ok(())
     }
 
@@ -313,8 +322,7 @@ where
         input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), libafl::Error> {
-        self.other_observers
-            .post_exec_all(state, input, exit_kind)?;
+        self.extra.post_exec_all(state, input, exit_kind)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.post_exec(state, input, exit_kind)?;
         }
@@ -329,7 +337,7 @@ where
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.pre_exec_child(state, input)?;
         }
-        self.other_observers.pre_exec_child_all(state, input)?;
+        self.extra.pre_exec_child_all(state, input)?;
         Ok(())
     }
 
@@ -339,8 +347,7 @@ where
         input: &I,
         exit_kind: &ExitKind,
     ) -> Result<(), libafl::Error> {
-        self.other_observers
-            .post_exec_child_all(state, input, exit_kind)?;
+        self.extra.post_exec_child_all(state, input, exit_kind)?;
         if let Some(ref mut asan_observer) = self.asan_observer {
             asan_observer.post_exec_child(state, input, exit_kind)?;
         }
@@ -396,8 +403,7 @@ where
             let exitcode_is_crash = self
                 .crash_exit_code
                 .filter(|_| libc::WIFEXITED(status))
-                .map(|it| libc::WEXITSTATUS(status) as i8 == it)
-                .unwrap_or_default();
+                .is_some_and(|it| libc::WEXITSTATUS(status) == i32::from(it));
             if libc::WIFSIGNALED(status) || exitcode_is_crash {
                 ExitKind::Crash
             } else {

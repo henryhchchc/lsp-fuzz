@@ -16,6 +16,12 @@ use super::upstream::tree_sitter_generate::{
 use crate::text_document::grammar::{CreationError, DerivationSequence, Grammar, Symbol, Terminal};
 
 impl Grammar {
+    /// Builds a [`Grammar`] from a tree-sitter grammar JSON definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CreationError`] if the tree-sitter grammar cannot be parsed,
+    /// prepared, or converted into the internal grammar representation.
     pub fn from_tree_sitter_grammar_json(
         language: Language,
         grammar_json: &str,
@@ -24,14 +30,14 @@ impl Grammar {
             parse_grammar(grammar_json).map_err(|e| CreationError::TreeSitter(e.into()))?;
         let (syntax_grammar, lexical_grammar, _inlined_prod, aliases) =
             prepare_grammar(&input_grammar).map_err(|e| CreationError::TreeSitter(e.into()))?;
-        Self::from_tree_sitter_grammar(language, syntax_grammar, lexical_grammar, aliases)
+        Self::from_tree_sitter_grammar(language, &syntax_grammar, &lexical_grammar, &aliases)
     }
 
     pub(crate) fn from_tree_sitter_grammar(
         language: lsp_fuzz_grammars::Language,
-        syntax_grammar: SyntaxGrammar,
-        lexical_grammar: LexicalGrammar,
-        alias_map: AliasMap,
+        syntax_grammar: &SyntaxGrammar,
+        lexical_grammar: &LexicalGrammar,
+        alias_map: &AliasMap,
     ) -> Result<Self, CreationError> {
         let start_symbol = syntax_grammar
             .variables
@@ -43,12 +49,7 @@ impl Grammar {
             .variables
             .iter()
             .map(|syntax_variable| {
-                convert_rule(
-                    syntax_variable,
-                    &syntax_grammar,
-                    &lexical_grammar,
-                    &alias_map,
-                )
+                convert_rule(syntax_variable, syntax_grammar, lexical_grammar, alias_map)
             })
             .try_collect()?;
         Ok(Self::new(language, start_symbol, derivation_rules))

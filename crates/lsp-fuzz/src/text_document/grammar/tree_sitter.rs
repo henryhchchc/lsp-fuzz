@@ -112,13 +112,18 @@ pub struct CapturesIterator<'doc> {
 impl Debug for CapturesIterator<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CapturesIterator")
-            .field("captures", &(&self.captures as *const _))
+            .field("captures", &(&raw const self.captures))
             .field("capture_index", &self.capture_index)
             .finish()
     }
 }
 
 impl<'doc> CapturesIterator<'doc> {
+    /// Creates an iterator over captures matching `group_name` in the document's highlight query.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `QueryCursor::into_raw()` unexpectedly returns a null pointer.
     pub fn new<Name>(doc: &'doc TextDocument, group_name: Name) -> Option<Self>
     where
         Name: AsRef<str>,
@@ -174,18 +179,22 @@ pub trait TSNodeExt {
     fn lsp_end_position(&self) -> lsp_types::Position;
 }
 
+fn ts_point_component_to_u32(value: usize) -> u32 {
+    u32::try_from(value).expect("tree-sitter point components should fit in u32")
+}
+
 impl TSNodeExt for tree_sitter::Node<'_> {
     fn lsp_start_position(&self) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.start_position().row as u32,
-            character: self.start_position().column as u32,
+            line: ts_point_component_to_u32(self.start_position().row),
+            character: ts_point_component_to_u32(self.start_position().column),
         }
     }
 
     fn lsp_end_position(&self) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.end_position().row as u32,
-            character: self.end_position().column as u32,
+            line: ts_point_component_to_u32(self.end_position().row),
+            character: ts_point_component_to_u32(self.end_position().column),
         }
     }
 }

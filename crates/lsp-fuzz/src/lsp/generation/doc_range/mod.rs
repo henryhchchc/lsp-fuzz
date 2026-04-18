@@ -66,6 +66,10 @@ where
         state: &mut State,
         input: &LspInput,
     ) -> Result<Self::Output, GenerationError> {
+        fn usize_to_u32(value: usize) -> u32 {
+            u32::try_from(value).unwrap_or(u32::MAX)
+        }
+
         let generate = |state: &mut State, _input: &LspInput| -> Option<Selection> {
             let rand = state.rand_mut();
             let uri_content = generate_random_uri_content(rand, 256);
@@ -74,8 +78,8 @@ where
             );
             let mut random_pos = || -> lsp_types::Position {
                 lsp_types::Position {
-                    line: rand.below_or_zero(1024) as u32,
-                    character: rand.below_or_zero(1024) as u32,
+                    line: usize_to_u32(rand.below_or_zero(1024)),
+                    character: usize_to_u32(rand.below_or_zero(1024)),
                 }
             };
             let start = random_pos();
@@ -102,9 +106,9 @@ where
     where
         State: HasRand,
     {
-        let mut generators: GeneratorBag<Self::Generator> = GeneratorBag::with_capacity(16);
-
         type RINDGen<State> = RangeInDocGenerator<State, RandomDoc>;
+
+        let mut generators: GeneratorBag<Self::Generator> = GeneratorBag::with_capacity(16);
         if config.ctx_awareness {
             generators.push(Rc::new(RINDGen::new(range_selectors::whole_range)) as _);
             generators.push_weighted(
@@ -146,7 +150,7 @@ where
             }
         } else {
             generators.push_weighted(Rc::new(InvalidSelectionGenerator::new()) as _, 5);
-        };
+        }
 
         generators.finish()
     }

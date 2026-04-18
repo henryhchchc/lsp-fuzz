@@ -20,17 +20,19 @@ pub struct FileSystemDirectory<F> {
 impl<F> Default for FileSystemDirectory<F> {
     fn default() -> Self {
         Self {
-            inner: Default::default(),
+            inner: OrderMap::default(),
         }
     }
 }
 
 impl<F> FileSystemDirectory<F> {
     /// Returns if the directory is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&FileSystemEntry<F>> {
         if let Some((dir_name, remainder)) = name.split_once(path::MAIN_SEPARATOR)
             && let Some(dir_entry @ FileSystemEntry::Directory(inner_dir)) =
@@ -46,6 +48,7 @@ impl<F> FileSystemDirectory<F> {
         }
     }
 
+    #[must_use]
     pub fn iter(&self) -> FileSystemIter<'_, F> {
         let queue = self
             .inner
@@ -71,12 +74,17 @@ impl<F> FileSystemDirectory<F> {
         FilesIterMut { queue }
     }
 
+    /// Writes this virtual directory tree into `root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns any I/O error raised while creating directories or writing files.
     pub fn write_to_fs(&self, root: &Path) -> std::io::Result<()>
     where
         F: HasTargetBytes,
     {
         std::fs::create_dir_all(root)?;
-        for (path, entry) in self.iter() {
+        for (path, entry) in self {
             let item_path = root.join(path);
             match entry {
                 FileSystemEntry::File(file) => {
@@ -105,6 +113,15 @@ impl<F: HasLen> HasLen for FileSystemDirectory<F> {
             .iter()
             .map(|(name, content)| name.len() + content.len())
             .sum()
+    }
+}
+
+impl<'a, F> IntoIterator for &'a FileSystemDirectory<F> {
+    type Item = (PathBuf, &'a FileSystemEntry<F>);
+    type IntoIter = FileSystemIter<'a, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -141,6 +158,7 @@ impl<F> FileSystemEntry<F> {
         }
     }
 
+    #[must_use]
     pub fn iter(&self) -> FileSystemIter<'_, F> {
         match self {
             file @ Self::File(_) => FileSystemIter {
@@ -164,6 +182,15 @@ impl<F> FileSystemEntry<F> {
             },
             Self::Directory(dir) => dir.iter_files_mut(),
         }
+    }
+}
+
+impl<'a, F> IntoIterator for &'a FileSystemEntry<F> {
+    type Item = (PathBuf, &'a FileSystemEntry<F>);
+    type IntoIter = FileSystemIter<'a, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 

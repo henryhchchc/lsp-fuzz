@@ -98,7 +98,7 @@ impl FuzzInputSetup<'_> {
     }
 }
 
-/// Convert from a FuzzInput to a FuzzInputSetup
+/// Convert from a [`FuzzInput`] to a [`FuzzInputSetup`].
 impl<'a, SHM: ShMem> From<&'a FuzzInput<SHM>> for FuzzInputSetup<'a> {
     fn from(value: &'a FuzzInput<SHM>) -> Self {
         match value {
@@ -170,6 +170,7 @@ impl Drop for NeoForkServer {
 
 /// Configuration options for creating a new fork server.
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct NeoForkServerOptions<'a> {
     /// Path to the target executable
     pub target: OsString,
@@ -193,6 +194,7 @@ pub struct NeoForkServerOptions<'a> {
     pub debug_output: bool,
     /// Signal to use when killing child processes
     pub kill_signal: Signal,
+    /// File descriptor used to capture the target's stdout stream.
     pub stdout_capture_fd: BorrowedFd<'a>,
 }
 
@@ -203,6 +205,10 @@ impl NeoForkServer {
     /// 1. Sets up communication pipes with the target
     /// 2. Configures the target process with environment variables and limits
     /// 3. Spawns the initial fork server process
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if pipe setup, process configuration, or spawning the fork server fails.
     pub fn new(options: NeoForkServerOptions<'_>) -> Result<Self, libafl::Error> {
         let NeoForkServerOptions {
             target,
@@ -307,7 +313,7 @@ impl NeoForkServer {
         // Increase stack size to avoid stack overflows due to address sanitizer
         let increase_stack_size = || {
             use nix::sys::resource::{Resource, setrlimit};
-            const STACK_SIZE: libc::rlim_t = 0x1E00000;
+            const STACK_SIZE: libc::rlim_t = 0x01E0_0000;
             setrlimit(Resource::RLIMIT_STACK, STACK_SIZE, STACK_SIZE).map_err(io::Error::from)
         };
         unsafe { command.pre_exec(increase_stack_size) };
@@ -343,7 +349,7 @@ impl NeoForkServer {
         check_version(handshake_msg)?;
 
         // Compute and send the handshake response (inverted message)
-        let handshake_response = handshake_msg as u32 ^ 0xffffffff;
+        let handshake_response = handshake_msg.cast_unsigned() ^ 0xffff_ffff;
         self.write_u32(handshake_response)
             .afl_context("Failed to write handshake response to fork server")?;
 
@@ -356,6 +362,10 @@ impl NeoForkServer {
     /// 1. Performs the initial handshake
     /// 2. Reads capability flags from the fork server
     /// 3. Retrieves target-specific information like map size and dictionary
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handshake fails or the fork server reports invalid capabilities.
     pub fn initialize(&mut self) -> Result<ForkServerTargetInfo, libafl::Error> {
         // Perform initial handshake
         let handshake_msg = self.handshake().afl_context("Handshake failed")?;
@@ -368,7 +378,15 @@ impl NeoForkServer {
             .afl_context("Fail to parse option flags from fork server.")?;
         let map_size = flags
             .contains(ForkServerFlags::MAP_SIZE)
-            .then(|| self.read_i32().map(|it| it as usize))
+            .then(|| {
+                self.read_i32().and_then(|it| {
+                    usize::try_from(it).map_err(|_| {
+                        libafl::Error::illegal_state(format!(
+                            "Map size reported by fork server must be non-negative, got {it}"
+                        ))
+                    })
+                })
+            })
             .transpose()
             .afl_context("Fail to read map size from fork server.")?;
         let shmem_fuzz = flags.contains(ForkServerFlags::SHMEM_FUZZ);
@@ -379,7 +397,7 @@ impl NeoForkServer {
             let autotokens_size = self
                 .read_i32()
                 .afl_context("Failed to read autodict size from fork server")?;
-            let tokens_size_max = 0xffffff;
+            let tokens_size_max = 0x00ff_ffff;
 
             // Validate dictionary size
             if !(2..=tokens_size_max).contains(&autotokens_size) {
@@ -394,7 +412,11 @@ impl NeoForkServer {
 
             // Read the dictionary data
             let autotokens = self
-                .read_vec(autotokens_size as usize)
+                .read_vec(usize::try_from(autotokens_size).map_err(|_| {
+                    libafl::Error::illegal_state(format!(
+                        "Autodict size reported by fork server must be non-negative, got {autotokens_size}"
+                    ))
+                })?)
                 .afl_context("Failed to read autodict data from fork server")?;
 
             Some(autotokens)
@@ -424,6 +446,10 @@ impl NeoForkServer {
     /// Run a child process through the fork server with a timeout.
     ///
     /// Returns the process ID and exit status (if the process completed within timeout).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fork server communication fails or a timed-out child cannot be killed.
     pub fn run_child(&mut self, timeout: &TimeSpec) -> Result<(Pid, Option<i32>), libafl::Error> {
         while nix::sys::wait::waitpid(None, Some(WaitPidFlag::WNOHANG))
             .afl_context("Waiting for child processes")?
@@ -457,7 +483,7 @@ impl NeoForkServer {
         if self.last_run_timed_out {
             // Try to kill the child process
             match nix::sys::signal::kill(pid, self.kill_signal) {
-                Ok(_) | Err(Errno::ESRCH) => {
+                Ok(()) | Err(Errno::ESRCH) => {
                     // It's OK if the child already terminated
                 }
                 Err(errno) => {
@@ -516,6 +542,10 @@ impl NeoForkServer {
     ///
     /// Returns Some(status) if data is received within the timeout period,
     /// or None if the timeout expires.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if waiting on or reading from the fork server status pipe fails.
     fn read_st_timed(&mut self, timeout: &TimeSpec) -> Result<Option<i32>, libafl::Error> {
         let st_read = self.rx.as_raw_fd();
 
@@ -558,14 +588,14 @@ mod version {
     /// Maximum supported fork server protocol version
     pub const MAX: u32 = 1;
     /// AFL protocol magic number base
-    pub const AFL_MAGIC_BASE: u32 = 0x41464c00;
+    pub const AFL_MAGIC_BASE: u32 = 0x4146_4c00;
 }
 
 // Error codes reported by the fork server
 mod fs_error {
     /// Error flag in handshake message
     #[allow(clippy::cast_possible_wrap)]
-    pub const ERROR_FLAG: i32 = 0xeffe0000_u32 as i32;
+    pub const ERROR_FLAG: i32 = 0xeffe_0000_u32 as i32;
 
     // Specific error codes
     pub const MAP_SIZE: i32 = 1 << 0;
@@ -582,10 +612,14 @@ mod fs_error {
 /// This verifies:
 /// 1. The message contains a valid AFL magic number
 /// 2. The protocol version is within supported range
+///
+/// # Errors
+///
+/// Returns an error if the handshake does not encode a supported AFL++ fork server version.
 pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
     // Check for valid AFL magic number range
-    if !(version::AFL_MAGIC_BASE as i32 <= handshake_msg
-        && handshake_msg <= (version::AFL_MAGIC_BASE + 0xff) as i32)
+    if !(version::AFL_MAGIC_BASE.cast_signed() <= handshake_msg
+        && handshake_msg <= (version::AFL_MAGIC_BASE + 0xff).cast_signed())
     {
         return Err(libafl::Error::unknown(
             "Old fork server model is used by the target, it is no longer supported",
@@ -593,7 +627,7 @@ pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
     }
 
     // Extract version from the handshake message
-    let version = (handshake_msg as u32) - version::AFL_MAGIC_BASE;
+    let version = handshake_msg.cast_unsigned() - version::AFL_MAGIC_BASE;
 
     match version {
         0 => Err(libafl::Error::unknown(
@@ -610,11 +644,15 @@ pub(super) fn check_version(handshake_msg: i32) -> Result<(), libafl::Error> {
 ///
 /// If errors are detected, returns a user-friendly error message
 /// with guidance on how to fix the issue.
+///
+/// # Errors
+///
+/// Returns an error if the target encoded a known or unknown fork server startup failure.
 pub(super) fn check_handshake_error_bits(handshake_msg: i32) -> Result<(), libafl::Error> {
     // Check if error flag is set
     if (handshake_msg & fs_error::ERROR_FLAG) == fs_error::ERROR_FLAG {
         // Extract the specific error code
-        let error_code = handshake_msg & 0x0000ffff;
+        let error_code = handshake_msg & 0x0000_ffff;
 
         // Map error code to a specific error message
         let error_message = match error_code {
