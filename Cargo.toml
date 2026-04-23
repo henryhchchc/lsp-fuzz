@@ -29,7 +29,7 @@ lsp-types = { version = "0.97", features = ["hash"] }
 memmap2 = "0.9"
 nix = { version = "0.31", features = ["fs", "poll", "resource", "signal"] }
 num_cpus = "1.17"
-ordermap = { version = "1.1", features = ["serde"] }
+ordermap = { version = "1.2", features = ["serde"] }
 os_pipe = "1.2"
 rayon = "1.12"
 serde = "1.0"
