@@ -10,7 +10,7 @@ derive_more.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
 tree-sitter-bibtex = { git = "https://github.com/henryhchchc/tree-sitter-bibtex.git", branch = "master" }
-tree-sitter-c = "0.24.1"
+tree-sitter-c = "0.24.2"
 tree-sitter-cpp = "0.23.4"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-language = "0.1.7"
