@@ -397,6 +397,7 @@ where
         self.clear_output_capture_file()
             .afl_context("Clearing output capture file")?;
 
+        self.observers.pre_exec_child_all(state, input)?;
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
         let exit_kind = if let Some(status) = status {
@@ -412,6 +413,8 @@ where
         } else {
             ExitKind::Timeout
         };
+        self.observers
+            .post_exec_child_all(state, input, &exit_kind)?;
         if exit_kind == ExitKind::Ok {
             self.output_capture_file
                 .rewind()
