@@ -29,8 +29,6 @@ where
     type Generator = ParamFragmentGenerator<T>;
 
     fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
-        [ParamFragmentGenerator::new(
-            config.awareness.feedback_guidance && config.awareness.context,
-        )]
+        [ParamFragmentGenerator::new(config.use_feedback_guidance())]
     }
 }

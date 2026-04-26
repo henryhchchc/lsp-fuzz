@@ -1,11 +1,14 @@
-use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
+use std::{marker::PhantomData, result::Result, str::FromStr};
 
 use derive_new::new as New;
 use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier, Uri};
 
-use super::{FallbackGenerator, GenerationError, GeneratorBag, LspParamsGenerator};
+use super::{
+    DynGenerator, FallbackGenerator, GenerationError, LspParamsGenerator, WeightedGeneratorList,
+    boxed_generator,
+};
 use crate::{
     lsp::HasGenerators,
     lsp_input::LspInput,
@@ -19,7 +22,9 @@ use crate::{
 mod range_selectors;
 
 #[derive(Debug)]
-pub struct Selection(pub TextDocumentIdentifier, pub Range);
+pub struct DocumentSelection(pub TextDocumentIdentifier, pub Range);
+
+pub type Selection = DocumentSelection;
 
 #[derive(Debug, New)]
 pub struct RangeInDocGenerator<State, D = RandomDoc> {
@@ -40,7 +45,7 @@ impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>
 where
     D: TextDocumentSelector<State>,
 {
-    type Output = Selection;
+    type Output = DocumentSelection;
 
     fn generate(
         &self,
@@ -51,7 +56,7 @@ where
             D::select_document(state, input).ok_or(GenerationError::NothingGenerated)?;
         let range = (self.range_selector)(state, &uri, doc);
         let doc = TextDocumentIdentifier { uri };
-        Ok(Selection(doc, range))
+        Ok(DocumentSelection(doc, range))
     }
 }
 
@@ -59,7 +64,7 @@ impl<State> LspParamsGenerator<State> for InvalidSelectionGenerator
 where
     State: HasRand,
 {
-    type Output = Selection;
+    type Output = DocumentSelection;
 
     fn generate(
         &self,
@@ -70,7 +75,7 @@ where
             u32::try_from(value).unwrap_or(u32::MAX)
         }
 
-        let generate = |state: &mut State, _input: &LspInput| -> Option<Selection> {
+        let generate = |state: &mut State, _input: &LspInput| -> Option<DocumentSelection> {
             let rand = state.rand_mut();
             let uri_content = generate_random_uri_content(rand, 256);
             let random_uri = lsp_types::Uri::from(
@@ -85,7 +90,7 @@ where
             let start = random_pos();
             let end = random_pos();
 
-            Some(Selection(
+            Some(DocumentSelection(
                 TextDocumentIdentifier { uri: random_uri },
                 Range { start, end },
             ))
@@ -94,11 +99,11 @@ where
     }
 }
 
-impl<State> HasGenerators<State> for Selection
+impl<State> HasGenerators<State> for DocumentSelection
 where
     State: HasRand + HasCurrentTestcase<LspInput> + 'static,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Selection>>;
+    type Generator = DynGenerator<State, DocumentSelection>;
 
     fn generators(
         config: &crate::lsp::GeneratorsConfig,
@@ -108,20 +113,21 @@ where
     {
         type RINDGen<State> = RangeInDocGenerator<State, RandomDoc>;
 
-        let mut generators: GeneratorBag<Self::Generator> = GeneratorBag::with_capacity(16);
-        if config.awareness.context {
-            generators.push(Rc::new(RINDGen::new(range_selectors::whole_range)) as _);
+        let mut generators: WeightedGeneratorList<Self::Generator> =
+            WeightedGeneratorList::with_capacity(16);
+        if config.use_context() {
+            generators.push(boxed_generator(RINDGen::new(range_selectors::whole_range)));
             generators.push_weighted(
-                Rc::new(RINDGen::new(range_selectors::random_valid_range)) as _,
+                boxed_generator(RINDGen::new(range_selectors::random_valid_range)),
                 2,
             );
-            if config.awareness.grammar_ops {
+            if config.use_grammar_ops() {
                 generators.push_weighted(
-                    Rc::new(RINDGen::new(range_selectors::subtree_node_type)) as _,
+                    boxed_generator(RINDGen::new(range_selectors::subtree_node_type)),
                     5,
                 );
             }
-            if config.invalid_input.ranges {
+            if config.allow_invalid_ranges() {
                 generators.extend(
                     [
                         RINDGen::new(range_selectors::after_range),
@@ -129,27 +135,27 @@ where
                         RINDGen::new(range_selectors::random_invalid_range::<256, _>),
                     ]
                     .into_iter()
-                    .map(Rc::new)
-                    .map(|it| it as _),
+                    .map(boxed_generator),
                 );
             }
-            if config.awareness.feedback_guidance {
+            if config.use_feedback_guidance() {
                 let subtree = RINDGen::new(range_selectors::subtree_node_type);
                 let fallback = |range_gen| FallbackGenerator::new(range_gen, subtree.clone());
 
-                generators
-                    .push(Rc::new(fallback(RINDGen::new(range_selectors::diagnosed_range))) as _);
+                generators.push(boxed_generator(fallback(RINDGen::new(
+                    range_selectors::diagnosed_range,
+                ))));
                 generators.push_weighted(
-                    Rc::new(fallback(RINDGen::new(range_selectors::diagnosed_parent))) as _,
+                    boxed_generator(fallback(RINDGen::new(range_selectors::diagnosed_parent))),
                     2,
                 );
                 generators.push_weighted(
-                    Rc::new(fallback(RINDGen::new(range_selectors::symbols_range))) as _,
+                    boxed_generator(fallback(RINDGen::new(range_selectors::symbols_range))),
                     4,
                 );
             }
         } else {
-            generators.push_weighted(Rc::new(InvalidSelectionGenerator::new()) as _, 5);
+            generators.push_weighted(boxed_generator(InvalidSelectionGenerator::new()), 5);
         }
 
         generators.finish()

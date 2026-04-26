@@ -1,4 +1,4 @@
-use std::{any::type_name, borrow::Cow, fmt::Debug, iter::repeat, marker::PhantomData, mem};
+use std::{borrow::Cow, marker::PhantomData, mem};
 
 use derive_more::derive::{Deref, DerefMut};
 use derive_new::new as New;
@@ -12,28 +12,25 @@ use libafl_bolts::{
     rands::Rand,
     tuples::{Merge, NamedTuple},
 };
-use lsp_fuzz_grammars::WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES;
-use lsp_types::{PartialResultParams, Uri, WorkDoneProgressParams};
+use lsp_types::Uri;
 use serde::{Deserialize, Deserializer, Serialize};
-use trait_gen::trait_gen;
 use tuple_list::{tuple_list, tuple_list_type};
 
 use super::LspInput;
 use crate::{
     lsp::{
-        self, GeneratorsConfig, HasGenerators, LspMessage, LspMessageMeta, MessageParam,
+        self, GeneratorsConfig,
         code_context::CodeContextRef,
-        generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
+        generation::registration::{
+            append_diagnostic_messages, append_formatting_messages, append_hierarchy_messages,
+            append_navigation_messages, append_symbol_messages, append_tracing_misc_messages,
+            append_workspace_messages,
+        },
         json_rpc::MessageId,
     },
     lsp_input::message_edit,
-    macros::{append_randoms, prop_mutator},
+    macros::prop_mutator,
     mutators::SliceSwapMutator,
-    text_document::{
-        TextDocument,
-        grammar::tree_sitter::{CapturesIterator, TSNodeExt},
-    },
-    utils::{RandExt, ToLspPosition},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deref, DerefMut)]
@@ -101,146 +98,6 @@ impl HasLen for LspMessageSequence {
     }
 }
 
-pub trait PositionSelector<State> {
-    fn select_position(&self, state: &mut State, doc: &TextDocument)
-    -> Option<lsp_types::Position>;
-}
-
-#[derive(Debug, New)]
-pub struct RandomPosition {
-    rand_max: usize,
-}
-
-impl<State> PositionSelector<State> for RandomPosition
-where
-    State: HasRand,
-{
-    fn select_position(
-        &self,
-        state: &mut State,
-        _doc: &TextDocument,
-    ) -> Option<lsp_types::Position> {
-        let rand = state.rand_mut();
-        let line = u32::try_from(rand.between(0, self.rand_max)).ok()?;
-        let character = u32::try_from(rand.between(0, self.rand_max)).ok()?;
-        Some(lsp_types::Position { line, character })
-    }
-}
-
-#[derive(Debug, New)]
-pub struct ValidPosition;
-
-impl<State> PositionSelector<State> for ValidPosition
-where
-    State: HasRand,
-{
-    fn select_position(
-        &self,
-        state: &mut State,
-        doc: &TextDocument,
-    ) -> Option<lsp_types::Position> {
-        let positions = doc
-            .lines()
-            .enumerate()
-            .flat_map(|(idx, line)| (0..line.len()).map(move |char| (idx, char)));
-        let (line, char) = state.rand_mut().choose(positions)?;
-        Some(lsp_types::Position {
-            line: u32::try_from(line).ok()?,
-            character: u32::try_from(char).ok()?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, New)]
-pub struct NodeTypeBalancingSelection;
-
-impl<State> PositionSelector<State> for NodeTypeBalancingSelection
-where
-    State: HasRand,
-{
-    fn select_position(
-        &self,
-        state: &mut State,
-        doc: &TextDocument,
-    ) -> Option<lsp_types::Position> {
-        let (_signature, nodes) = state.rand_mut().choose(&doc.metadata().node_signatures)?;
-        let node = state.rand_mut().choose(nodes)?;
-        Some(node.to_lsp_position())
-    }
-}
-
-#[derive(Debug, Clone, Copy, New)]
-pub struct HighlightSteer;
-
-#[derive(Debug, Serialize, Deref, DerefMut, libafl_bolts::SerdeAny)]
-pub struct HighlightGroupUsageMetadata {
-    #[deref]
-    #[deref_mut]
-    inner: ahash::HashMap<String, usize>,
-}
-
-impl<'de> Deserialize<'de> for HighlightGroupUsageMetadata {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct HighlightGroupUsageMetadataRepr {
-            inner: ahash::HashMap<String, usize>,
-        }
-
-        HighlightGroupUsageMetadataRepr::deserialize(deserializer)
-            .map(|repr| Self { inner: repr.inner })
-    }
-}
-
-impl HighlightGroupUsageMetadata {
-    pub fn new<Names, Name>(highlight_group_names: Names) -> Self
-    where
-        Names: IntoIterator<Item = Name>,
-        Name: Into<String>,
-    {
-        let inner = highlight_group_names
-            .into_iter()
-            .map(Into::into)
-            .zip(repeat(0))
-            .collect();
-        Self { inner }
-    }
-}
-
-impl<State> PositionSelector<State> for HighlightSteer
-where
-    State: HasRand + HasMetadata,
-{
-    fn select_position(
-        &self,
-        state: &mut State,
-        doc: &TextDocument,
-    ) -> Option<lsp_types::Position> {
-        let usage_stats = state.metadata_or_insert_with(|| {
-            HighlightGroupUsageMetadata::new(WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES)
-        });
-        let max_usage = usage_stats.values().copied().max().unwrap_or_default();
-        let weights: Vec<_> = usage_stats
-            .iter()
-            .map(|(name, &usage)| (name.clone(), max_usage - usage))
-            .collect();
-        let chosen = state.rand_mut().weighted_choose(weights)?;
-        let captures = CapturesIterator::new(doc, &chosen)?;
-        let node = state.rand_mut().choose(captures)?;
-        let pos = node.lsp_start_position();
-        let usage_stats = state
-            .metadata_mut::<HighlightGroupUsageMetadata>()
-            .expect("We ensured it is inserted");
-        let usage = usage_stats
-            .get_mut(&chosen)
-            .expect("The entry is in the map");
-        *usage += 1;
-        Some(pos)
-    }
-}
-
 #[derive(Debug, New)]
 pub struct DropRandomMessage<State> {
     _state: PhantomData<State>,
@@ -284,259 +141,6 @@ prop_mutator!(pub impl MessagesMutator for LspInput::messages type Vec<lsp::LspM
 
 pub type SwapRequests<State> = MessagesMutator<SliceSwapMutator<lsp::LspMessage, State>>;
 
-#[trait_gen(P ->
-    WorkDoneProgressParams,
-    PartialResultParams,
-    (),
-    serde_json::Map<String, serde_json::Value>,
-    serde_json::Value,
-)]
-impl<State: 'static> HasGenerators<State> for P {
-    type Generator = DefaultGenerator<Self>;
-
-    fn generators(
-        _config: &crate::lsp::GeneratorsConfig,
-    ) -> impl IntoIterator<Item = Self::Generator> {
-        [DefaultGenerator::new()]
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct VecGenerator<G> {
-    element_generators: Vec<G>,
-    max_items: usize,
-}
-
-impl<G> VecGenerator<G> {
-    pub fn new(element_generators: impl IntoIterator<Item = G>, max_items: usize) -> Self {
-        let element_generators = element_generators.into_iter().collect();
-        Self {
-            element_generators,
-            max_items,
-        }
-    }
-}
-
-impl<State, G> LspParamsGenerator<State> for VecGenerator<G>
-where
-    G: LspParamsGenerator<State>,
-    State: HasRand,
-{
-    type Output = Vec<G::Output>;
-
-    fn generate(
-        &self,
-        state: &mut State,
-        input: &LspInput,
-    ) -> Result<Self::Output, GenerationError> {
-        let len = state.rand_mut().below_or_zero(self.max_items);
-        let mut items = Vec::with_capacity(len);
-        let mut anything_generated = false;
-        for _ in 0..len {
-            if let Some(generator) = state.rand_mut().choose(&self.element_generators) {
-                match generator.generate(state, input) {
-                    Ok(item) => {
-                        items.push(item);
-                        anything_generated = true;
-                    }
-                    Err(GenerationError::NothingGenerated) => {}
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-        anything_generated
-            .then_some(items)
-            .ok_or(GenerationError::NothingGenerated)
-    }
-}
-
-impl<State, T> HasGenerators<State> for Vec<T>
-where
-    State: HasRand,
-    T: HasGenerators<State>,
-{
-    type Generator = VecGenerator<T::Generator>;
-
-    fn generators(
-        config: &crate::lsp::GeneratorsConfig,
-    ) -> impl IntoIterator<Item = Self::Generator> {
-        [VecGenerator::<T::Generator>::new(T::generators(config), 5)]
-    }
-}
-
-pub struct AppendMessage<M, State>
-where
-    M: LspMessageMeta,
-    M::Params: HasGenerators<State>,
-{
-    name: Cow<'static, str>,
-    generators: Vec<<M::Params as HasGenerators<State>>::Generator>,
-}
-
-impl<M: LspMessageMeta, State> Debug for AppendMessage<M, State>
-where
-    M::Params: HasGenerators<State>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let generators_desc = format!(
-            "{} {}",
-            self.generators.len(),
-            type_name::<<M::Params as HasGenerators<State>>::Generator>()
-        );
-        f.debug_struct("AppendRandomlyGeneratedMessage")
-            .field("name", &self.name)
-            .field("generators", &generators_desc)
-            .finish()
-    }
-}
-
-pub const MAX_MESSAGES: usize = 20;
-
-impl<M, State> AppendMessage<M, State>
-where
-    M: LspMessageMeta,
-    M::Params: HasGenerators<State>,
-{
-    /// Creates an append mutator from the predefined generators for `M`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `M::Params::generators(config)` returns no generators.
-    #[must_use]
-    pub fn with_predefined(config: &GeneratorsConfig) -> Self {
-        let name = Cow::Owned(format!("AppendRandomlyGenerated {}", M::METHOD));
-        let generators: Vec<_> = M::Params::generators(config).into_iter().collect();
-        assert!(!generators.is_empty(), "No generators for {}", M::METHOD);
-        Self { name, generators }
-    }
-}
-
-impl<M, State> Named for AppendMessage<M, State>
-where
-    M: LspMessageMeta,
-    M::Params: HasGenerators<State>,
-{
-    fn name(&self) -> &Cow<'static, str> {
-        &self.name
-    }
-}
-
-impl<M, State> Mutator<LspInput, State> for AppendMessage<M, State>
-where
-    State: HasRand,
-    M: LspMessageMeta,
-    M::Params: HasGenerators<State> + MessageParam<M>,
-{
-    fn mutate(
-        &mut self,
-        state: &mut State,
-        input: &mut LspInput,
-    ) -> Result<MutationResult, libafl::Error> {
-        let Some(generator) = state.rand_mut().choose(&self.generators) else {
-            return Ok(MutationResult::Skipped);
-        };
-        let params = match generator.generate(state, input) {
-            Ok(params) => params,
-            Err(GenerationError::NothingGenerated) => return Ok(MutationResult::Skipped),
-            Err(GenerationError::Error(e)) => return Err(e),
-        };
-        let message = LspMessage::from_params::<M>(params);
-        if input.messages.len() >= MAX_MESSAGES {
-            let being_replaced = state.rand_mut().choose(input.messages.iter_mut()).expect(
-                "There must be at least one message in the input when entering this branch",
-            );
-            *being_replaced = message;
-        } else {
-            input.messages.push(message);
-        }
-        Ok(MutationResult::Mutated)
-    }
-
-    fn post_exec(
-        &mut self,
-        _state: &mut State,
-        _new_corpus_id: Option<libafl::corpus::CorpusId>,
-    ) -> Result<(), libafl::Error> {
-        Ok(())
-    }
-}
-
-append_randoms! {
-
-    /// Mutation operators for each message type with `AppendRandomlyGeneratedMessage` mutator.
-   fn append_randomly_generated_messages(config: &GeneratorsConfig) -> AppendRandomlyGenerateMessageMutations {
-        // notification::Cancel,
-        // request::InlineValueRefreshRequest,
-        // request::InlineValueRequest,
-        // request::WillCreateFiles,
-        // request::WillDeleteFiles,
-        // request::WillRenameFiles,
-        // request::WillSaveWaitUntil,
-        request::CallHierarchyIncomingCalls,
-        request::CallHierarchyOutgoingCalls,
-        request::CallHierarchyPrepare,
-        request::CodeActionRequest,
-        request::CodeActionResolveRequest,
-        request::CodeLensRequest,
-        request::CodeLensResolve,
-        request::ColorPresentationRequest,
-        request::Completion,
-        request::DocumentColor,
-        request::DocumentDiagnosticRequest,
-        request::DocumentHighlightRequest,
-        request::DocumentLinkRequest,
-        request::DocumentLinkResolve,
-        request::DocumentSymbolRequest,
-        request::ExecuteCommand,
-        request::FoldingRangeRequest,
-        request::Formatting,
-        request::GotoDeclaration,
-        request::GotoDefinition,
-        request::GotoImplementation,
-        request::GotoTypeDefinition,
-        request::HoverRequest,
-        request::InlayHintRequest,
-        request::InlayHintResolveRequest,
-        request::LinkedEditingRange,
-        request::MonikerRequest,
-        request::OnTypeFormatting,
-        request::PrepareRenameRequest,
-        request::RangeFormatting,
-        request::References,
-        request::Rename,
-        request::ResolveCompletionItem,
-        request::SelectionRangeRequest,
-        request::SemanticTokensFullDeltaRequest,
-        request::SemanticTokensFullRequest,
-        request::SemanticTokensRangeRequest,
-        request::SignatureHelpRequest,
-        request::TypeHierarchyPrepare,
-        request::TypeHierarchySubtypes,
-        request::TypeHierarchySupertypes,
-        request::WorkspaceDiagnosticRefresh,
-        request::WorkspaceDiagnosticRequest,
-        request::WorkspaceSymbolRequest,
-        request::WorkspaceSymbolResolve,
-        // notification::DidChangeConfiguration,
-        // notification::DidChangeNotebookDocument,
-        // notification::DidChangeTextDocument,
-        // notification::DidChangeWatchedFiles,
-        // notification::DidChangeWorkspaceFolders,
-        // notification::DidCloseNotebookDocument,
-        // notification::DidCloseTextDocument,
-        // notification::DidCreateFiles,
-        // notification::DidDeleteFiles,
-        // notification::DidOpenNotebookDocument,
-        // notification::DidRenameFiles,
-        // notification::DidSaveNotebookDocument,
-        // notification::DidSaveTextDocument,
-        // notification::WillSaveTextDocument,
-        // notification::WorkDoneProgressCancel,
-        notification::LogTrace,
-        notification::SetTrace,
-    }
-}
-
 #[must_use]
 pub fn message_mutations<State>(
     config: &GeneratorsConfig,
@@ -545,7 +149,13 @@ where
     State: HasRand + HasMetadata + HasCurrentTestcase<LspInput> + 'static,
 {
     let swap = tuple_list![SwapRequests::new(SliceSwapMutator::new())];
-    append_randomly_generated_messages(config)
+    append_navigation_messages(config)
+        .merge(append_symbol_messages(config))
+        .merge(append_formatting_messages(config))
+        .merge(append_hierarchy_messages(config))
+        .merge(append_workspace_messages(config))
+        .merge(append_diagnostic_messages(config))
+        .merge(append_tracing_misc_messages(config))
         .merge(swap)
         .merge(message_reductions())
 }

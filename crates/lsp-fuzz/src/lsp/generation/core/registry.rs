@@ -1,9 +1,9 @@
 #[derive(Debug, Default)]
-pub struct GeneratorBag<G> {
+pub struct WeightedGeneratorList<G> {
     generators: Vec<G>,
 }
 
-impl<G> GeneratorBag<G> {
+impl<G> WeightedGeneratorList<G> {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -47,3 +47,5 @@ impl<G> GeneratorBag<G> {
         self.generators
     }
 }
+
+pub type GeneratorBag<G> = WeightedGeneratorList<G>;

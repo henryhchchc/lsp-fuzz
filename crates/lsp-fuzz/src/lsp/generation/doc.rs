@@ -1,10 +1,10 @@
-use std::{marker::PhantomData, rc::Rc, result::Result, str::FromStr};
+use std::{marker::PhantomData, result::Result, str::FromStr};
 
 use derive_new::new as New;
 use libafl::state::HasRand;
 use lsp_types::TextDocumentIdentifier;
 
-use super::{GenerationError, LspParamsGenerator};
+use super::{DynGenerator, GenerationError, LspParamsGenerator, boxed_generator};
 use crate::{
     lsp::HasGenerators,
     lsp_input::LspInput,
@@ -40,9 +40,9 @@ where
 }
 
 #[derive(Debug, New)]
-pub struct MeaninglessTextDocumentIdentifierGenerator;
+pub struct RandomVirtualDocumentIdentifierGenerator;
 
-impl<State> LspParamsGenerator<State> for MeaninglessTextDocumentIdentifierGenerator
+impl<State> LspParamsGenerator<State> for RandomVirtualDocumentIdentifierGenerator
 where
     State: HasRand,
 {
@@ -65,16 +65,20 @@ impl<State> HasGenerators<State> for TextDocumentIdentifier
 where
     State: HasRand,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = TextDocumentIdentifier>>;
+    type Generator = DynGenerator<State, TextDocumentIdentifier>;
 
     fn generators(
         config: &crate::lsp::GeneratorsConfig,
     ) -> impl IntoIterator<Item = Self::Generator> {
         let mut generators: Vec<Self::Generator> = Vec::new();
-        if config.awareness.context {
-            generators.push(Rc::new(TextDocumentIdentifierGenerator::<RandomDoc>::new()));
+        if config.use_context() {
+            generators.push(boxed_generator(
+                TextDocumentIdentifierGenerator::<RandomDoc>::new(),
+            ));
         } else {
-            generators.push(Rc::new(MeaninglessTextDocumentIdentifierGenerator::new()));
+            generators.push(boxed_generator(
+                RandomVirtualDocumentIdentifierGenerator::new(),
+            ));
         }
         generators
     }

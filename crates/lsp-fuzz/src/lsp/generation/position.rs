@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc, str::FromStr};
+use std::{marker::PhantomData, str::FromStr};
 
 use derive_new::new as New;
 use libafl::{
@@ -8,16 +8,15 @@ use libafl::{
 use libafl_bolts::rands::Rand;
 use lsp_types::{TextDocumentIdentifier, TextDocumentPositionParams};
 
-use super::{GenerationError, GeneratorBag, HasGenerators, LspParamsGenerator};
-use crate::{
-    lsp_input::{
-        LspInput,
-        messages::{
-            HighlightSteer, NodeTypeBalancingSelection, PositionSelector, RandomPosition,
-            ValidPosition,
-        },
-        server_response::metadata::LspResponseInfo,
+use super::{
+    DynGenerator, GenerationError, HasGenerators, LspParamsGenerator, WeightedGeneratorList,
+    boxed_generator,
+    position_selectors::{
+        HighlightSteer, NodeTypeBalancingSelection, PositionSelector, RandomPosition, ValidPosition,
     },
+};
+use crate::{
+    lsp_input::{LspInput, server_response::metadata::LspResponseInfo},
     text_document::{
         GrammarBasedMutation, TextDocument,
         mutations::{core::TextDocumentSelector, text_document_selectors::RandomDoc},
@@ -69,7 +68,7 @@ impl<State> HasGenerators<State> for TextDocumentPositionParams
 where
     State: HasRand + HasMetadata + HasCurrentTestcase<LspInput>,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
+    type Generator = DynGenerator<State, Self>;
 
     fn generators(
         config: &crate::lsp::GeneratorsConfig,
@@ -77,25 +76,27 @@ where
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         type FeedbackPosInDoc<F> = FeedbackPositionsGenerator<RandomDoc, F>;
         let term_start_pos = NodeTypeBalancingSelection::new();
-        let node_type: Self::Generator = Rc::new(SelectInRandomDoc::new(term_start_pos));
-        let steer: Self::Generator = Rc::new(SelectInRandomDoc::new(HighlightSteer::new()));
-        let random_position = Rc::new(SelectInRandomDoc::new(RandomPosition::new(1024)));
-        let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
+        let node_type: Self::Generator = boxed_generator(SelectInRandomDoc::new(term_start_pos));
+        let steer: Self::Generator = boxed_generator(SelectInRandomDoc::new(HighlightSteer::new()));
+        let random_position = boxed_generator(SelectInRandomDoc::new(RandomPosition::new(1024)));
+        let invalid_pos = boxed_generator(InvalidDocPositionGenerator::new());
 
-        let mut generators = GeneratorBag::with_capacity(16);
-        if config.awareness.context {
-            let valid = Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator;
+        let mut generators = WeightedGeneratorList::with_capacity(16);
+        if config.use_context() {
+            let valid = boxed_generator(SelectInRandomDoc::new(ValidPosition::new()));
             generators.push_weighted(valid, 2);
-            if config.awareness.grammar_ops {
+            if config.use_grammar_ops() {
                 generators.push_weighted(node_type.clone(), 3);
                 generators.push_weighted(steer.clone(), 3);
             }
-            if config.awareness.feedback_guidance {
-                generators.push(Rc::new(FeedbackPosInDoc::new(diag_nodes)) as _);
-                generators.push_weighted(Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)) as _, 2);
-                generators.push_weighted(Rc::new(FeedbackPosInDoc::new(collected_symbols)) as _, 3);
+            if config.use_feedback_guidance() {
+                generators.push(boxed_generator(FeedbackPosInDoc::new(diag_nodes)));
+                generators
+                    .push_weighted(boxed_generator(FeedbackPosInDoc::new(diag_nodes_parent)), 2);
+                generators
+                    .push_weighted(boxed_generator(FeedbackPosInDoc::new(collected_symbols)), 3);
             }
-            if config.invalid_input.positions {
+            if config.allow_invalid_positions() {
                 generators.push(random_position);
             }
         } else {

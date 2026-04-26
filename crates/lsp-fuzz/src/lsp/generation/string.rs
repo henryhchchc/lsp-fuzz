@@ -1,9 +1,9 @@
-use std::{marker::PhantomData, num::NonZeroUsize, rc::Rc, result::Result};
+use std::{marker::PhantomData, num::NonZeroUsize, result::Result};
 
 use libafl::{HasMetadata, state::HasRand};
 use libafl_bolts::rands::Rand;
 
-use super::{DefaultGenerator, GenerationError, LspParamsGenerator};
+use super::{DefaultGenerator, DynGenerator, GenerationError, LspParamsGenerator, boxed_generator};
 use crate::{
     lsp::HasGenerators,
     lsp_input::LspInput,
@@ -96,7 +96,7 @@ impl<State> HasGenerators<State> for String
 where
     State: HasRand + HasMetadata,
 {
-    type Generator = Rc<dyn LspParamsGenerator<State, Output = Self>>;
+    type Generator = DynGenerator<State, Self>;
 
     fn generators(
         config: &crate::lsp::GeneratorsConfig,
@@ -104,9 +104,9 @@ where
         const DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
         const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
         const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
-        let mut generators = vec![Rc::new(DEFAULT) as _, Rc::new(TOKENS) as _];
-        if config.awareness.context {
-            generators.push(Rc::new(TERMINAL_TEXT) as _);
+        let mut generators = vec![boxed_generator(DEFAULT), boxed_generator(TOKENS)];
+        if config.use_context() {
+            generators.push(boxed_generator(TERMINAL_TEXT));
         }
         generators
     }

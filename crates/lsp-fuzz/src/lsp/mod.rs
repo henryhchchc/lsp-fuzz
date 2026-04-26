@@ -134,4 +134,29 @@ impl GeneratorsConfig {
             },
         }
     }
+
+    #[must_use]
+    pub const fn use_context(&self) -> bool {
+        self.awareness.context
+    }
+
+    #[must_use]
+    pub const fn use_feedback_guidance(&self) -> bool {
+        self.awareness.context && self.awareness.feedback_guidance
+    }
+
+    #[must_use]
+    pub const fn use_grammar_ops(&self) -> bool {
+        self.awareness.context && self.awareness.grammar_ops
+    }
+
+    #[must_use]
+    pub const fn allow_invalid_positions(&self) -> bool {
+        self.awareness.context && self.invalid_input.positions
+    }
+
+    #[must_use]
+    pub const fn allow_invalid_ranges(&self) -> bool {
+        self.awareness.context && self.invalid_input.ranges
+    }
 }
