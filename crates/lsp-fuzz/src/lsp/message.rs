@@ -208,7 +208,7 @@ impl LspMessage {
 
 fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
     use serde_json::Value::{Array, Object, String};
-    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LspInput::PROROCOL_PREFIX.len();
+    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LspInput::PROTOCOL_PREFIX.len();
     match value {
         Object(inner) => inner.values_mut().for_each(|value| {
             localize_json_value(value, workspace_uri);
@@ -216,7 +216,7 @@ fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
         Array(items) => items.iter_mut().for_each(|value| {
             localize_json_value(value, workspace_uri);
         }),
-        String(str_val) if str_val.starts_with(LspInput::PROROCOL_PREFIX) => {
+        String(str_val) if str_val.starts_with(LspInput::PROTOCOL_PREFIX) => {
             str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri);
         }
         _ => {}
@@ -237,7 +237,7 @@ pub(crate) fn lift_localized_json(value: &mut serde_json::Value) {
                 let next_slash = str_val[index..]
                     .find('/')
                     .map_or(str_val.len(), |it| it + index + 1);
-                str_val.replace_range(0..next_slash, LspInput::PROROCOL_PREFIX);
+                str_val.replace_range(0..next_slash, LspInput::PROTOCOL_PREFIX);
             }
         }
         _ => {}

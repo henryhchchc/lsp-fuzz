@@ -83,19 +83,19 @@ where
         let invalid_pos = Rc::new(InvalidDocPositionGenerator::new());
 
         let mut generators = GeneratorBag::with_capacity(16);
-        if config.ctx_awareness {
+        if config.awareness.context {
             let valid = Rc::new(SelectInRandomDoc::new(ValidPosition::new())) as Self::Generator;
             generators.push_weighted(valid, 2);
-            if config.grammar_ops_awareness {
+            if config.awareness.grammar_ops {
                 generators.push_weighted(node_type.clone(), 3);
                 generators.push_weighted(steer.clone(), 3);
             }
-            if config.feedback_guidance {
+            if config.awareness.feedback_guidance {
                 generators.push(Rc::new(FeedbackPosInDoc::new(diag_nodes)) as _);
                 generators.push_weighted(Rc::new(FeedbackPosInDoc::new(diag_nodes_parent)) as _, 2);
                 generators.push_weighted(Rc::new(FeedbackPosInDoc::new(collected_symbols)) as _, 3);
             }
-            if config.invalid_positions {
+            if config.invalid_input.positions {
                 generators.push(random_position);
             }
         } else {

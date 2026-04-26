@@ -338,13 +338,13 @@ where
         tuple_list![
             recover_from_error,
             produce_missing_node,
-            generate_mismatched.with_probability(generators_config.invalid_code_frequency),
-            terminal_truncation.with_probability(generators_config.invalid_code_frequency),
-            // terminal_char_mutation.with_probability(generators_config.invalid_code_frequency),
+            generate_mismatched.with_probability(generators_config.invalid_input.code_frequency),
+            terminal_truncation.with_probability(generators_config.invalid_input.code_frequency),
+            // terminal_char_mutation.with_probability(generators_config.invalid_input.code_frequency),
             drop_terminal
                 .clone()
-                .with_probability(generators_config.invalid_code_frequency),
-            drop_terminal.with_probability(generators_config.invalid_code_frequency),
+                .with_probability(generators_config.invalid_input.code_frequency),
+            drop_terminal.with_probability(generators_config.invalid_input.code_frequency),
         ]
     };
     correct_code_mutations.merge(incorrect_code_mutations)

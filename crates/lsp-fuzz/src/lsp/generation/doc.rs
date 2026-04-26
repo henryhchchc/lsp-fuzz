@@ -71,7 +71,7 @@ where
         config: &crate::lsp::GeneratorsConfig,
     ) -> impl IntoIterator<Item = Self::Generator> {
         let mut generators: Vec<Self::Generator> = Vec::new();
-        if config.ctx_awareness {
+        if config.awareness.context {
             generators.push(Rc::new(TextDocumentIdentifierGenerator::<RandomDoc>::new()));
         } else {
             generators.push(Rc::new(MeaninglessTextDocumentIdentifierGenerator::new()));

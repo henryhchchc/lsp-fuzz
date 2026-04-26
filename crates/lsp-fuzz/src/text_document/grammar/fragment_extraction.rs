@@ -124,7 +124,8 @@ fn dot_graph_to_terminals(graph: Graph) -> Result<Vec<(String, Range<usize>)>, E
                 let label = label.ok_or(Error::DotGraphFormatMismatch("No label attribute"))?;
                 let tooltip =
                     tooltip.ok_or(Error::DotGraphFormatMismatch("No tooltip attribute"))?;
-                let range = node_range(&tooltip).expect("fuck");
+                let range = node_range(&tooltip)
+                    .expect("tooltip capture should map to a concrete node range");
                 Ok((label, range))
             })
         })

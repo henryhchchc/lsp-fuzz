@@ -109,19 +109,19 @@ where
         type RINDGen<State> = RangeInDocGenerator<State, RandomDoc>;
 
         let mut generators: GeneratorBag<Self::Generator> = GeneratorBag::with_capacity(16);
-        if config.ctx_awareness {
+        if config.awareness.context {
             generators.push(Rc::new(RINDGen::new(range_selectors::whole_range)) as _);
             generators.push_weighted(
                 Rc::new(RINDGen::new(range_selectors::random_valid_range)) as _,
                 2,
             );
-            if config.grammar_ops_awareness {
+            if config.awareness.grammar_ops {
                 generators.push_weighted(
                     Rc::new(RINDGen::new(range_selectors::subtree_node_type)) as _,
                     5,
                 );
             }
-            if config.invalid_ranges {
+            if config.invalid_input.ranges {
                 generators.extend(
                     [
                         RINDGen::new(range_selectors::after_range),
@@ -133,7 +133,7 @@ where
                     .map(|it| it as _),
                 );
             }
-            if config.feedback_guidance {
+            if config.awareness.feedback_guidance {
                 let subtree = RINDGen::new(range_selectors::subtree_node_type);
                 let fallback = |range_gen| FallbackGenerator::new(range_gen, subtree.clone());
 

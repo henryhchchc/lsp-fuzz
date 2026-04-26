@@ -105,7 +105,7 @@ where
         const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
         const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
         let mut generators = vec![Rc::new(DEFAULT) as _, Rc::new(TOKENS) as _];
-        if config.ctx_awareness {
+        if config.awareness.context {
             generators.push(Rc::new(TERMINAL_TEXT) as _);
         }
         generators

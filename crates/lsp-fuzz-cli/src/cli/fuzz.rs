@@ -59,6 +59,8 @@ use crate::{
     language_fragments::load_grammar_lookup,
 };
 
+const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
+
 /// Fuzz a Language Server Protocol (LSP) server.
 #[derive(Debug, clap::Parser)]
 pub(super) struct FuzzCommand {
@@ -145,14 +147,12 @@ impl FuzzCommand {
 
         let map_feedback = MaxMapFeedback::new(&cov_observer);
         let calibration_stage = CalibrationStage::new(&map_feedback);
-        let stats_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(self.state.stats_file())
-            .context("Creating stats file")?;
-        let stats_writer = BufWriter::new(stats_file);
-        let stats_stage = StatsStage::new(stats_writer, &map_feedback);
+        let stats_stage = {
+            let stats_writer = self
+                .create_stats_writer()
+                .context("Creating stats writer")?;
+            StatsStage::new(stats_writer, &map_feedback)
+        };
 
         let mut feedback = feedback_or!(
             map_feedback,
@@ -223,7 +223,6 @@ impl FuzzCommand {
             info!("Crash stack hashing will be enabled");
         }
         let mut executor = {
-            const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
             let test_case_shmem = shmem_provider
                 .new_shmem(INPUT_SHM_SIZE)
                 .context("Creating shared memory for test case passing")?;
@@ -295,5 +294,15 @@ impl FuzzCommand {
         // SAFETY: we are assuming that the file is not touched externally.
         let binary_file = unsafe { Mmap::map(&binary_file) }.context("Mapping fuzz target")?;
         common::analyze_fuzz_target(&binary_file)
+    }
+
+    fn create_stats_writer(&self) -> Result<BufWriter<File>, anyhow::Error> {
+        let stats_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.state.stats_file())
+            .context("Creating stats file")?;
+        Ok(BufWriter::new(stats_file))
     }
 }

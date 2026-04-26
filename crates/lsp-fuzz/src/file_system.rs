@@ -151,7 +151,7 @@ impl<F> FileSystemEntry<F> {
         matches!(self, FileSystemEntry::Directory(_))
     }
 
-    pub fn is_leave(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         match self {
             FileSystemEntry::File(_) => true,
             FileSystemEntry::Directory(entries) => entries.is_empty(),

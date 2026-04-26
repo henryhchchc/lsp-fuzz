@@ -30,7 +30,7 @@ where
 
     fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
         [ParamFragmentGenerator::new(
-            config.feedback_guidance && config.ctx_awareness,
+            config.awareness.feedback_guidance && config.awareness.context,
         )]
     }
 }

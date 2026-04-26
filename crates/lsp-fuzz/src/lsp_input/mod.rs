@@ -3,10 +3,7 @@ use std::{
     fs::File,
     hash::{DefaultHasher, Hash, Hasher},
     io::BufWriter,
-    iter::once,
     path::{Path, PathBuf},
-    str::FromStr,
-    sync::LazyLock,
 };
 
 use derive_new::new as New;
@@ -20,27 +17,29 @@ use libafl::{
 };
 use libafl_bolts::{HasLen, Named, ownedref::OwnedSlice, rands::Rand};
 use lsp_fuzz_grammars::Language;
-use lsp_types::{ClientInfo, InitializedParams, TraceValue, Uri};
+use lsp_types::Uri;
 use messages::LspMessageSequence;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     execution::workspace_observer::HasWorkspace,
     file_system::{FileSystemDirectory, FileSystemEntry},
-    lsp::{self, capabilities::fuzzer_client_capabilities},
+    lsp,
     text_document::{
         GrammarBasedMutation, TextDocument,
         generation::{GrammarContextLookup, NamedNodeGenerator, RandomRuleSelectionStrategy},
     },
-    utf8::Utf8Input,
     utils::AflContext,
 };
 
 pub type FileContentInput = BytesInput;
 
+pub mod message_edit;
 pub mod messages;
 pub mod ops_curiosity;
 pub mod server_response;
+mod session;
+pub mod uri;
 
 /// An entry in the LSP server workspace
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -122,13 +121,12 @@ pub struct LspInput {
 
 impl LspInput {
     pub const NAME_PREFIX: &str = "input_";
-    pub const PROROCOL_PREFIX: &str = "lsp-fuzz://";
+    pub const PROTOCOL_PREFIX: &str = "lsp-fuzz://";
+    pub const PROROCOL_PREFIX: &str = Self::PROTOCOL_PREFIX;
 
     #[must_use]
     pub fn root_uri() -> Uri {
-        static WORKSPACE_ROOT_URI: LazyLock<lsp_types::Uri> =
-            LazyLock::new(|| LspInput::PROROCOL_PREFIX.parse().unwrap());
-        WORKSPACE_ROOT_URI.clone()
+        uri::root_uri()
     }
 
     /// Retrieves a text document from the workspace by its URI.
@@ -152,10 +150,8 @@ impl LspInput {
     ///
     #[must_use]
     pub fn get_text_document(&self, uri: &lsp_types::Uri) -> Option<&TextDocument> {
-        let path = uri
-            .as_str()
-            .strip_prefix(LspInput::PROROCOL_PREFIX)
-            .expect("The URI must start with fuzzer uri");
+        let path =
+            uri::path_from_virtual_uri(uri).expect("The URI must start with the fuzzer URI scheme");
         if let Some(FileSystemEntry::File(WorkspaceEntry::SourceFile(doc))) =
             self.workspace.get(path)
         {
@@ -242,16 +238,7 @@ impl LspInput {
     /// Panics if the lifted URI cannot be parsed back into a valid [`Uri`].
     #[must_use]
     pub fn lift_uri(uri: &lsp_types::Uri) -> Cow<'_, lsp_types::Uri> {
-        let uri_str = uri.as_str();
-        if let Some(index) = uri_str.find(Self::WORKSPACE_DIR_PREFIX) {
-            let in_workspace = uri_str[index..]
-                .find('/')
-                .map_or(uri_str.len(), |it| it + index + 1);
-            let lifted = format!("{}/{}", Self::PROROCOL_PREFIX, &uri_str[in_workspace..]);
-            Cow::Owned(lifted.parse().unwrap())
-        } else {
-            Cow::Borrowed(uri)
-        }
+        uri::lift_uri(uri)
     }
 
     /// Serializes the full LSP session into wire-format payload bytes.
@@ -261,27 +248,7 @@ impl LspInput {
     /// Panics if `workspace_dir` is not valid UTF-8.
     #[must_use]
     pub fn request_bytes(&self, workspace_dir: &Path) -> Vec<u8> {
-        let message_sequence = self.message_sequence();
-
-        let workspace_dir = workspace_dir
-            .to_str()
-            .expect("`workspace_dir` does not contain valid UTF-8");
-        let workspace_dir = if workspace_dir.ends_with('/') {
-            Cow::Borrowed(workspace_dir)
-        } else {
-            Cow::Owned(format!("{workspace_dir}/"))
-        };
-        let workspace_uri = format!("file://{workspace_dir}");
-
-        let mut id = 0;
-        let bytes: Vec<_> = message_sequence
-            .flat_map(|msg| {
-                let message = msg.into_json_rpc(&mut id, Some(&workspace_uri));
-                message.to_lsp_payload()
-            })
-            .collect();
-
-        bytes
+        session::request_bytes(self, workspace_dir)
     }
 
     /// Expands the stored input into the complete LSP session message stream.
@@ -291,53 +258,7 @@ impl LspInput {
     /// Panics if a workspace source file path is not valid UTF-8 or if a generated virtual URI
     /// cannot be parsed as an [`Uri`].
     pub fn message_sequence(&self) -> impl Iterator<Item = lsp::LspMessage> + use<'_> {
-        #[allow(
-            deprecated,
-            reason = "Some language servers (e.g., rust-analyzer) still rely on `root_uri`."
-        )]
-        let init_request = lsp::LspMessage::Initialize(lsp_types::InitializeParams {
-            process_id: None,
-            client_info: Some(ClientInfo {
-                name: env!("CARGO_PKG_NAME").to_owned(),
-                version: Some(env!("CARGO_PKG_VERSION").to_owned()),
-            }),
-            root_uri: Some(Self::root_uri()),
-            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: Self::root_uri(),
-                name: "default_workspace".to_owned(),
-            }]),
-            capabilities: fuzzer_client_capabilities(),
-            trace: Some(TraceValue::Off),
-            ..Default::default()
-        });
-        let initialized_req = lsp::LspMessage::Initialized(InitializedParams {});
-
-        let did_open_notifications = self
-            .workspace
-            .iter_files()
-            .filter_map(|(path, entry)| entry.as_source_file().map(|doc| (path, doc)))
-            .map(|(path, doc)| {
-                let path_str = path.to_str().expect("Path should contain valid UTF-8");
-                let uri =
-                    Uri::from_str(&format!("{}{}", LspInput::PROROCOL_PREFIX, path_str)).unwrap();
-                lsp::LspMessage::DidOpenTextDocument(lsp_types::DidOpenTextDocumentParams {
-                    text_document: lsp_types::TextDocumentItem {
-                        uri: uri.clone(),
-                        language_id: doc.language().lsp_language_id().to_owned(),
-                        version: 1,
-                        text: doc.to_string_lossy().into_owned(),
-                    },
-                })
-            });
-        let shutdown = lsp::LspMessage::Shutdown(());
-        let exit = lsp::LspMessage::Exit(());
-
-        once(init_request)
-            .chain(once(initialized_req))
-            .chain(did_open_notifications)
-            .chain(self.messages.iter().cloned())
-            .chain(once(shutdown))
-            .chain(once(exit))
+        session::message_sequence(self)
     }
 }
 
@@ -417,10 +338,7 @@ where
         let mut text_document = TextDocument::new(language, document_content.clone());
         text_document.update_metadata();
 
-        let workspace = match language {
-            Language::Rust => rust_workspace(text_document, ext),
-            _ => main_file_workspace(text_document, ext),
-        };
+        let workspace = session::workspace_for_document(language, text_document, ext);
         Ok(LspInput {
             messages: LspMessageSequence::default(),
             workspace,
@@ -428,61 +346,10 @@ where
     }
 }
 
-fn main_file_workspace(doc: TextDocument, extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
-    FileSystemDirectory::from([(
-        Utf8Input::new(format!("main.{extension}")),
-        FileSystemEntry::File(WorkspaceEntry::SourceFile(doc)),
-    )])
-}
-
-// const CARGO_TOML: &str = r#"
-// [package]
-// name = "test_pkg"
-// version = "0.1.0"
-// edition = "2021"
-
-// [dependencies]
-// "#;
-
-// rust-analyzer runs faster when configured with a `rust-project.json` file.
-const RUST_PROJECT_JSON: &str = r#"
-{
-    "sysroot_src": "/root/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library",
-    "crates": [
-        {
-            "root_module": "src/lib.rs",
-            "edition": "2021",
-            "deps": [],
-        },
-    ]
-}
-"#;
-
-fn rust_workspace(doc: TextDocument, _extension: &str) -> FileSystemDirectory<WorkspaceEntry> {
-    FileSystemDirectory::from([
-        // (
-        //     Utf8Input::new("Cargo.toml".to_owned()),
-        //     FileSystemEntry::File(WorkspaceEntry::Skeleton(CARGO_TOML.as_bytes().to_vec())),
-        // ),
-        (
-            Utf8Input::new("rust-project.json".to_owned()),
-            FileSystemEntry::File(WorkspaceEntry::Skeleton(
-                RUST_PROJECT_JSON.as_bytes().to_vec(),
-            )),
-        ),
-        (
-            Utf8Input::new("src".to_owned()),
-            FileSystemEntry::Directory(FileSystemDirectory::from([(
-                Utf8Input::new("lib.rs".to_owned()),
-                FileSystemEntry::File(WorkspaceEntry::SourceFile(doc)),
-            )])),
-        ),
-    ])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_lift_uri() {
@@ -496,7 +363,7 @@ mod tests {
         // Then the result has fuzzer protocol prefix and workspace path
         assert_eq!(
             lifted.as_str(),
-            format!("{}/abc/file.rs", LspInput::PROROCOL_PREFIX)
+            format!("{}/abc/file.rs", LspInput::PROTOCOL_PREFIX)
         );
 
         // Given a URI without workspace prefix

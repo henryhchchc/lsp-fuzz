@@ -26,6 +26,7 @@ use crate::{
         generation::{DefaultGenerator, GenerationError, LspParamsGenerator},
         json_rpc::MessageId,
     },
+    lsp_input::message_edit,
     macros::{append_randoms, prop_mutator},
     mutators::SliceSwapMutator,
     text_document::{
@@ -90,53 +91,7 @@ impl LspMessageSequence {
         self.inner
             .iter_mut()
             .filter(|it| it.document().is_some_and(|it| &it.uri == doc_uri))
-            .for_each(|message| calibrate_message(message, input_edit));
-    }
-}
-
-fn calibrate_message(message: &mut LspMessage, input_edit: tree_sitter::InputEdit) {
-    // Helper function to determine if a position is after the edit
-    fn is_after_edit(pos: lsp_types::Position, edit: &tree_sitter::InputEdit) -> bool {
-        usize::try_from(pos.line)
-            .expect("u32 fits into usize on supported targets")
-            .cmp(&edit.old_end_position.row)
-            .then_with(|| {
-                usize::try_from(pos.character)
-                    .expect("u32 fits into usize on supported targets")
-                    .cmp(&edit.old_end_position.column)
-            })
-            .is_ge()
-    }
-
-    fn adjust_component(current: u32, old_end: usize, new_end: usize) -> u32 {
-        if new_end >= old_end {
-            current.saturating_add(u32::try_from(new_end - old_end).unwrap_or(u32::MAX))
-        } else {
-            current.saturating_sub(u32::try_from(old_end - new_end).unwrap_or(u32::MAX))
-        }
-    }
-
-    // Helper function to update a position if it's after the edit
-    fn update_position(pos: &mut lsp_types::Position, edit: &tree_sitter::InputEdit) {
-        if is_after_edit(*pos, edit) {
-            pos.line = adjust_component(
-                pos.line,
-                edit.old_end_position.row,
-                edit.new_end_position.row,
-            );
-            pos.character = adjust_component(
-                pos.character,
-                edit.old_end_position.column,
-                edit.new_end_position.column,
-            );
-        }
-    }
-
-    if let Some(pos) = message.position_mut() {
-        update_position(pos, &input_edit);
-    } else if let Some(range) = message.range_mut() {
-        update_position(&mut range.start, &input_edit);
-        update_position(&mut range.end, &input_edit);
+            .for_each(|message| message_edit::calibrate_message(message, input_edit));
     }
 }
 

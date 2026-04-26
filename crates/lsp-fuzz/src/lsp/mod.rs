@@ -57,63 +57,80 @@ impl<Head, Tail> Compose for (Head, Tail) {
     }
 }
 
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GeneratorsConfig {
-    pub invalid_ranges: bool,
+    pub invalid_input: InvalidInputConfig,
     pub tab_size: TabSizeGen,
-    pub invalid_positions: bool,
-    pub invalid_code_frequency: f64,
-    pub grammar_ops_awareness: bool,
-    pub ctx_awareness: bool,
+    pub awareness: AwarenessConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvalidInputConfig {
+    pub ranges: bool,
+    pub positions: bool,
+    pub code_frequency: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AwarenessConfig {
+    pub grammar_ops: bool,
+    pub context: bool,
     pub feedback_guidance: bool,
 }
 
 impl GeneratorsConfig {
-    #[must_use]
-    pub fn full() -> Self {
-        Self {
-            invalid_ranges: true,
-            invalid_positions: true,
-            invalid_code_frequency: 0.1,
-            ctx_awareness: true,
-            grammar_ops_awareness: true,
-            feedback_guidance: true,
-            tab_size: TabSizeGen {
+    fn defaults() -> (InvalidInputConfig, TabSizeGen) {
+        (
+            InvalidInputConfig {
+                ranges: true,
+                positions: true,
+                code_frequency: 0.1,
+            },
+            TabSizeGen {
                 candidates: vec![0, 1, 2, 4, 8],
                 rand_prob: 0.2,
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn full() -> Self {
+        let (invalid_input, tab_size) = Self::defaults();
+        Self {
+            invalid_input,
+            tab_size,
+            awareness: AwarenessConfig {
+                grammar_ops: true,
+                context: true,
+                feedback_guidance: true,
             },
         }
     }
 
     #[must_use]
     pub fn no_server_feedback() -> Self {
+        let (invalid_input, tab_size) = Self::defaults();
         Self {
-            invalid_ranges: true,
-            invalid_positions: true,
-            invalid_code_frequency: 0.1,
-            ctx_awareness: true,
-            grammar_ops_awareness: false,
-            feedback_guidance: false,
-            tab_size: TabSizeGen {
-                candidates: vec![0, 1, 2, 4, 8],
-                rand_prob: 0.2,
+            invalid_input,
+            tab_size,
+            awareness: AwarenessConfig {
+                grammar_ops: false,
+                context: true,
+                feedback_guidance: false,
             },
         }
     }
 
     #[must_use]
     pub fn no_context_awareness() -> Self {
+        let (invalid_input, tab_size) = Self::defaults();
         Self {
-            invalid_ranges: true,
-            invalid_positions: true,
-            ctx_awareness: false,
-            invalid_code_frequency: 0.1,
-            grammar_ops_awareness: true,
-            feedback_guidance: false,
-            tab_size: TabSizeGen {
-                candidates: vec![0, 1, 2, 4, 8],
-                rand_prob: 0.2,
+            invalid_input,
+            tab_size,
+            awareness: AwarenessConfig {
+                grammar_ops: true,
+                context: false,
+                feedback_guidance: false,
             },
         }
     }
