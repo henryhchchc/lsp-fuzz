@@ -705,9 +705,9 @@ checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "graphviz-rust"
-version = "0.9.7"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e3f0630e2e2d6bef34313acf63330e2ce87144f5dfef276abeeef9345dd5bf3"
+checksum = "dee83cefff83c5dd5f34c603145f4e8d478e70cc17873049b6a36eeaf37b250a"
 dependencies = [
  "dot-generator",
  "dot-structures",
@@ -1788,9 +1788,9 @@ dependencies = [
 
 [[package]]
 name = "smallbitvec"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d31d263dd118560e1a492922182ab6ca6dc1d03a3bf54e7699993f31a4150e3f"
+checksum = "9b0e903ee191d8f7a8fbf0d712c3a1699d19e04ceba5ad1eb673053c7d938a09"
 
 [[package]]
 name = "smallvec"
