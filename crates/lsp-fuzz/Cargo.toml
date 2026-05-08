@@ -17,7 +17,7 @@ derive-new.workspace = true
 dot-structures = "0.1.2"
 fastbloom.workspace = true
 fluent-uri = "0.4.1"
-graphviz-rust = { version = "0.9.8", default-features = false }
+graphviz-rust = { version = "0.9", default-features = false }
 indexmap.workspace = true
 itertools.workspace = true
 kmp = "0.1.1"
