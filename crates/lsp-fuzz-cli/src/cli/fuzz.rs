@@ -25,7 +25,7 @@ use libafl::{
     state::{HasCorpus, StdState},
 };
 use libafl_bolts::{
-    AsSliceMut, HasLen,
+    HasLen, ToSliceMut,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, StdShMemProvider},
 };
@@ -131,7 +131,7 @@ impl FuzzCommand {
             load_grammar_lookup(&self.language_fragments).context("Creating grammar context")?;
 
         let coverage_map_observer = {
-            let shmem_buf = coverage_shmem.as_slice_mut();
+            let shmem_buf = coverage_shmem.to_slice_mut();
             // SAFETY: We never move the piece of the shared memory.
             unsafe { StdMapObserver::new("edges", shmem_buf) }
         };

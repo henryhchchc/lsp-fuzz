@@ -4,7 +4,7 @@ use std::{
 };
 
 use libafl::inputs::HasTargetBytes;
-use libafl_bolts::{AsSlice, HasLen};
+use libafl_bolts::{HasLen, ToSlice};
 use ordermap::OrderMap;
 use serde::{Deserialize, Serialize};
 
@@ -88,7 +88,7 @@ impl<F> FileSystemDirectory<F> {
             let item_path = root.join(path);
             match entry {
                 FileSystemEntry::File(file) => {
-                    std::fs::write(item_path, file.target_bytes().as_slice())?;
+                    std::fs::write(item_path, file.target_bytes().to_slice())?;
                 }
                 FileSystemEntry::Directory(dir) => {
                     dir.write_to_fs(&item_path)?;

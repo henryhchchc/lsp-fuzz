@@ -10,14 +10,14 @@ use std::{
 
 use fork_server::{FuzzInputSetup, NeoForkServer, NeoForkServerOptions};
 use libafl::{
-    HasMetadata, HasTargetBytesConverter,
+    HasMetadata, HasToTargetBytesConverter,
     executors::{Executor, ExitKind, HasObservers},
-    inputs::ToTargetBytes,
+    inputs::ToTargetBytesConverter,
     observers::{AsanBacktraceObserver, MapObserver, Observer, ObserversTuple},
     state::HasExecutions,
 };
 use libafl_bolts::{
-    AsSliceMut, HasLen, Named, Truncate,
+    HasLen, Named, ToSliceMut, Truncate,
     fs::InputFile,
     shmem::{ShMem, ShMemId},
     tuples::{MatchName, RefIndexable, type_eq},
@@ -80,7 +80,7 @@ impl<SHM: ShMem> FuzzInput<SHM> {
         let input_size_encoded = input_size.to_ne_bytes();
 
         compiler_fence(Ordering::Acquire);
-        let shmem_slice = shmem.as_slice_mut();
+        let shmem_slice = shmem.to_slice_mut();
         shmem_slice[..Self::SHM_FUZZ_HEADER_SIZE].copy_from_slice(&input_size_encoded);
         let input_body_range =
             Self::SHM_FUZZ_HEADER_SIZE..(Self::SHM_FUZZ_HEADER_SIZE + input_bytes.len());
@@ -330,32 +330,6 @@ where
         self.map_observer.post_exec(state, input, exit_kind)?;
         Ok(())
     }
-
-    fn pre_exec_child_all(&mut self, state: &mut State, input: &I) -> Result<(), libafl::Error> {
-        self.map_observer.pre_exec_child(state, input)?;
-        self.responses_observer.pre_exec_child(state, input)?;
-        if let Some(ref mut asan_observer) = self.asan_observer {
-            asan_observer.pre_exec_child(state, input)?;
-        }
-        self.extra.pre_exec_child_all(state, input)?;
-        Ok(())
-    }
-
-    fn post_exec_child_all(
-        &mut self,
-        state: &mut State,
-        input: &I,
-        exit_kind: &ExitKind,
-    ) -> Result<(), libafl::Error> {
-        self.extra.post_exec_child_all(state, input, exit_kind)?;
-        if let Some(ref mut asan_observer) = self.asan_observer {
-            asan_observer.post_exec_child(state, input, exit_kind)?;
-        }
-        self.responses_observer
-            .post_exec_child(state, input, exit_kind)?;
-        self.map_observer.post_exec_child(state, input, exit_kind)?;
-        Ok(())
-    }
 }
 
 impl<State, MO, OBS, I, SHM> HasObservers for LspExecutor<State, MO, OBS, I, SHM>
@@ -379,8 +353,8 @@ where
     Observers<MO, OBS>: ObserversTuple<I, State>,
     State: HasExecutions + HasMetadata,
     SHM: ShMem,
-    Z: HasTargetBytesConverter,
-    Z::Converter: ToTargetBytes<I>,
+    Z: HasToTargetBytesConverter,
+    Z::Converter: ToTargetBytesConverter<I, State>,
 {
     fn run_target(
         &mut self,
@@ -390,14 +364,15 @@ where
         input: &I,
     ) -> Result<ExitKind, libafl::Error> {
         // Transfer input to the fork server
-        let bytes = fuzzer.target_bytes_converter_mut().to_target_bytes(input);
+        let bytes = fuzzer
+            .target_bytes_converter_mut()
+            .convert_to_target_bytes(state, input);
         let input_bytes = bytes;
         self.fuzz_input.send(&input_bytes)?;
 
         self.clear_output_capture_file()
             .afl_context("Clearing output capture file")?;
 
-        self.observers.pre_exec_child_all(state, input)?;
         let (child_pid, status) = self.fork_server.run_child(&self.timeout)?;
 
         let exit_kind = if let Some(status) = status {
@@ -413,8 +388,6 @@ where
         } else {
             ExitKind::Timeout
         };
-        self.observers
-            .post_exec_child_all(state, input, &exit_kind)?;
         if exit_kind == ExitKind::Ok {
             self.output_capture_file
                 .rewind()

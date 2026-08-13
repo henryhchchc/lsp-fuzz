@@ -19,11 +19,8 @@ derive-new = "0.7"
 fastbloom = { version = "0.17", features = ["serde"] }
 indexmap = { version = "2.14", features = ["serde"] }
 itertools = "0.*"
-libafl = { version = "0.15", features = [
-  "casr",
-  "errors_backtrace",
-] }
-libafl_bolts = { version = "0.15" }
+libafl = { version = "0.16", features = ["casr", "errors_backtrace"] }
+libafl_bolts = { version = "0.16" }
 libcasr = { version = "2", features = ["serde"] }
 lsp-types = { version = "0.97", features = ["hash"] }
 memmap2 = "0.9"
@@ -52,8 +49,11 @@ enum_glob_use = { level = "allow", priority = 1 }
 pedantic = "warn"
 
 [patch.crates-io]
-# This is a custom version with tweaks required by lsp-fuzz
-lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
+# This is a custom version with tweaks required by lsp-fuzz (e.g., `Hash` trait implementations)
+lsp-types = {
+  git = "https://github.com/henryhchchc/lsp-types.git",
+  rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46"
+}
 
 [profile.release]
 opt-level = 3
