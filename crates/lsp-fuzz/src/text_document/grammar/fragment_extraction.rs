@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     io::Read,
     num::ParseIntError,
@@ -33,10 +32,10 @@ use super::tree_sitter::TreeIter;
 ///
 /// Returns [`Error`] if parsing fails, the DOT graph cannot be generated or
 /// parsed, or the resulting graph does not match the expected format.
-pub fn extract_derivation_fragments<'n>(
+pub fn extract_derivation_fragments(
     code: &[u8],
     parser: &mut tree_sitter::Parser,
-) -> Result<HashMap<Cow<'n, str>, Vec<Range<usize>>>, Error> {
+) -> Result<HashMap<String, Vec<Range<usize>>>, Error> {
     let tree = parser.parse(code, None).ok_or(Error::TreeSitterParsing)?;
     let (named, unnamed): (Vec<_>, Vec<_>) = tree
         .iter()
@@ -46,14 +45,13 @@ pub fn extract_derivation_fragments<'n>(
 
     let from_tree = named.into_iter().filter(|it| !it.is_error()).map(|it| {
         let kind = it.kind();
-        (Cow::Borrowed(kind), it.byte_range())
+        (kind.to_owned(), it.byte_range())
     });
 
     let graph = tree_to_dot_graph(tree.clone())?;
     let graph_terminals = dot_graph_to_terminals(graph)?
         .into_iter()
-        .filter(|(k, _)| !blacklist.contains(k.as_str()) && k != "ERROR" && k != "_ERROR")
-        .map(|(k, v)| (Cow::Owned(k), v));
+        .filter(|(k, _)| !blacklist.contains(k.as_str()) && k != "ERROR" && k != "_ERROR");
 
     Ok(from_tree.chain(graph_terminals).into_group_map())
 }
