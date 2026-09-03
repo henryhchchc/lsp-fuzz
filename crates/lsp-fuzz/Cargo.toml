@@ -25,15 +25,14 @@ libafl.workspace = true
 libafl_bolts.workspace = true
 libc = "0.2"
 lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
+lsp-fuzz-tree-sitter-grammar = { path = "../lsp-fuzz-tree-sitter-grammar" }
 lsp-types.workspace = true
 memmap2.workspace = true
 nix.workspace = true
 ordermap.workspace = true
 os_pipe.workspace = true
-regex-syntax = "0.8.10"
 serde.workspace = true
 serde_json.workspace = true
-smallbitvec.workspace = true
 smallvec.workspace = true
 static_assertions.workspace = true
 tempfile.workspace = true

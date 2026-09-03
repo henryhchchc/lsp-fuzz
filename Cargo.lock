@@ -1122,15 +1122,14 @@ dependencies = [
  "libafl_bolts",
  "libc",
  "lsp-fuzz-grammars",
+ "lsp-fuzz-tree-sitter-grammar",
  "lsp-types",
  "memmap2",
  "nix",
  "ordermap",
  "os_pipe",
- "regex-syntax",
  "serde",
  "serde_json",
- "smallbitvec",
  "smallvec",
  "static_assertions",
  "tempfile",
@@ -1193,6 +1192,20 @@ dependencies = [
  "tree-sitter-solidity",
  "tree-sitter-systemverilog",
  "tree-sitter-toml-ng",
+]
+
+[[package]]
+name = "lsp-fuzz-tree-sitter-grammar"
+version = "0.1.0"
+dependencies = [
+ "hashbrown",
+ "indexmap",
+ "regex",
+ "regex-syntax",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -1712,6 +1725,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b74b56ffa8bb2830709a538c2cbcae9aa062db0d2a42563bfb09bdaae44020eb"
 
 [[package]]
+name = "rustc-hash"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1913,12 +1932,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "smallbitvec"
-version = "2.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b0e903ee191d8f7a8fbf0d712c3a1699d19e04ceba5ad1eb673053c7d938a09"
 
 [[package]]
 name = "smallvec"

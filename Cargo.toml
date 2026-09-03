@@ -17,6 +17,7 @@ ctrlc = "3.5"
 derive_more = { version = "2.1", features = ["full"] }
 derive-new = "0.7"
 fastbloom = { version = "0.17", features = ["serde"] }
+hashbrown = { version = "0.17", default-features = false }
 indexmap = { version = "2.14", features = ["serde"] }
 itertools = "0.*"
 libafl = { version = "0.16", features = ["casr", "errors_backtrace"] }
@@ -29,9 +30,11 @@ num_cpus = "1.17"
 ordermap = { version = "1.2", features = ["serde"] }
 os_pipe = "1.2"
 rayon = "1.12"
+regex = "1.12"
+regex-syntax = "0.8"
+rustc-hash = "2.1"
 serde = "1.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
-smallbitvec = "2.6"
 smallvec = { version = "1.15", features = ["const_generics"] }
 static_assertions = "1.1"
 tempfile = "3.27"

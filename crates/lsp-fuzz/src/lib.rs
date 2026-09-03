@@ -1,7 +1,5 @@
 #![warn(missing_debug_implementations, rust_2018_idioms)]
 
-pub(crate) mod stolen;
-
 pub mod afl;
 pub mod corpus;
 pub mod debug;

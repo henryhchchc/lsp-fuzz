@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod fragment_extraction;
 pub mod tree_sitter;
+mod tree_sitter_generate;
 
 use super::Language;
 /// Represents a terminal symbol in a grammar.
@@ -175,16 +176,19 @@ mod tests {
             Language::C,
             Language::CPlusPlus,
             Language::JavaScript,
+            Language::Ruby,
             Language::Rust,
             Language::Toml,
             Language::LaTeX,
             Language::BibTeX,
+            Language::Verilog,
             Language::Solidity,
+            Language::MLIR,
+            Language::QML,
         ];
         for language in languages {
             let grammar =
                 Grammar::from_tree_sitter_grammar_json(language, language.grammar_json()).unwrap();
-            eprintln!("{grammar}");
             grammar
                 .validate()
                 .unwrap_or_else(|_| panic!("Fail to validate grammar for language: {language}"));
