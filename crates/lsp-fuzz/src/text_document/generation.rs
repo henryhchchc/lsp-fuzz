@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::max, collections::HashMap, marker::PhantomData, ops::Range};
+use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::Range};
 
 use itertools::Itertools;
 use libafl::{HasMetadata, state::HasRand};
@@ -281,7 +281,7 @@ pub enum DerivationError {
 #[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
 pub struct DerivationFragments {
     code: Vec<u8>,
-    fragments: HashMap<Cow<'static, str>, Vec<Range<usize>>>,
+    fragments: HashMap<String, Vec<Range<usize>>>,
 }
 
 #[derive(Debug, Default)]

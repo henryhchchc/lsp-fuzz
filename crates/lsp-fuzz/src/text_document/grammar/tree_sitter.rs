@@ -105,7 +105,7 @@ impl<'a> TextProvider<&'a [u8]> for &'a TextDocument {
 
 pub struct CapturesIterator<'doc> {
     cursor_ptr: NonNull<tree_sitter::ffi::TSQueryCursor>,
-    captures: QueryCaptures<'doc, 'doc, &'doc TextDocument, &'doc [u8]>,
+    captures: QueryCaptures<'doc, 'doc, 'doc, &'doc TextDocument, &'doc [u8]>,
     capture_index: u32,
 }
 
@@ -134,9 +134,10 @@ impl<'doc> CapturesIterator<'doc> {
         let mut cursor = QueryCursor::new();
         let captures = unsafe {
             // Safety: We do not drop the cursor until self is dropped. Therefore it is ok to extend the lifetime of the cursor to that of self.
-            std::mem::transmute::<QueryCaptures<'_, 'doc, _, _>, QueryCaptures<'doc, 'doc, _, _>>(
-                cursor.captures(query, parse_tree.root_node(), doc),
-            )
+            std::mem::transmute::<
+                QueryCaptures<'_, 'doc, '_, _, _>,
+                QueryCaptures<'doc, 'doc, 'doc, _, _>,
+            >(cursor.captures(query, parse_tree.root_node(), doc))
         };
         let cursor_ptr = NonNull::new(cursor.into_raw())
             .expect("QueryCursor::into_raw() does not return a null pointer");
@@ -160,7 +161,7 @@ impl<'doc> Iterator for CapturesIterator<'doc> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((query_match, index)) = self.captures.next() {
-            let capture = query_match.captures[*index];
+            let capture = query_match.captures()[*index];
             if capture.index == self.capture_index {
                 return Some(capture.node);
             }

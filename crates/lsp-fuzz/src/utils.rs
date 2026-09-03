@@ -99,7 +99,7 @@ where
     {
         // Weighted selection
         let (range_lookup, max) = weighted_choices.into_iter().fold(
-            (Vec::with_capacity(0), 0),
+            (Vec::new(), 0),
             |(mut map, start), (item, weight)| {
                 let end = start + weight;
                 map.push((start..end, item));

@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     collections::HashMap,
     fs::File,
     io::BufWriter,
@@ -123,12 +122,12 @@ fn write_output(
     Ok(())
 }
 
-type ExtractedFragments<'a> = (Vec<u8>, HashMap<Cow<'a, str>, Vec<Range<usize>>>);
+type ExtractedFragments = (Vec<u8>, HashMap<String, Vec<Range<usize>>>);
 
-fn extract_fragments<'a>(
+fn extract_fragments(
     source_file_path: &Path,
     language: Language,
-) -> anyhow::Result<Option<ExtractedFragments<'a>>> {
+) -> anyhow::Result<Option<ExtractedFragments>> {
     let file_content = std::fs::read(source_file_path)
         .with_context(|| format!("Reading: {}", source_file_path.display()))?;
     let mut parser = language.tree_sitter_parser();
