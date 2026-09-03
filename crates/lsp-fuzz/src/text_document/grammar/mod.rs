@@ -1,8 +1,5 @@
 use core::fmt;
-use std::{
-    error::Error,
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
 
 use anyhow::bail;
 use indexmap::{IndexMap, IndexSet};
@@ -157,7 +154,7 @@ impl Grammar {
 #[derive(Debug, thiserror::Error)]
 pub enum CreationError {
     #[error("Error occurred in tree-sitter: {0}")]
-    TreeSitter(Box<dyn Error + Send + Sync + 'static>),
+    TreeSitter(#[from] lsp_fuzz_tree_sitter_grammar::Error),
     #[error("The provided grammar is empty")]
     EmptyGrammar,
     #[error("The grammar is missing a rule")]

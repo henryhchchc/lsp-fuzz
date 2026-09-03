@@ -15,8 +15,7 @@ impl Grammar {
         language: Language,
         grammar_json: &str,
     ) -> Result<Self, CreationError> {
-        let prepared = tree_sitter_grammar::parse(grammar_json)
-            .map_err(|error| CreationError::TreeSitter(error.into()))?;
+        let prepared = tree_sitter_grammar::parse(grammar_json)?;
         let derivation_rules = prepared
             .variables()
             .iter()
