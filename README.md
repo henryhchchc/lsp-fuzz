@@ -9,7 +9,10 @@ It is implemented based on [LibAFL](https://github.com/AFLplusplus/LibAFL).
 
 > The code completions are suddenly gone when I was typing.
 
-Sound familiar? It should! Bugs in language servers can cause interruptions in your development workflow, even when you haven't done anything wrong. LSPFuzz is designed to automatically find such bugs before they are shipped to you.
+Sound familiar?
+It should!
+Bugs in language servers can cause interruptions in your development workflow, even when you haven't done anything wrong.
+LSPFuzz is designed to automatically find such bugs before they are shipped to you.
 
 ## Technical Details
 
@@ -18,12 +21,12 @@ To learn more about how it works, please check out the following research paper:
 
 Hengcheng Zhu, Songqiang Chen, Valerio Terragni, Lili Wei, Yepang Liu, Jiarong Wu, and Shing-Chi Cheung.
 **LSPFuzz: Hunting Bugs in Language Servers.**
-In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Automated Software Engineering._ Seoul, South Korea. November 2025.
+In _Proceedings of the 40<sup>th</sup> IEEE/ACM International Conference on Automated Software Engineering._
+Seoul, South Korea.
+November 2025.
 
 [🔗 DOI](https://doi.org/10.1109/ASE63991.2025.00183)
-| [🎤 Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers)
-| [📄 Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf)
-| [📦 Artifacts](https://doi.org/10.5281/zenodo.17052142)
+| [🎤 Conference](https://conf.researchr.org/details/ase-2025/ase-2025-papers/203/LSPFuzz-Hunting-Bugs-in-Language-Servers) | [📄 Preprint](https://scholar.henryhc.net/files/publications/2025/ASE2025-LSPFuzz.pdf) | [📦 Artifacts](https://doi.org/10.5281/zenodo.17052142)
 
 If you use LSPFuzz for academic purposes, please cite the above paper.
 A snapshot of the code used to conduct the experiments in the paper can be found at the [ase25-major-revision](https://github.com/henryhchchc/lsp-fuzz/releases/tag/ase25-major-revision) tag.
@@ -118,7 +121,7 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
 
    The contents of `<export-directory>` will be organized as follows:
 
-   ```
+   ```text
    <export-directory>
    ├── <input-id-0>
    │   ├── workspace
@@ -154,9 +157,11 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
    To reproduce bugs caught by sanitizers, `target-lsp-server` should be compiled with sanitizers enabled.
 
 > [!IMPORTANT]
-> Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_. Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust – they are "pinned" to `<export-directory>`).
+> Do not move the exported test cases, because the LSP requests are encoded with _absolute paths_.
+> Moving them will invalidate the requests (analogous to the concept of [pinning](https://doc.rust-lang.org/std/pin/index.html) in Rust – they are "pinned" to `<export-directory>`).
 
 ## License
 
-LSPFuzz is released under the MIT License. See the [LICENSE](./LICENSE) file for details.
+LSPFuzz is released under the MIT License.
+See the [LICENSE](./LICENSE) file for details.
 The research paper and artifact are publicly available following the open-science policy.
