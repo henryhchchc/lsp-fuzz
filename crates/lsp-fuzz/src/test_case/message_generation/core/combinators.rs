@@ -1,0 +1,264 @@
+use std::marker::PhantomData;
+
+use crate::test_case::message_generation::{GenerationError, LspParamsGenerator};
+use crate::{
+    test_case::message_generation::HasGenerators,
+    test_case::{
+        LspInput,
+        server_response::metadata::{ContainsFragment, ParamFragments},
+    },
+};
+use libafl::{
+    HasMetadata,
+    state::{HasCurrentTestcase, HasRand},
+};
+use libafl_bolts::rands::Rand;
+use lsp_types::OneOf;
+
+#[derive(Debug)]
+pub struct DefaultGenerator<T> {
+    _phantom: PhantomData<fn() -> T>,
+}
+
+impl<T> DefaultGenerator<T> {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> Default for DefaultGenerator<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Clone for DefaultGenerator<T> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl<State, T> LspParamsGenerator<State> for DefaultGenerator<T>
+where
+    T: Default,
+{
+    type Output = T;
+
+    fn generate(
+        &self,
+        _state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        Ok(T::default())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum OneOfGenerator<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<State, L, R> LspParamsGenerator<State> for OneOfGenerator<L, R>
+where
+    L: LspParamsGenerator<State, Output = L>,
+    R: LspParamsGenerator<State, Output = R>,
+{
+    type Output = OneOf<L, R>;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        match self {
+            OneOfGenerator::Left(lgen) => Ok(OneOf::Left(lgen.generate(state, input)?)),
+            OneOfGenerator::Right(rgen) => Ok(OneOf::Right(rgen.generate(state, input)?)),
+        }
+    }
+}
+
+impl<State, A, B> HasGenerators<State> for OneOf<A, B>
+where
+    A: HasGenerators<State>,
+    B: HasGenerators<State>,
+    OneOfGenerator<A::Generator, B::Generator>: LspParamsGenerator<State, Output = OneOf<A, B>>,
+{
+    type Generator = OneOfGenerator<A::Generator, B::Generator>;
+
+    fn generators(
+        config: &crate::test_case::message_generation::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
+        let left_gen = A::generators(config).into_iter().map(OneOfGenerator::Left);
+        let right_gen = B::generators(config).into_iter().map(OneOfGenerator::Right);
+        left_gen.chain(right_gen)
+    }
+}
+
+impl<State, T> HasGenerators<State> for Option<T>
+where
+    T: HasGenerators<State>,
+    OptionGenerator<T::Generator>: LspParamsGenerator<State, Output = Option<T>>,
+{
+    type Generator = OptionGenerator<T::Generator>;
+
+    fn generators(
+        config: &crate::test_case::message_generation::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
+        T::generators(config)
+            .into_iter()
+            .map(|inner| OptionGenerator::new(inner, 0.2))
+    }
+}
+
+#[derive(Debug)]
+pub struct OptionGenerator<G> {
+    inner: G,
+    none_prob: f64,
+}
+
+impl<G> OptionGenerator<G> {
+    pub const fn new(inner: G, none_prob: f64) -> Self {
+        Self { inner, none_prob }
+    }
+}
+
+impl<G> Clone for OptionGenerator<G>
+where
+    G: Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.inner.clone(), self.none_prob)
+    }
+}
+
+impl<State, G> LspParamsGenerator<State> for OptionGenerator<G>
+where
+    State: HasRand,
+    G: LspParamsGenerator<State>,
+{
+    type Output = Option<G::Output>;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        if state.rand_mut().coinflip(self.none_prob) {
+            Ok(None)
+        } else {
+            self.inner.generate(state, input).map(Some)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ParamFragmentGenerator<T> {
+    enabled: bool,
+    _phantom: PhantomData<fn() -> T>,
+}
+
+impl<T> ParamFragmentGenerator<T> {
+    #[must_use]
+    pub const fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<State, T> LspParamsGenerator<State> for ParamFragmentGenerator<T>
+where
+    State: HasRand + HasCurrentTestcase<LspInput>,
+    ParamFragments: ContainsFragment<T>,
+    T: Clone,
+{
+    type Output = T;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        if !self.enabled {
+            return Err(GenerationError::NothingGenerated);
+        }
+        let testcase = state
+            .current_testcase()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let fragment_store = testcase
+            .metadata::<ParamFragments>()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let frag_len = fragment_store.fragments().len();
+        drop(testcase);
+        let selected_idx = state
+            .rand_mut()
+            .choose(0..frag_len)
+            .ok_or(GenerationError::NothingGenerated)?;
+
+        let testcase = state
+            .current_testcase()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+
+        let fragment_store = testcase
+            .metadata::<ParamFragments>()
+            .map_err(|_| GenerationError::NothingGenerated)?;
+        let generated: &T = fragment_store
+            .fragments()
+            .iter()
+            .nth(selected_idx)
+            .expect("The index is within the range");
+        Ok(generated.clone())
+    }
+}
+
+#[derive(Debug)]
+pub struct FallbackGenerator<First, Second> {
+    first: First,
+    second: Second,
+}
+
+impl<First, Second> Clone for FallbackGenerator<First, Second>
+where
+    First: Clone,
+    Second: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            first: self.first.clone(),
+            second: self.second.clone(),
+        }
+    }
+}
+
+impl<First, Second> FallbackGenerator<First, Second> {
+    pub const fn new(first: First, second: Second) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<State, First, Second> LspParamsGenerator<State> for FallbackGenerator<First, Second>
+where
+    First: LspParamsGenerator<State>,
+    Second: LspParamsGenerator<State, Output = First::Output>,
+{
+    type Output = First::Output;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        match self.first.generate(state, input) {
+            Ok(result) => Ok(result),
+            Err(GenerationError::NothingGenerated) => self.second.generate(state, input),
+            err => err,
+        }
+    }
+}

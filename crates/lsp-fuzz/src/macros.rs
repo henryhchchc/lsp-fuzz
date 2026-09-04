@@ -276,20 +276,20 @@ macro_rules! append_randoms {
         use lsp_types::{request, notification};
         $vis type $return_ty<State> = tuple_list::tuple_list_type![
             $(
-                $(AppendMessage::<request::$req_variant, State>, )?
-                $(AppendMessage::<notification::$not_variant, State>, )?
+                $($crate::test_case::message_generation::registration::AppendMessage::<request::$req_variant, State>, )?
+                $($crate::test_case::message_generation::registration::AppendMessage::<notification::$not_variant, State>, )?
             )*
         ];
 
         $(#[$outer])*
-        $vis fn $fn_name<State>(config: &GeneratorsConfig) -> $return_ty<State>
+        $vis fn $fn_name<State>(config: &$crate::test_case::message_generation::GeneratorsConfig) -> $return_ty<State>
         where
-            State: libafl::state::HasRand + libafl::common::HasMetadata + libafl::state::HasCurrentTestcase<LspInput> + 'static
+            State: libafl::state::HasRand + libafl::common::HasMetadata + libafl::state::HasCurrentTestcase<$crate::test_case::LspInput> + 'static
         {
             tuple_list::tuple_list![
                 $(
-                    $(AppendMessage::<request::$req_variant, State>::with_predefined(config),)?
-                    $(AppendMessage::<notification::$not_variant, State>::with_predefined(config),)?
+                    $($crate::test_case::message_generation::registration::AppendMessage::<request::$req_variant, State>::with_predefined(config),)?
+                    $($crate::test_case::message_generation::registration::AppendMessage::<notification::$not_variant, State>::with_predefined(config),)?
                 )*
             ]
         }

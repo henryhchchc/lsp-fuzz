@@ -1,14 +1,10 @@
 pub(crate) mod capabilities;
 pub mod message;
 
-use generation::{LspParamsGenerator, numeric::TabSizeGen};
 pub use message::LspMessage;
 use message::LspResponse;
-use serde::{Deserialize, Serialize};
 
 pub mod code_context;
-pub mod compositions;
-pub mod generation;
 pub mod json_rpc;
 
 pub trait LspMessageMeta {
@@ -34,129 +30,4 @@ where
     M: LspRequestMeta,
 {
     fn from_response_ref(response: &LspResponse) -> Option<&Self>;
-}
-
-pub trait HasGenerators<State> {
-    type Generator: LspParamsGenerator<State, Output = Self>;
-
-    fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator>;
-}
-
-pub trait Compose {
-    type Components;
-
-    fn compose(components: Self::Components) -> Self;
-}
-
-impl<Head, Tail> Compose for (Head, Tail) {
-    type Components = (Head, Tail);
-
-    #[inline]
-    fn compose(components: Self::Components) -> Self {
-        components
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GeneratorsConfig {
-    pub invalid_input: InvalidInputConfig,
-    pub tab_size: TabSizeGen,
-    pub awareness: AwarenessConfig,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InvalidInputConfig {
-    pub ranges: bool,
-    pub positions: bool,
-    pub code_frequency: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AwarenessConfig {
-    pub grammar_ops: bool,
-    pub context: bool,
-    pub feedback_guidance: bool,
-}
-
-impl GeneratorsConfig {
-    fn defaults() -> (InvalidInputConfig, TabSizeGen) {
-        (
-            InvalidInputConfig {
-                ranges: true,
-                positions: true,
-                code_frequency: 0.1,
-            },
-            TabSizeGen {
-                candidates: vec![0, 1, 2, 4, 8],
-                rand_prob: 0.2,
-            },
-        )
-    }
-
-    #[must_use]
-    pub fn full() -> Self {
-        let (invalid_input, tab_size) = Self::defaults();
-        Self {
-            invalid_input,
-            tab_size,
-            awareness: AwarenessConfig {
-                grammar_ops: true,
-                context: true,
-                feedback_guidance: true,
-            },
-        }
-    }
-
-    #[must_use]
-    pub fn no_server_feedback() -> Self {
-        let (invalid_input, tab_size) = Self::defaults();
-        Self {
-            invalid_input,
-            tab_size,
-            awareness: AwarenessConfig {
-                grammar_ops: false,
-                context: true,
-                feedback_guidance: false,
-            },
-        }
-    }
-
-    #[must_use]
-    pub fn no_context_awareness() -> Self {
-        let (invalid_input, tab_size) = Self::defaults();
-        Self {
-            invalid_input,
-            tab_size,
-            awareness: AwarenessConfig {
-                grammar_ops: true,
-                context: false,
-                feedback_guidance: false,
-            },
-        }
-    }
-
-    #[must_use]
-    pub const fn use_context(&self) -> bool {
-        self.awareness.context
-    }
-
-    #[must_use]
-    pub const fn use_feedback_guidance(&self) -> bool {
-        self.awareness.context && self.awareness.feedback_guidance
-    }
-
-    #[must_use]
-    pub const fn use_grammar_ops(&self) -> bool {
-        self.awareness.context && self.awareness.grammar_ops
-    }
-
-    #[must_use]
-    pub const fn allow_invalid_positions(&self) -> bool {
-        self.awareness.context && self.invalid_input.positions
-    }
-
-    #[must_use]
-    pub const fn allow_invalid_ranges(&self) -> bool {
-        self.awareness.context && self.invalid_input.ranges
-    }
 }

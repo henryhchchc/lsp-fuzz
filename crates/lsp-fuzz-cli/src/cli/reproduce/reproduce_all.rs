@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use anyhow::Context;
 use libafl::inputs::Input;
-use lsp_fuzz::lsp_input::LspInput;
+use lsp_fuzz::test_case::LspInput;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use tracing::info;
 
@@ -57,12 +57,12 @@ impl ReproduceAll {
                 .to_str()
                 .context("The file name is not valid UTF-8")?
                 .to_owned();
-            let lsp_input = LspInput::from_file(&input_file)
+            let test_case = LspInput::from_file(&input_file)
                 .with_context(|| format!("Loading input file: {}", input_file.display()))?;
             info!("Reproducing crash for input {}", input_id);
             reproduce(
                 input_id,
-                lsp_input,
+                test_case,
                 &self.target_executable,
                 &self.target_args,
                 false,

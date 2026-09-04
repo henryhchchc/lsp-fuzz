@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context;
 use libafl::inputs::Input;
-use lsp_fuzz::{execution::workspace_observer::HasWorkspace, lsp_input::LspInput};
+use lsp_fuzz::test_case::{HasWorkspace, LspInput};
 use tracing::info;
 
 use super::GlobalOptions;
@@ -63,13 +63,13 @@ fn export_input(input: &Path, output_dir: &Path) -> Result<(), anyhow::Error> {
     input
         .setup_workspace(&workspace_dir)
         .context("Setting up workspace directory")?;
-    let workspace_url = format!("file://{}/", workspace_dir.display());
     let requests_dir = output_dir.join("requests");
     fs::create_dir_all(&requests_dir).context("Creating requests dir")?;
-    let mut id = 0;
-    for (idx, message) in input.message_sequence().enumerate() {
+    for (idx, json_msg) in input
+        .localized_json_rpc_message_sequence(&workspace_dir)
+        .enumerate()
+    {
         let message_file = requests_dir.join(format!("message_{idx:0>5}"));
-        let json_msg = message.into_json_rpc(&mut id, Some(&workspace_url));
         let message_file = File::create(message_file).context("Creating message file")?;
         let mut writer = BufWriter::new(message_file);
         writer

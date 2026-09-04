@@ -18,7 +18,8 @@ use libcasr::{
     stacktrace::ParseStacktrace,
 };
 use lsp_fuzz::{
-    execution::workspace_observer::HasWorkspace, lsp::json_rpc::JsonRPCMessage, lsp_input::LspInput,
+    lsp::json_rpc::JsonRPCMessage,
+    test_case::{HasWorkspace, LspInput},
 };
 use nix::libc;
 use serde::Serialize;
@@ -28,18 +29,15 @@ pub mod reproduce_all;
 pub mod reproduce_one;
 
 fn json_rpc_messages<'a>(
-    lsp_input: &'a LspInput,
-    workspace_url: &'a str,
+    test_case: &'a LspInput,
+    workspace_dir: &'a Path,
 ) -> impl Iterator<Item = JsonRPCMessage> + use<'a> {
-    let mut msg_id = 0;
-    lsp_input
-        .message_sequence()
-        .map(move |msg| msg.into_json_rpc(&mut msg_id, Some(workspace_url)))
+    test_case.localized_json_rpc_message_sequence(workspace_dir)
 }
 
 fn find_crashing_request(
     input: &LspInput,
-    workspace_url: &str,
+    workspace_dir: &Path,
     child: &mut Child,
 ) -> Result<Option<(usize, JsonRPCMessage)>, anyhow::Error> {
     let mut target_stdin = child
@@ -47,7 +45,7 @@ fn find_crashing_request(
         .take()
         .context("Child should have its stdin piped")?;
     let mut crashing_request = None;
-    for (idx, jsonrpc) in json_rpc_messages(input, workspace_url).enumerate() {
+    for (idx, jsonrpc) in json_rpc_messages(input, workspace_dir).enumerate() {
         info!(
             id = ?jsonrpc.id(),
             method = ?jsonrpc.method(),
@@ -111,13 +109,7 @@ fn reproduce(
             Stdio::null()
         });
     let mut child = target.spawn().context("Starting target process")?;
-    let workspace_url = format!(
-        "file://{}/",
-        workspace_dir
-            .to_str()
-            .expect("The workspace_dir is not valid UTF-8")
-    );
-    let crashing_request = find_crashing_request(&input, &workspace_url, &mut child)?;
+    let crashing_request = find_crashing_request(&input, workspace_dir, &mut child)?;
     let status = child.wait().context("Waiting for target to exit")?;
     info!("Target exited with status: {:?}", status);
 

@@ -1,33 +1,16 @@
 use std::{borrow::Cow, hash::Hash, ops::Range};
 
 use ahash::{HashMap, HashSet};
-use generation::{GrammarContext, GrammarContextLookup};
+use generation::GrammarContext;
 use grammar::tree_sitter::TreeIter;
 use itertools::Itertools;
-use libafl::{
-    HasMetadata,
-    inputs::HasTargetBytes,
-    mutators::MutatorsTuple,
-    state::{HasMaxSize, HasRand},
-};
-use libafl_bolts::{
-    HasLen,
-    ownedref::OwnedSlice,
-    tuples::{Merge, NamedTuple},
-};
+use libafl::inputs::HasTargetBytes;
+use libafl_bolts::{HasLen, ownedref::OwnedSlice};
 use lsp_fuzz_grammars::Language;
-use mutations::{
-    NodeContentMutation, NodeTruncation, ReplaceNodeMutation,
-    node_filters::HighlightedNodes,
-    node_generators::{ChooseFromDerivations, EmptyNode, ExpandGrammar, MismatchedNode},
-    text_document_selectors::RandomDoc,
-};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tuple_list::tuple_list;
 
-use crate::{lsp::GeneratorsConfig, lsp_input::LspInput, mutators::WithProbability};
-
+pub(crate) mod conversions;
 pub mod generation;
 pub mod grammar;
 pub mod mutations;
@@ -282,72 +265,6 @@ impl HasLen for TextDocument {
     fn len(&self) -> usize {
         self.content.len()
     }
-}
-
-type ReplaceNodeInRandomRoc<'a, NodeSel, NodeGen> =
-    ReplaceNodeMutation<'a, RandomDoc, NodeSel, NodeGen>;
-type NodeMutationInRandomDoc<'a, Mut, NodeSel> = NodeContentMutation<'a, Mut, RandomDoc, NodeSel>;
-
-#[must_use]
-pub fn text_document_mutations<'g, State>(
-    grammar_lookup: &'g GrammarContextLookup,
-    generators_config: &GeneratorsConfig,
-) -> impl MutatorsTuple<LspInput, State> + NamedTuple + use<'g, State>
-where
-    State: HasRand + HasMaxSize + HasMetadata,
-{
-    use mutations::node_filters::NodesThat;
-
-    let any_node = NodesThat::new(|_: &tree_sitter::Node<'_>| true);
-    let terminal_node = NodesThat::new(|it: &tree_sitter::Node<'_>| it.child_count() == 0);
-    let remove_comment = ReplaceNodeInRandomRoc::new(
-        grammar_lookup,
-        HighlightedNodes::new("comment".to_owned()),
-        EmptyNode,
-    );
-    let correct_code_mutations = tuple_list![
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ChooseFromDerivations),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
-        ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, ExpandGrammar),
-        remove_comment.clone(),
-        remove_comment.clone(),
-        remove_comment,
-    ];
-    let incorrect_code_mutations = {
-        let recover_from_error = ReplaceNodeInRandomRoc::new(
-            grammar_lookup,
-            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_error()),
-            ChooseFromDerivations,
-        );
-        let produce_missing_node = ReplaceNodeInRandomRoc::new(
-            grammar_lookup,
-            NodesThat::new(|it: &tree_sitter::Node<'_>| it.is_missing()),
-            ChooseFromDerivations,
-        );
-        let generate_mismatched =
-            ReplaceNodeInRandomRoc::new(grammar_lookup, any_node, MismatchedNode);
-        let terminal_truncation =
-            NodeMutationInRandomDoc::new(NodeTruncation, grammar_lookup, terminal_node);
-        // let terminal_char_mutation =
-        //     NodeMutationInRandomDoc::new(NodeUTF8Mutation, grammar_lookup, terminal_node);
-        let drop_terminal = ReplaceNodeInRandomRoc::new(grammar_lookup, terminal_node, EmptyNode);
-
-        tuple_list![
-            recover_from_error,
-            produce_missing_node,
-            generate_mismatched.with_probability(generators_config.invalid_input.code_frequency),
-            terminal_truncation.with_probability(generators_config.invalid_input.code_frequency),
-            // terminal_char_mutation.with_probability(generators_config.invalid_input.code_frequency),
-            drop_terminal
-                .clone()
-                .with_probability(generators_config.invalid_input.code_frequency),
-            drop_terminal.with_probability(generators_config.invalid_input.code_frequency),
-        ]
-    };
-    correct_code_mutations.merge(incorrect_code_mutations)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

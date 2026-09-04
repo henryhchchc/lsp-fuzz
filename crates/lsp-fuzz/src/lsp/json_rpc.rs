@@ -171,6 +171,15 @@ impl JsonRPCMessage {
         }
     }
 
+    /// Returns mutable parameters for requests and notifications.
+    #[must_use]
+    pub fn params_mut(&mut self) -> Option<&mut serde_json::Value> {
+        match self {
+            Self::Request { params, .. } | Self::Notification { params, .. } => Some(params),
+            Self::Response { .. } => None,
+        }
+    }
+
     /// Serializes the message into an LSP payload with `Content-Length` framing.
     ///
     /// # Panics
@@ -272,11 +281,7 @@ fn test_lsp_request_roundtrip() {
         ..Default::default()
     });
     let mut id = 0;
-    let workspace_folder = "file:///path/to/folder/";
-    let jsonrpc = request
-        .clone()
-        .into_json_rpc(&mut id, Some(workspace_folder))
-        .to_lsp_payload();
+    let jsonrpc = request.into_json_rpc(&mut id).to_lsp_payload();
     let JsonRPCMessage::Request {
         id, method, params, ..
     } = JsonRPCMessage::read_lsp_payload(&mut jsonrpc.as_ref()).unwrap()
@@ -285,13 +290,20 @@ fn test_lsp_request_roundtrip() {
     };
     assert_eq!(id, MessageId::Number(0));
     assert_eq!(method, "initialize");
-    assert!(
-        params["workspaceFolders"]
-            .as_array()
-            .and_then(|it| it.first())
-            .and_then(|it| it["uri"].as_str())
-            .is_some_and(|it| it.starts_with(workspace_folder))
+    assert_eq!(
+        params["workspaceFolders"][0]["uri"],
+        serde_json::json!("lsp-fuzz://")
     );
+}
+
+#[test]
+fn params_mut_is_only_available_for_outbound_messages() {
+    let mut request = JsonRPCMessage::request(0, "method".into(), serde_json::json!({}));
+    request.params_mut().unwrap()["key"] = serde_json::json!("value");
+    assert_eq!(request.params_mut().unwrap()["key"], "value");
+
+    let mut response = JsonRPCMessage::response(Some(0), None, None);
+    assert!(response.params_mut().is_none());
 }
 
 #[test]

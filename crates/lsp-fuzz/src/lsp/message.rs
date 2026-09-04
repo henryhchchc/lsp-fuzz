@@ -1,12 +1,9 @@
-use std::{borrow::Cow, mem, ops::Range};
+use std::mem;
 
 use serde::{Deserialize, Serialize};
 
 use super::json_rpc::JsonRPCMessage;
-use crate::{
-    lsp_input::LspInput,
-    macros::{lsp_messages, lsp_responses},
-};
+use crate::macros::{lsp_messages, lsp_responses};
 
 lsp_messages! {
     /// A Language Server Protocol message.
@@ -186,61 +183,15 @@ lsp_responses! {
 }
 
 impl LspMessage {
-    pub fn into_json_rpc(self, id: &mut usize, workspace_uri: Option<&str>) -> JsonRPCMessage {
+    pub fn into_json_rpc(self, id: &mut usize) -> JsonRPCMessage {
         let is_request = self.is_request();
-        let (method, mut params) = self.into_json();
-        if let Some(workspace_uri) = workspace_uri {
-            let workspace_uri = if workspace_uri.ends_with('/') {
-                Cow::Borrowed(workspace_uri)
-            } else {
-                Cow::Owned(format!("{workspace_uri}/"))
-            };
-            localize_json_value(&mut params, workspace_uri.as_ref());
-        }
+        let (method, params) = self.into_json();
         if is_request {
             let id = mem::replace(id, *id + 1);
             JsonRPCMessage::request(id, method.into(), params)
         } else {
             JsonRPCMessage::notification(method.into(), params)
         }
-    }
-}
-
-fn localize_json_value(value: &mut serde_json::Value, workspace_uri: &str) {
-    use serde_json::Value::{Array, Object, String};
-    const LSP_FUZZ_PREFIX_RANGE: Range<usize> = 0..LspInput::PROTOCOL_PREFIX.len();
-    match value {
-        Object(inner) => inner.values_mut().for_each(|value| {
-            localize_json_value(value, workspace_uri);
-        }),
-        Array(items) => items.iter_mut().for_each(|value| {
-            localize_json_value(value, workspace_uri);
-        }),
-        String(str_val) if str_val.starts_with(LspInput::PROTOCOL_PREFIX) => {
-            str_val.replace_range(LSP_FUZZ_PREFIX_RANGE, workspace_uri);
-        }
-        _ => {}
-    }
-}
-
-pub(crate) fn lift_localized_json(value: &mut serde_json::Value) {
-    use serde_json::Value::{Array, Object, String};
-    match value {
-        Object(inner) => inner.values_mut().for_each(|value| {
-            lift_localized_json(value);
-        }),
-        Array(items) => items.iter_mut().for_each(|value| {
-            lift_localized_json(value);
-        }),
-        String(str_val) => {
-            if let Some(index) = str_val.find(LspInput::WORKSPACE_DIR_PREFIX) {
-                let next_slash = str_val[index..]
-                    .find('/')
-                    .map_or(str_val.len(), |it| it + index + 1);
-                str_val.replace_range(0..next_slash, LspInput::PROTOCOL_PREFIX);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -261,26 +212,6 @@ mod tests {
     use super::LspResponse;
 
     #[test]
-    fn test_localization() {
-        let mut value = serde_json::json!({
-            "uri": "lsp-fuzz://path/to/file",
-            "other_attr": { "uri": "lsp-fuzz://path/to/other_file" },
-            "some_arr": ["lsp-fuzz://path/to/element"],
-            "other_arr": [{ "uri": "lsp-fuzz://path/to/element" }]
-        });
-        super::localize_json_value(&mut value, "file:///path/to/workspace_dir/");
-        assert_eq!(
-            value,
-            serde_json::json!({
-                "uri": "file:///path/to/workspace_dir/path/to/file",
-                "other_attr": { "uri": "file:///path/to/workspace_dir/path/to/other_file" },
-                "some_arr": ["file:///path/to/workspace_dir/path/to/element"],
-                "other_arr": [{ "uri": "file:///path/to/workspace_dir/path/to/element" }]
-            })
-        );
-    }
-
-    #[test]
     fn test_decode_response() {
         let response = serde_json::json!({
             "contents": { "kind": "markdown", "value": "**Documentation:** This is a test hover response" }
@@ -296,30 +227,6 @@ mod tests {
             lsp_types::HoverContents::Markup(lsp_types::MarkupContent {
                 kind: lsp_types::MarkupKind::Markdown,
                 value: "**Documentation:** This is a test hover response".to_string()
-            })
-        );
-    }
-
-    #[test]
-    fn test_lift_localized_json() {
-        let mut value = serde_json::json!({
-            "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/file",
-            "other_attr": { "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/other_file" },
-            "some_arr": [
-                "file:///path/to/lsp-fuzz-workspace_2333/path/to/element",
-                "file:///path/to/lsp-fuzz-workspace_2333/",
-                "file:///path/to/lsp-fuzz-workspace_2333",
-            ],
-            "other_arr": [{ "uri": "file:///path/to/lsp-fuzz-workspace_2333/path/to/element" }]
-        });
-        super::lift_localized_json(&mut value);
-        assert_eq!(
-            value,
-            serde_json::json!({
-                "uri": "lsp-fuzz://path/to/file",
-                "other_attr": { "uri": "lsp-fuzz://path/to/other_file" },
-                "some_arr": ["lsp-fuzz://path/to/element", "lsp-fuzz://", "lsp-fuzz://"],
-                "other_arr": [{ "uri": "lsp-fuzz://path/to/element" }]
             })
         );
     }

@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use tracing::info;
 
-use crate::{utf8::UTF8Tokens, utils::AflContext};
+use crate::{libafl_support::AflContext, utf8::UTF8Tokens};
 
 pub mod fork_server;
 pub mod responses;

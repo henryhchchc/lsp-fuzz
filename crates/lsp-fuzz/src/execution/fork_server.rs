@@ -34,7 +34,7 @@ use os_pipe::{PipeReader, PipeWriter};
 use tracing::{debug, info, warn};
 
 use super::FuzzInput;
-use crate::utils::AflContext;
+use crate::libafl_support::AflContext;
 
 /// Represents the different ways to set up fuzzing input for the target.
 #[derive(Debug)]

@@ -1,0 +1,112 @@
+use std::{marker::PhantomData, num::NonZeroUsize, result::Result};
+
+use libafl::{HasMetadata, state::HasRand};
+use libafl_bolts::rands::Rand;
+
+use super::{DefaultGenerator, DynGenerator, GenerationError, LspParamsGenerator, boxed_generator};
+use crate::{
+    test_case::message_generation::HasGenerators,
+    test_case::{
+        LspInput,
+        document_mutation::{TextDocumentSelector, selectors::RandomDoc},
+    },
+    text_document::{GrammarBasedMutation, grammar::tree_sitter::TreeIter},
+    utf8::UTF8Tokens,
+};
+
+#[derive(Debug, Default)]
+pub struct UTF8TokensGenerator;
+
+impl UTF8TokensGenerator {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl<State> LspParamsGenerator<State> for UTF8TokensGenerator
+where
+    State: HasMetadata + HasRand,
+{
+    type Output = String;
+
+    fn generate(
+        &self,
+        state: &mut State,
+        _input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let token_cnt = state
+            .metadata()
+            .map(UTF8Tokens::len)
+            .ok()
+            .and_then(NonZeroUsize::new)
+            .ok_or(GenerationError::NothingGenerated)?;
+        let idx = state.rand_mut().below(token_cnt);
+        // SAFETY: We checked just now that the metadata is present
+        let tokens: &UTF8Tokens = unsafe { state.metadata().unwrap_unchecked() };
+        let token = tokens[idx].clone();
+        Ok(token)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TerminalTextGenerator<DocSel> {
+    pub(crate) _phantom: PhantomData<DocSel>,
+}
+
+impl<DocSel> TerminalTextGenerator<DocSel> {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<State, DocSel> LspParamsGenerator<State> for TerminalTextGenerator<DocSel>
+where
+    State: HasRand,
+    DocSel: TextDocumentSelector<State>,
+{
+    type Output = String;
+    fn generate(
+        &self,
+        state: &mut State,
+        input: &LspInput,
+    ) -> Result<Self::Output, GenerationError> {
+        let doc = DocSel::select_document(state, input)
+            .map(|it| it.1)
+            .ok_or(GenerationError::NothingGenerated)?;
+        let terminal_text = doc
+            .parse_tree()
+            .iter()
+            .filter(|it| it.child_count() == 0)
+            .filter_map(|node| node.utf8_text(doc.content()).ok());
+        let text = state
+            .rand_mut()
+            .choose(terminal_text)
+            .ok_or(GenerationError::NothingGenerated)?;
+
+        Ok(text.to_owned())
+    }
+}
+
+impl<State> HasGenerators<State> for String
+where
+    State: HasRand + HasMetadata,
+{
+    type Generator = DynGenerator<State, Self>;
+
+    fn generators(
+        config: &crate::test_case::message_generation::GeneratorsConfig,
+    ) -> impl IntoIterator<Item = Self::Generator> {
+        const DEFAULT: DefaultGenerator<String> = DefaultGenerator::new();
+        const TOKENS: UTF8TokensGenerator = UTF8TokensGenerator::new();
+        const TERMINAL_TEXT: TerminalTextGenerator<RandomDoc> = TerminalTextGenerator::new();
+        let mut generators = vec![boxed_generator(DEFAULT), boxed_generator(TOKENS)];
+        if config.use_context() {
+            generators.push(boxed_generator(TERMINAL_TEXT));
+        }
+        generators
+    }
+}

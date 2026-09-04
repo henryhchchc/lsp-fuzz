@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use anyhow::Context;
 use libafl::inputs::Input;
-use lsp_fuzz::lsp_input::LspInput;
+use lsp_fuzz::test_case::LspInput;
 use tracing::info;
 
 use crate::cli::{GlobalOptions, reproduce::reproduce};
@@ -36,11 +36,11 @@ impl ReproduceOne {
             .to_str()
             .context("The file name is not valid UTF-8")?
             .to_owned();
-        let lsp_input = LspInput::from_file(&self.input_file).context("Loading input file")?;
+        let test_case = LspInput::from_file(&self.input_file).context("Loading input file")?;
         info!("Reproducing crash for input {}", input_id);
         let result = reproduce(
             input_id,
-            lsp_input,
+            test_case,
             &self.target_executable,
             &self.target_args,
             true,

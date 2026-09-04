@@ -11,7 +11,7 @@ use libafl_bolts::SerdeAny;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::lsp_input::LspInput;
+use crate::test_case::LspInput;
 
 #[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize, SerdeAny)]

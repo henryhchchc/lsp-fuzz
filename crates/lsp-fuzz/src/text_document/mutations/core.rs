@@ -1,23 +1,6 @@
 use std::{option::Option, vec::Vec};
 
-use lsp_types::Uri;
-
-use crate::{
-    lsp_input::LspInput,
-    text_document::{TextDocument, generation::GrammarContext},
-};
-
-pub trait TextDocumentSelector<State> {
-    fn select_document<'i>(
-        state: &mut State,
-        input: &'i LspInput,
-    ) -> Option<(Uri, &'i TextDocument)>;
-
-    fn select_document_mut<'i>(
-        state: &mut State,
-        input: &'i mut LspInput,
-    ) -> Option<(Uri, &'i mut TextDocument)>;
-}
+use crate::text_document::{TextDocument, generation::GrammarContext};
 
 pub trait NodeSelector<State> {
     const NAME: &'static str;

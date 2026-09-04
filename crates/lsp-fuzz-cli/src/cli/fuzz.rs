@@ -36,13 +36,12 @@ use lsp_fuzz::{
         workspace_observer::WorkspaceObserver,
     },
     fuzz_target,
-    lsp::GeneratorsConfig,
-    lsp_input::{
-        LspInputBytesConverter, LspInputGenerator, LspInputMutator, messages::message_mutations,
-        server_response::LspResponseFeedback,
-    },
     stages::{StatsStage, TimeoutStopStage},
-    text_document::text_document_mutations,
+    test_case::{
+        LspInputBytesConverter, LspInputGenerator, LspInputMutator,
+        document_mutation::text_document_mutations, message_generation::GeneratorsConfig,
+        messages::message_mutations, server_response::LspResponseFeedback,
+    },
     utf8::UTF8Tokens,
 };
 use lsp_fuzz_grammars::Language;

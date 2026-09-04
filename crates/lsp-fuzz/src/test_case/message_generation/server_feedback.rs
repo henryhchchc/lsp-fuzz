@@ -1,0 +1,34 @@
+use libafl::state::{HasCurrentTestcase, HasRand};
+use lsp_types::{
+    CallHierarchyItem, CodeAction, CodeLens, Command, CompletionItem, DocumentLink, InlayHint,
+    TypeHierarchyItem, WorkspaceSymbol,
+};
+use trait_gen::trait_gen;
+
+use super::ParamFragmentGenerator;
+use crate::test_case::{
+    LspInput,
+    message_generation::{GeneratorsConfig, HasGenerators},
+};
+
+#[trait_gen(T->
+    CodeAction,
+    Command,
+    InlayHint,
+    CompletionItem,
+    CodeLens,
+    WorkspaceSymbol,
+    TypeHierarchyItem,
+    CallHierarchyItem,
+    DocumentLink,
+)]
+impl<State> HasGenerators<State> for T
+where
+    State: HasCurrentTestcase<LspInput> + HasRand,
+{
+    type Generator = ParamFragmentGenerator<T>;
+
+    fn generators(config: &GeneratorsConfig) -> impl IntoIterator<Item = Self::Generator> {
+        [ParamFragmentGenerator::new(config.use_feedback_guidance())]
+    }
+}

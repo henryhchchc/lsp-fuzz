@@ -10,7 +10,7 @@ use super::{
     grammar::{DerivationSequence, Grammar, Symbol, Terminal},
     mutations::MAX_DOCUMENT_SIZE,
 };
-use crate::utils::RandExt;
+use crate::libafl_support::RandExt;
 
 #[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Serialize, Deserialize, libafl_bolts::SerdeAny)]
