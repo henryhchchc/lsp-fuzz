@@ -1,7 +1,7 @@
 # LSPFuzz: Hunting Bugs in Language Servers
 
-LSPFuzz is a grey-box hybrid fuzzer that generates test cases for [Language Servers](https://microsoft.github.io/language-server-protocol/).
-It is implemented based on [LibAFL](https://github.com/AFLplusplus/LibAFL).
+LSPFuzz is a grey-box hybrid fuzzer for [Language Servers](https://microsoft.github.io/language-server-protocol/), built on [LibAFL](https://github.com/AFLplusplus/LibAFL).
+Each test case combines a virtual workspace with an LSP message sequence.
 
 ## What is this?
 
@@ -32,6 +32,14 @@ If you use LSPFuzz for academic purposes, please cite the above paper.
 A snapshot of the code used to conduct the experiments in the paper can be found at the [ase25-major-revision](https://github.com/henryhchchc/lsp-fuzz/releases/tag/ase25-major-revision) tag.
 
 ## Usage
+
+Build a release binary before fuzzing:
+
+```bash
+cargo build --release
+```
+
+All examples below use `lsp-fuzz-cli`; use `target/release/lsp-fuzz-cli` when running from this checkout.
 
 ### Preparation
 
@@ -89,9 +97,11 @@ A snapshot of the code used to conduct the experiments in the paper can be found
 
    ```bash
    lsp-fuzz-cli mine-code-fragments \
-     --search-directory <code-dir> \ # Directory containing code files of the target language for the LSP servers
-     --output <fragment-output> # File to store the mined code fragments
+     --search-directory <code-dir> \
+     --output <fragment-output>
    ```
+
+   `<code-dir>` contains source files for the target language; `<fragment-output>` stores the mined fragments.
 
 > [!CAUTION]
 > Although persistent mode can significantly improve fuzzing efficiency, users need to ensure that resources are properly released and states are reset in the fuzzing loop.
@@ -100,12 +110,15 @@ A snapshot of the code used to conduct the experiments in the paper can be found
 
 ```bash
 lsp-fuzz-cli fuzz \
-  --state <state-dir> \ # Directory to store the fuzzing state (e.g., generated inputs, found crashes)
-  --lsp-executable <fuzz-target> \ # Executable file of the LSP server fuzz target
-  --language-fragments Language=<fragment-output>\ # Comma-separated list of files containing the mined code fragments, (e.g., `C=c.frag,CPlusPlus=cpp.frag`)
-  --coverage-map-size <coverage-map-size> \ # Size of the coverage map to use for coverage-guided fuzzing
+  --state <state-dir> \
+  --lsp-executable <fuzz-target> \
+  --language-fragments Language=<fragment-output> \
+  --coverage-map-size <coverage-map-size> \
   --time-budget 24 # Time budget for fuzzing in hours
 ```
+
+`<state-dir>` stores the corpus and crashes.
+Supply fragment files as a comma-separated list, for example `C=c.frag,CPlusPlus=cpp.frag`.
 
 To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
 
@@ -115,8 +128,8 @@ To learn more about the options, run `lsp-fuzz-cli fuzz --help`.
 
    ```bash
    lsp-fuzz-cli export \
-     --input <state-dir>/solutions \ # Directory containing the generated crash-triggering inputs
-     --output <export-directory> # Directory to store the exported crash-triggering inputs
+     --input <state-dir>/solutions \
+     --output <export-directory>
    ```
 
    The contents of `<export-directory>` will be organized as follows:

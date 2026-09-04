@@ -1,10 +1,8 @@
-# AGENTS.md
-
-This file provides guidance to coding agents when working with code in this repository.
+# Project Information of LSPFuzz
 
 ## What This Project Is
 
-LSPFuzz is a grey-box hybrid fuzzer for Language Server Protocol (LSP) servers, built on top of [LibAFL](https://github.com/AFLplusplus/LibAFL).
+LSPFuzz is a grey-box hybrid fuzzer for language servers (LSP servers), built on top of [LibAFL](https://github.com/AFLplusplus/LibAFL).
 It generates test cases that consist of a virtual workspace (source files) plus a sequence of LSP messages, then feeds them to an AFL++-instrumented LSP server binary to find crashes.
 
 ## Commands
@@ -29,7 +27,7 @@ cargo test -p lsp-fuzz text_doc_lines
 cargo clippy --workspace
 
 # Format
-cargo fmt --workspace
+cargo fmt --all
 
 # Check spelling (uses typos and codebook)
 typos
@@ -40,26 +38,32 @@ The workspace uses Rust 2024 edition.
 
 ## Workspace Structure
 
-Three crates under `crates/`:
+Four crates under `crates/`:
 
 | Crate | Role |
 |---|---|
 | `lsp-fuzz` | Core library: all fuzzing logic, types, and algorithms |
 | `lsp-fuzz-cli` | Binary: CLI front-end that wires the library into a runnable fuzzer |
 | `lsp-fuzz-grammars` | Tree-sitter grammar wrappers for all supported languages |
+| `lsp-fuzz-tree-sitter-grammar` | Embedded Tree-sitter grammar compiler used for grammar-driven generation |
 
 ## Core Architecture
 
-### Input Representation (`lsp-fuzz/src/lsp_input/`)
+### Test Cases (`lsp-fuzz/src/test_case/`)
 
 The fuzzer's input type is `LspInput`, which contains:
 
 - `workspace: FileSystemDirectory<WorkspaceEntry>` — a virtual in-memory file system tree.
-  Each entry is either a `SourceFile(TextDocument)` (sent to the LSP via `textDocument/didOpen`) or a `Skeleton(Vec<u8>)` (written to disk but not opened, e.g., `rust-project.json`).
+  Each entry is either a `SourceFile(TextDocument)` (sent to the LSP via `textDocument/didOpen`) or a `Skeleton(Vec<u8>)` (written to disk but not opened).
 - `messages: LspMessageSequence` — the sequence of LSP requests/notifications to send after workspace initialization.
 
 When the fuzzer runs a target, `LspInput::message_sequence()` expands the stored input into a full protocol sequence: `Initialize` → `Initialized` → `didOpen` for each source file → stored messages → `Shutdown` → `Exit`.
-The virtual `lsp-fuzz://` URI scheme is replaced with real `file://` paths at execution time via `localize_json_value`.
+`LspInput::localized_json_rpc_message_sequence()` owns request IDs and replaces virtual URIs with real `file://` paths at the wire boundary.
+Server responses are lifted back into virtual URI form before feedback and generation inspect them.
+
+`test_case::message_generation` owns LSP-aware parameter generation, compositions, server-feedback guidance, and `GeneratorsConfig`.
+`test_case::document_mutation` owns the mutators that select a document from a test case and recalibrate dependent LSP positions after an edit.
+`lsp_input` no longer exists.
 
 ### Text Document Mutation (`lsp-fuzz/src/text_document/`)
 
@@ -72,11 +76,11 @@ Mutations are grammar-guided:
 - `NodeContentMutation` — mutates the raw bytes of a node's content.
 - Node generators: `ChooseFromDerivations` (pick a real code fragment from corpus), `ExpandGrammar` (generate from tree-sitter grammar), `MismatchedNode` (intentionally wrong type), `EmptyNode`.
 
-### LSP Message Generation (`lsp-fuzz/src/lsp/`)
+### LSP Protocol (`lsp-fuzz/src/lsp/`)
 
 `LspMessage` is a large enum covering all LSP requests and notifications, generated via the `lsp_messages!` macro in `macros.rs`.
-Parameter generation for each message type is in `lsp/generation/`.
-The `GeneratorsConfig` struct controls which optional generation strategies are active (context awareness, grammar-ops awareness, server-feedback guidance, invalid position/range injection).
+This module is deliberately independent of test-case storage and URI localization.
+It owns typed LSP messages, metadata, response decoding, and JSON-RPC framing only.
 
 ### Execution (`lsp-fuzz/src/execution/`)
 
@@ -110,9 +114,13 @@ Corpus files are named `id_<N>_time_<T>_exec_<E>` (set by `TestCaseFileNameFeedb
 
 ## Key Design Notes
 
-- **`lsp-fuzz://` URI scheme** is an internal virtual scheme used throughout the fuzzer.
-  URIs are "localized" (replaced with real `file://` paths) just before sending to the target, and "lifted" back when parsing server responses.
-  Never hard-code real paths into `LspInput`.
+- **`lsp-fuzz://` URI scheme** is internal to `test_case`.
+  Never store real workspace paths in `LspInput`; localize only through its wire-sequence API.
+- **Uniform seed workspaces:** all languages use a single `main.<extension>` source file.
+  Do not restore the Rust-specific `rust-project.json` setup without an explicit portability design.
+- **Boundary direction:** `lsp` and `text_document` must not import `test_case`; test-case logic may depend on both.
+  Execution depends on the test-case workspace contract, never the reverse.
+- **Focused support modules:** add LibAFL helpers to `libafl_support`, URI helpers to `test_case::uri`, and LSP/Tree-sitter conversions to `text_document::conversions`; do not recreate `utils.rs`.
 - **`stolen/`** contains code adapted from upstream tree-sitter's grammar compiler to drive grammar-based generation without shelling out to Node.js.
 - The workspace dependency `lsp-types` is patched to a custom fork (`github.com/henryhchchc/lsp-types`) — check that fork when debugging LSP type issues.
 - Debug builds print a warning and are significantly slower; always use `--release` for benchmarking or actual fuzzing runs.
