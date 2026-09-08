@@ -1,5 +1,4 @@
 [workspace]
-resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
@@ -27,8 +26,8 @@ itertools = "0.*"
 kmp = "0.1.1"
 libafl = { version = "0.16", default-features = false }
 libafl_bolts = { version = "0.16", default-features = false }
-libcasr = "2"
 libc = "0.2"
+libcasr = "2"
 lsp-fuzz = { path = "crates/lsp-fuzz" }
 lsp-fuzz-grammars = { path = "crates/lsp-fuzz-grammars" }
 lsp-fuzz-tree-sitter-grammar = { path = "crates/lsp-fuzz-tree-sitter-grammar" }
@@ -76,10 +75,7 @@ pedantic = "warn"
 
 [patch.crates-io]
 # This is a custom version with tweaks required by lsp-fuzz (e.g., `Hash` trait implementations)
-lsp-types = {
-  git = "https://github.com/henryhchchc/lsp-types.git",
-  rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46"
-}
+lsp-types = { git = "https://github.com/henryhchchc/lsp-types.git", rev = "00b517e1936150cd8ab7a02aeb602c2a5fe66a46" }
 
 [profile.release]
 opt-level = 3
