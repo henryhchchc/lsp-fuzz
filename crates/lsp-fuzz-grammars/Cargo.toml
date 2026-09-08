@@ -6,20 +6,20 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-derive_more.workspace = true
-serde.workspace = true
+derive_more = { workspace = true, features = ["display", "from_str"] }
+serde = { workspace = true, features = ["derive"] }
 tree-sitter.workspace = true
-tree-sitter-bibtex = { git = "https://github.com/henryhchchc/tree-sitter-bibtex.git", branch = "master" }
-tree-sitter-c = "0.24.2"
-tree-sitter-cpp = "0.23.4"
-tree-sitter-javascript = "0.25.0"
-tree-sitter-language = "0.1.7"
-tree-sitter-latex = { git = "https://github.com/henryhchchc/tree-sitter-latex.git", branch = "self-use" }
-tree-sitter-mlir = { git = "https://github.com/henryhchchc/tree-sitter-mlir.git", branch = "master" }
-# tree-sitter-verilog = {git = "https://github.com/gmlarumbe/tree-sitter-systemverilog.git", branch = "dev", rev = "8537224191c086be0b3bc176a57298c47fa9d49c" } # ase-submission revision
-tree-sitter-qmljs = { git = "https://github.com/henryhchchc/tree-sitter-qmljs.git", branch = "master" }
-tree-sitter-ruby = "0.23.1"
-tree-sitter-rust = "0.24.2"
-tree-sitter-solidity = "1.2.13"
-tree-sitter-systemverilog = "0.4.0"
-tree-sitter-toml-ng = "0"
+tree-sitter-bibtex.workspace = true
+tree-sitter-c.workspace = true
+tree-sitter-cpp.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-language.workspace = true
+tree-sitter-latex.workspace = true
+tree-sitter-mlir.workspace = true
+# tree-sitter-verilog.workspace = true
+tree-sitter-qmljs.workspace = true
+tree-sitter-ruby.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-solidity.workspace = true
+tree-sitter-systemverilog.workspace = true
+tree-sitter-toml-ng.workspace = true

@@ -10,38 +10,56 @@ ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
 ciborium.workspace = true
-clap.workspace = true
 const-str.workspace = true
-derive_more.workspace = true
 derive-new.workspace = true
-dot-structures = "0.1.2"
-fastbloom.workspace = true
-fluent-uri = "0.4.1"
-graphviz-rust = { version = "0.9", default-features = false }
-indexmap.workspace = true
+dot-structures.workspace = true
+fastbloom = { workspace = true, features = ["serde", "std"] }
+fluent-uri.workspace = true
+graphviz-rust.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
 itertools.workspace = true
-kmp = "0.1.1"
-libafl.workspace = true
-libafl_bolts.workspace = true
-libc = "0.2"
-lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
-lsp-fuzz-tree-sitter-grammar = { path = "../lsp-fuzz-tree-sitter-grammar" }
-lsp-types.workspace = true
-memmap2.workspace = true
-nix.workspace = true
-ordermap.workspace = true
+kmp.workspace = true
+libc.workspace = true
+lsp-fuzz-grammars.workspace = true
+lsp-fuzz-tree-sitter-grammar.workspace = true
+lsp-types = { workspace = true, features = ["hash"] }
+ordermap = { workspace = true, features = ["serde"] }
 os_pipe.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-smallvec.workspace = true
+smallvec = { workspace = true, features = ["const_generics"] }
 static_assertions.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
-trait-gen = "2.0.7"
+tracing = { workspace = true, features = ["std"] }
+trait-gen.workspace = true
 tree-sitter.workspace = true
 tuple_list.workspace = true
-zstd.workspace = true
+
+[dependencies.derive_more]
+workspace = true
+features = [
+  "constructor",
+  "debug",
+  "deref",
+  "deref_mut",
+  "display",
+  "from",
+  "into",
+  "into_iterator",
+]
+
+[dependencies.libafl]
+workspace = true
+features = ["casr", "derive", "serdeany_autoreg"]
+
+[dependencies.libafl_bolts]
+workspace = true
+features = ["derive", "serdeany_autoreg", "std"]
+
+[dependencies.nix]
+workspace = true
+features = ["fs", "poll", "resource", "signal"]
 
 [features]
 profiling = ["libafl/introspection"]

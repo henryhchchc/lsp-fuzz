@@ -5,10 +5,11 @@ edition.workspace = true
 
 [dependencies]
 hashbrown.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
 regex.workspace = true
 regex-syntax.workspace = true
 rustc-hash.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
+# Grammar rule insertion order determines the implicit start symbol.
+serde_json = { workspace = true, features = ["preserve_order"] }
 thiserror.workspace = true

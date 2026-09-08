@@ -8,29 +8,32 @@ edition.workspace = true
 [dependencies]
 anyhow.workspace = true
 ciborium.workspace = true
-clap.workspace = true
-core_affinity = "0.8.3"
+clap = { workspace = true, features = ["derive", "env"] }
+core_affinity.workspace = true
 ctrlc.workspace = true
 derive-new.workspace = true
 itertools.workspace = true
 libafl = { workspace = true, features = ["clap"] }
-libafl_bolts.workspace = true
-libcasr.workspace = true
-lsp-fuzz = { path = "../lsp-fuzz" }
-lsp-fuzz-grammars = { path = "../lsp-fuzz-grammars" }
+libafl_bolts = { workspace = true, features = ["std"] }
+libcasr = { workspace = true, features = ["serde"] }
+lsp-fuzz.workspace = true
+lsp-fuzz-grammars.workspace = true
 memmap2.workspace = true
-nix.workspace = true
+nix = { workspace = true, features = ["signal"] }
 num_cpus.workspace = true
 os_pipe.workspace = true
 rayon.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tempfile.workspace = true
-tracing.workspace = true
-tracing-subscriber = { version = "0.3.23", features = ["chrono", "env-filter"] }
+tracing = { workspace = true, features = ["attributes", "std"] }
 tuple_list.workspace = true
-walkdir = "2.5.0"
-zstd.workspace = true
+walkdir.workspace = true
+zstd = { workspace = true, features = ["zstdmt"] }
+
+[dependencies.tracing-subscriber]
+workspace = true
+features = ["ansi", "chrono", "env-filter", "fmt"]
 
 [features]
 profiling = ["lsp-fuzz/profiling"]
