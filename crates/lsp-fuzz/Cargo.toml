@@ -51,7 +51,7 @@ features = [
 
 [dependencies.libafl]
 workspace = true
-features = ["casr", "derive", "serdeany_autoreg"]
+features = ["casr", "derive", "serdeany_autoreg", "simd"]
 
 [dependencies.libafl_bolts]
 workspace = true
