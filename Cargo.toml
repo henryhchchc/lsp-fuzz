@@ -68,7 +68,7 @@ tree-sitter-systemverilog = "0.4.0"
 tree-sitter-toml-ng = "0"
 tuple_list = "0.1"
 walkdir = "2.5.0"
-zstd = { version = "0.13", default-features = false }
+zstd = { version = "0.14", default-features = false }
 
 [workspace.lints.clippy]
 enum_glob_use = { level = "allow", priority = 1 }
