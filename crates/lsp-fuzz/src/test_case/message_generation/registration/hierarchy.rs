@@ -1,4 +1,4 @@
-use crate::macros::append_randoms;
+use crate::test_case::message_generation::append_randoms;
 
 append_randoms! {
     pub fn append_hierarchy_messages(config: &GeneratorsConfig) -> AppendHierarchyMessageMutations {

@@ -18,15 +18,14 @@ use libafl::{
 use libafl_bolts::{HasLen, Named, tuples::MatchName};
 use lsp_fuzz::{
     corpus::{TestCaseFileNameFeedback, corpus_kind::SOLUTION},
-    execution::FuzzTargetInfo,
-    fuzz_target::StaticTargetBinaryInfo,
+    execution::{FuzzTargetInfo, target::StaticTargetBinaryInfo},
     stages::StopOnReceived,
     utf8::UTF8Tokens,
 };
 use rayon::prelude::*;
 use tracing::{info, warn};
 
-use crate::fuzzing::ExecutorOptions;
+use super::options::ExecutorOptions;
 
 pub fn scheduler<State, I, C, O>(
     state: &mut State,

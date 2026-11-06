@@ -8,6 +8,16 @@ use std::{borrow::Cow, fmt::Display, num::NonZero};
 use libafl::mutators::MutatorsTuple;
 use libafl_bolts::{HasLen, rands::Rand, tuples::NamedTuple};
 
+pub mod mutators;
+pub mod stages;
+
+mod macros;
+#[allow(
+    unused_imports,
+    reason = "Available to optional fuzzing configurations."
+)]
+pub(crate) use macros::{afl_oops, prop_mutator};
+
 pub(crate) trait OptionExt<T> {
     fn get_or_try_insert_with<F, E>(&mut self, generator: F) -> Result<&mut T, E>
     where

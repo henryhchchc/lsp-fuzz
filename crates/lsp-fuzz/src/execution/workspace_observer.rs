@@ -24,10 +24,7 @@ where
     Input: HasWorkspace,
 {
     fn pre_exec(&mut self, _state: &mut State, input: &Input) -> Result<(), libafl::Error> {
-        let input_hash = input.workspace_hash();
-        let workspace_dir = self
-            .temp_dir
-            .join(format!("lsp-fuzz-workspace_{input_hash}"));
+        let workspace_dir = input.workspace_dir(&self.temp_dir);
 
         std::fs::create_dir_all(&workspace_dir)?;
         input.setup_workspace(&workspace_dir)?;
@@ -41,10 +38,7 @@ where
         input: &Input,
         _exit_kind: &libafl::executors::ExitKind,
     ) -> Result<(), libafl::Error> {
-        let input_hash = input.workspace_hash();
-        let workspace_dir = self
-            .temp_dir
-            .join(format!("lsp-fuzz-workspace_{input_hash}"));
+        let workspace_dir = input.workspace_dir(&self.temp_dir);
 
         std::fs::remove_dir_all(workspace_dir)?;
 

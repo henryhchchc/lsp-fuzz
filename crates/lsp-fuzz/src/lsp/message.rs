@@ -3,7 +3,7 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use super::json_rpc::JsonRPCMessage;
-use crate::macros::{lsp_messages, lsp_responses};
+use super::{lsp_messages, lsp_responses};
 
 lsp_messages! {
     /// A Language Server Protocol message.

@@ -32,15 +32,15 @@ use libafl_bolts::{
 use lsp_fuzz::{
     corpus::{TestCaseFileNameFeedback, corpus_kind::CORPUS},
     execution::{
-        FuzzExecutionConfig, FuzzInput, LspExecutor, responses::LspOutputObserver,
+        FuzzExecutionConfig, FuzzInput, LspExecutor, responses::LspOutputObserver, target,
         workspace_observer::WorkspaceObserver,
     },
-    fuzz_target,
+    feedbacks::lsp_response::LspResponseFeedback,
     stages::{StatsStage, TimeoutStopStage},
     test_case::{
         LspInputBytesConverter, LspInputGenerator, LspInputMutator,
         document_mutation::text_document_mutations, message_generation::GeneratorsConfig,
-        messages::message_mutations, server_response::LspResponseFeedback,
+        message_mutation::message_mutations,
     },
     utf8::UTF8Tokens,
 };
@@ -51,12 +51,13 @@ use tuple_list::tuple_list;
 
 use super::{GlobalOptions, parse_hash_map};
 use crate::{
-    fuzzing::{
-        ExecutorOptions, FuzzerStateDir,
-        common::{self},
-    },
+    cli::fuzz::{options::ExecutorOptions, state_dir::FuzzerStateDir, support as common},
     language_fragments::load_grammar_lookup,
 };
+
+mod options;
+mod state_dir;
+mod support;
 
 const INPUT_SHM_SIZE: usize = 15 * 1024 * 1024 * 1024;
 
@@ -116,8 +117,8 @@ impl FuzzCommand {
             StdShMemProvider::new().context("Creating shared memory provider")?;
 
         let binary_info = self.check_binary().context("Checking binary")?;
-        let map_size = fuzz_target::dump_map_size(&self.execution.lsp_executable)
-            .context("Dumping map size")?;
+        let map_size =
+            target::dump_map_size(&self.execution.lsp_executable).context("Dumping map size")?;
         info!("Detected coverage map size: {}", map_size);
 
         let mut coverage_shmem = shmem_provider
@@ -196,7 +197,10 @@ impl FuzzCommand {
             let mutation_stage = {
                 let generators_config = GeneratorsConfig::full();
                 let text_document_mutator = HavocScheduledMutator::with_max_stack_pow(
-                    text_document_mutations(&grammar_ctx, &generators_config),
+                    text_document_mutations(
+                        &grammar_ctx,
+                        generators_config.invalid_input.code_frequency,
+                    ),
                     6,
                 );
                 let messages_mutator = HavocScheduledMutator::with_max_stack_pow(
@@ -287,7 +291,7 @@ impl FuzzCommand {
         }
     }
 
-    fn check_binary(&self) -> Result<fuzz_target::StaticTargetBinaryInfo, anyhow::Error> {
+    fn check_binary(&self) -> Result<target::StaticTargetBinaryInfo, anyhow::Error> {
         let binary_file =
             File::open(&self.execution.lsp_executable).context("Opening fuzz target")?;
         // SAFETY: we are assuming that the file is not touched externally.

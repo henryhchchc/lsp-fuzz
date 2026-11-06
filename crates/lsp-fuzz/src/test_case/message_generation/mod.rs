@@ -1,3 +1,5 @@
+mod macros;
+pub(crate) use macros::append_randoms;
 use std::{marker::Sized, ops::Deref, rc::Rc, result::Result};
 
 use crate::test_case::LspInput;

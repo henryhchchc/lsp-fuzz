@@ -1,5 +1,4 @@
 mod cli;
-mod fuzzing;
 
 mod language_fragments;
 

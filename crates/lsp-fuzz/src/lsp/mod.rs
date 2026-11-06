@@ -1,5 +1,8 @@
 pub(crate) mod capabilities;
+mod macros;
 pub mod message;
+
+pub(crate) use macros::{lsp_messages, lsp_responses};
 
 pub use message::LspMessage;
 use message::LspResponse;

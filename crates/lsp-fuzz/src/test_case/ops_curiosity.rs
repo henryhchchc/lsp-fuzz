@@ -22,13 +22,13 @@ use libafl_bolts::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use super::{GrammarBasedMutation, Language};
 use crate::{
     libafl_support::AflContext,
     lsp::{LspMessage, code_context::CodeContextRef},
     test_case::LspInput,
-    text_document::TextDocument,
+    text_document::{GrammarBasedMutation, TextDocument},
 };
+use lsp_fuzz_grammars::Language;
 
 #[derive(Debug)]
 pub struct CuriosityFeedback<const MAX_DEPTH: usize> {

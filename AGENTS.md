@@ -61,9 +61,15 @@ When the fuzzer runs a target, `LspInput::message_sequence()` expands the stored
 `LspInput::localized_json_rpc_message_sequence()` owns request IDs and replaces virtual URIs with real `file://` paths at the wire boundary.
 Server responses are lifted back into virtual URI form before feedback and generation inspect them.
 
-`test_case::message_generation` owns LSP-aware parameter generation, compositions, server-feedback guidance, and `GeneratorsConfig`.
-`test_case::document_mutation` owns the mutators that select a document from a test case and recalibrate dependent LSP positions after an edit.
-`lsp_input` no longer exists.
+Private `input`, `workspace`, `generation`, and `mutation` modules own input storage/serialization, the workspace contract, seed generation, and combined mutation respectively.
+Their primary types are re-exported from `test_case`.
+`session` owns session expansion and wire serialization.
+
+`messages` owns `LspMessageSequence`; `message_mutation` owns sequence mutators and their constructors.
+`message_generation` owns LSP-aware parameter generation, compositions, server-feedback guidance, and `GeneratorsConfig`.
+`document_mutation` selects and edits documents, then recalibrates dependent LSP positions through `message_edit`.
+Its mutation constructor accepts the invalid-code frequency directly rather than the entire message-generator configuration.
+`server_response` owns response matching, collection, and metadata; it does not depend on execution.
 
 ### Text Document Mutation (`lsp-fuzz/src/text_document/`)
 
@@ -78,7 +84,7 @@ Mutations are grammar-guided:
 
 ### LSP Protocol (`lsp-fuzz/src/lsp/`)
 
-`LspMessage` is a large enum covering all LSP requests and notifications, generated via the `lsp_messages!` macro in `macros.rs`.
+`LspMessage` is a large enum covering all LSP requests and notifications, generated via the `lsp_messages!` macro in `lsp/macros.rs`.
 This module is deliberately independent of test-case storage and URI localization.
 It owns typed LSP messages, metadata, response decoding, and JSON-RPC framing only.
 
@@ -90,7 +96,19 @@ The executor also:
 
 - Captures stdout for LSP response parsing (fed to `LspOutputObserver`).
 - Reads ASAN log files per child PID and feeds them to `AsanBacktraceObserver`.
-- Detects persistent mode and defer-fork-server mode by scanning the binary for AFL++ signatures.
+
+Private `executor`, `transport`, and `observers` modules separate execution, input delivery, and observer dispatch; primary types are re-exported from `execution`.
+`execution::target` owns binary signature scanning, target configuration, and coverage-map-size probing.
+`WorkspaceObserver` and `LspInputBytesConverter` both use `HasWorkspace::workspace_dir()` to select the same on-disk directory.
+
+### Feedback and LibAFL Support
+
+`feedbacks::lsp_response::LspResponseFeedback` connects execution's output observer to test-case response analysis.
+Keep this integration outside `test_case` so test-case code does not import execution.
+
+`libafl_support::mutators` owns generic mutation adapters; `libafl_support::stages` owns `ActionStage`.
+Protocol macros live under `lsp`, message-registration macros under `test_case::message_generation`, and mutation/error macros under `libafl_support`.
+The top-level `stages` module owns cleanup, statistics, and stopping stages.
 
 ### Language Grammars (`lsp-fuzz-grammars/`)
 
@@ -107,10 +125,17 @@ Five subcommands:
 - `export` — converts binary corpus entries to human-readable workspace + request files
 - `reproduce-one` / `reproduce-all` — replay individual crash inputs
 
+Command modules own their workflows.
+Fuzz-specific options, state-directory handling, and setup helpers live under `cli::fuzz::{options,state_dir,support}`.
+Shared grammar loading remains in `language_fragments`.
+
 ### Corpus Serialization
 
 `LspInput` is serialized to disk in CBOR format (via `ciborium`), with zstd compression available.
 Corpus files are named `id_<N>_time_<T>_exec_<E>` (set by `TestCaseFileNameFeedback`).
+Preserve serialized field names, enum variants, and Serde attributes during refactors.
+Keep `SerdeAny` metadata definitions at their existing defining paths; re-exports do not preserve a moved type's identity.
+The fixed CBOR fixture under `test_case/fixtures` checks compatibility; `tests/workspace.rs` checks converter/observer directory agreement and cleanup.
 
 ## Key Design Notes
 
@@ -121,7 +146,8 @@ Corpus files are named `id_<N>_time_<T>_exec_<E>` (set by `TestCaseFileNameFeedb
 - **Boundary direction:** `lsp` and `text_document` must not import `test_case`; test-case logic may depend on both.
   Execution depends on the test-case workspace contract, never the reverse.
 - **Focused support modules:** add LibAFL helpers to `libafl_support`, URI helpers to `test_case::uri`, and LSP/Tree-sitter conversions to `text_document::conversions`; do not recreate `utils.rs`.
-- **`stolen/`** contains code adapted from upstream tree-sitter's grammar compiler to drive grammar-based generation without shelling out to Node.js.
+- **Adapted grammar compiler:** `lsp-fuzz-tree-sitter-grammar` contains the retained Tree-sitter grammar-preparation code; its `src/lib.rs` is the LSPFuzz-owned facade.
+  See that crate's README for provenance.
 - The workspace dependency `lsp-types` is patched to a custom fork (`github.com/henryhchchc/lsp-types`) — check that fork when debugging LSP type issues.
 - Debug builds print a warning and are significantly slower; always use `--release` for benchmarking or actual fuzzing runs.
 - Logging is configured via `RUST_LOG` env var (default level: `info`).

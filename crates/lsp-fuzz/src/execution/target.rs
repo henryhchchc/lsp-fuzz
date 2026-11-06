@@ -1,12 +1,15 @@
 use std::{
+    collections::HashMap,
     io::{self, Read},
-    path::Path,
+    path::{Path, PathBuf},
     process::Stdio,
 };
 
 use anyhow::Context;
 
-use crate::afl;
+use nix::sys::{signal::Signal, time::TimeSpec};
+
+use super::afl;
 
 #[derive(Debug)]
 #[expect(
@@ -76,4 +79,16 @@ pub fn dump_map_size(binary: &Path) -> Result<usize, anyhow::Error> {
         .with_context(|| format!("Fail to parse size from: \"{}\"", output.trim()))?;
     child.wait()?;
     Ok(map_size)
+}
+
+#[derive(Debug)]
+pub struct FuzzTargetInfo {
+    pub path: PathBuf,
+    pub args: Vec<String>,
+    pub persistent_fuzzing: bool,
+    pub defer_fork_server: bool,
+    pub crash_exit_code: Option<i8>,
+    pub timeout: TimeSpec,
+    pub kill_signal: Signal,
+    pub env: HashMap<String, String>,
 }

@@ -42,7 +42,7 @@ type NodeMutationInRandomDoc<'a, Mut, NodeSel> =
 #[must_use]
 pub fn text_document_mutations<'g, State>(
     grammar_lookup: &'g GrammarContextLookup,
-    generators_config: &super::message_generation::GeneratorsConfig,
+    invalid_code_frequency: f64,
 ) -> impl libafl::mutators::MutatorsTuple<LspInput, State>
 + libafl_bolts::tuples::NamedTuple
 + use<'g, State>
@@ -50,7 +50,7 @@ where
     State: libafl::HasMetadata + libafl::state::HasMaxSize + HasRand,
 {
     use crate::{
-        mutators::WithProbability,
+        libafl_support::mutators::WithProbability,
         text_document::mutations::{
             NodeTruncation,
             node_filters::{HighlightedNodes, NodesThat},
@@ -98,12 +98,12 @@ where
         tuple_list![
             recover_from_error,
             produce_missing_node,
-            generate_mismatched.with_probability(generators_config.invalid_input.code_frequency),
-            terminal_truncation.with_probability(generators_config.invalid_input.code_frequency),
+            generate_mismatched.with_probability(invalid_code_frequency),
+            terminal_truncation.with_probability(invalid_code_frequency),
             drop_terminal
                 .clone()
-                .with_probability(generators_config.invalid_input.code_frequency),
-            drop_terminal.with_probability(generators_config.invalid_input.code_frequency),
+                .with_probability(invalid_code_frequency),
+            drop_terminal.with_probability(invalid_code_frequency),
         ]
     };
     correct_code_mutations.merge(incorrect_code_mutations)
