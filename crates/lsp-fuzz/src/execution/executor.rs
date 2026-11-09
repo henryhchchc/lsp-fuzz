@@ -3,8 +3,10 @@ use std::{
     io::{self, BufReader, Seek, Write},
     marker::PhantomData,
     os::fd::AsFd,
+    sync::LazyLock,
 };
 
+use itertools::Itertools;
 use libafl::{
     HasMetadata, HasToTargetBytesConverter,
     executors::{Executor, ExitKind, HasObservers},
@@ -18,7 +20,7 @@ use libafl_bolts::{
     tuples::RefIndexable,
 };
 use nix::{sys::time::TimeSpec, unistd::Pid};
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempDir};
 use tracing::info;
 
 use super::{
@@ -30,7 +32,15 @@ use super::{
 };
 use crate::{libafl_support::AflContext, utf8::UTF8Tokens};
 
-const ASAN_LOG_PATH: &str = "/tmp/asan";
+static ASAN_LOG_DIR: LazyLock<TempDir> =
+    LazyLock::new(|| TempDir::new().expect("Failed to create ASAN log directory"));
+
+static ASAN_LOG_PATH: LazyLock<&str> = LazyLock::new(|| {
+    ASAN_LOG_DIR
+        .path()
+        .to_str()
+        .expect("Temp dir is expect to be valid UTF-8")
+});
 
 #[derive(Debug)]
 pub struct FuzzExecutionConfig<'a, SHM, MO, OBS> {
@@ -77,7 +87,7 @@ where
     {
         let args = target_info.args.into_iter().map(Into::into).collect();
 
-        let mut asan_options = vec![
+        let asan_options = [
             "detect_odr_violation=0",
             "abort_on_error=1",
             "symbolize=0",
@@ -92,12 +102,17 @@ where
             "detect_leaks=1",
             "malloc_context_size=0",
         ];
+        let asan_log_path = config
+            .asan_observer
+            .as_ref()
+            .map(|_| format!("log_path={}", *ASAN_LOG_PATH));
 
-        if config.asan_observer.is_some() {
-            asan_options.push(const_str::concat!("log_path=", ASAN_LOG_PATH));
-        }
+        let asan_options = asan_options
+            .into_iter()
+            .chain(asan_log_path.as_ref().map(|it| it.as_str()))
+            .join(":");
 
-        let mut envs = vec![("ASAN_OPTIONS".into(), asan_options.join(":").into())];
+        let mut envs = vec![("ASAN_OPTIONS".into(), asan_options.into())];
 
         envs.extend(
             target_info
@@ -264,7 +279,7 @@ where
 }
 
 fn read_asan_log(child_pid: Pid) -> Result<Option<Vec<u8>>, libafl::Error> {
-    let asan_log_file = format!("{ASAN_LOG_PATH}.{child_pid}");
+    let asan_log_file = format!("{}.{child_pid}", *ASAN_LOG_PATH);
     let log = if fs::exists(&asan_log_file)? {
         let asan_log = fs::read(&asan_log_file).afl_context("Reading ASAN log file")?;
         fs::remove_file(asan_log_file).afl_context("Fail to cleanup ASAN log file")?;
