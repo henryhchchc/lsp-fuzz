@@ -1,6 +1,5 @@
 use std::{marker::PhantomData, result::Result, str::FromStr};
 
-use derive_more::Constructor;
 use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier, Uri};
@@ -49,7 +48,7 @@ impl<State, D> Clone for RangeInDocGenerator<State, D> {
     }
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug, Default)]
 pub struct InvalidSelectionGenerator;
 
 impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>
@@ -166,7 +165,7 @@ where
                 );
             }
         } else {
-            generators.push_weighted(boxed_generator(InvalidSelectionGenerator::new()), 5);
+            generators.push_weighted(boxed_generator(InvalidSelectionGenerator), 5);
         }
 
         generators.finish()

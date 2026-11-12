@@ -103,10 +103,10 @@ fn collect_nested_document_symbols(
             if let Some(children) = symbol.children.take() {
                 queue.extend(children);
             }
-            symbol_ranges.insert(SymbolRange::new(
-                req.text_document.uri.clone(),
-                symbol.selection_range,
-            ));
+            symbol_ranges.insert(SymbolRange {
+                uri: req.text_document.uri.clone(),
+                range: symbol.selection_range,
+            });
         }
     }
 }

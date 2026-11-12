@@ -39,7 +39,6 @@ tuple_list.workspace = true
 [dependencies.derive_more]
 workspace = true
 features = [
-    "constructor",
     "debug",
     "deref",
     "deref_mut",

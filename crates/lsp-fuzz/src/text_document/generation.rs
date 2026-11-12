@@ -36,7 +36,7 @@ impl FromIterator<GrammarContext> for GrammarContextLookup {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GrammarContext {
     pub grammar: Grammar,
     pub node_fragments: DerivationFragments,
@@ -278,7 +278,7 @@ pub enum DerivationError {
     NoFragmentAvailable,
 }
 
-#[derive(Debug, Serialize, Deserialize, derive_more::Constructor)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DerivationFragments {
     code: Vec<u8>,
     fragments: HashMap<String, Vec<Range<usize>>>,
@@ -291,6 +291,12 @@ pub struct FragmentsIter<'a> {
 }
 
 impl DerivationFragments {
+    /// Indexes source fragments by node kind and byte range.
+    #[must_use]
+    pub const fn new(code: Vec<u8>, fragments: HashMap<String, Vec<Range<usize>>>) -> Self {
+        Self { code, fragments }
+    }
+
     #[must_use]
     pub fn get(&self, node_kind: &str) -> Option<FragmentsIter<'_>> {
         let ranges = self.fragments.get(node_kind)?;

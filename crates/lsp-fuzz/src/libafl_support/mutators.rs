@@ -1,6 +1,5 @@
 use std::{borrow::Cow, marker::PhantomData, num::NonZero, sync::OnceLock};
 
-use derive_more::Constructor;
 use libafl::{
     corpus::CorpusId,
     mutators::{ComposedByMutations, MutationResult, Mutator},
@@ -75,10 +74,18 @@ impl<M> WithProbability for M {
     }
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct ProbabilityMutator<Inner> {
     inner: Inner,
     probability: f64,
+}
+
+impl<Inner> ProbabilityMutator<Inner> {
+    /// Creates a mutator that runs its inner mutator with the given probability.
+    #[must_use]
+    pub const fn new(inner: Inner, probability: f64) -> Self {
+        Self { inner, probability }
+    }
 }
 
 impl<Inner> Named for ProbabilityMutator<Inner>
@@ -186,9 +193,17 @@ pub trait HasMutProp<const OFFSET: usize> {
     fn get_field(&mut self) -> &mut Self::PropType;
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct PropMutator<PM, const PROP_ID: usize> {
     mutator: PM,
+}
+
+impl<PM, const PROP_ID: usize> PropMutator<PM, PROP_ID> {
+    /// Creates a mutator for the selected property.
+    #[must_use]
+    pub const fn new(mutator: PM) -> Self {
+        Self { mutator }
+    }
 }
 
 impl<M, const PROP_ID: usize> Named for PropMutator<M, PROP_ID> {

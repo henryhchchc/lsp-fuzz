@@ -1,6 +1,5 @@
 use std::{mem, path::PathBuf, thread};
 
-use derive_more::Constructor;
 use libafl::{
     HasNamedMetadata,
     events::{EventFirer, LogSeverity},
@@ -18,10 +17,21 @@ use crate::test_case::LspInput;
 #[repr(transparent)]
 pub struct LastCleanupDir(u64);
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct CleanupWorkspaceDirs {
     cleanup_dir: String,
     cleanup_threshold: u64,
+}
+
+impl CleanupWorkspaceDirs {
+    /// Creates a workspace cleanup stage with the given execution threshold.
+    #[must_use]
+    pub const fn new(cleanup_dir: String, cleanup_threshold: u64) -> Self {
+        Self {
+            cleanup_dir,
+            cleanup_threshold,
+        }
+    }
 }
 
 impl<State> Restartable<State> for CleanupWorkspaceDirs

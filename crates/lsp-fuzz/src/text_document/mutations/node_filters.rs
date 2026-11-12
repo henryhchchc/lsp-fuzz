@@ -1,4 +1,3 @@
-use derive_more::Constructor;
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
 
@@ -8,9 +7,17 @@ use crate::text_document::{
     grammar::tree_sitter::{CapturesIterator, TreeIter},
 };
 
-#[derive(Debug, Clone, Copy, Constructor)]
+#[derive(Debug, Clone, Copy)]
 pub struct NodesThat<Predicate> {
     predicate: Predicate,
+}
+
+impl<Predicate> NodesThat<Predicate> {
+    /// Creates a node selector using the given predicate.
+    #[must_use]
+    pub const fn new(predicate: Predicate) -> Self {
+        Self { predicate }
+    }
 }
 
 impl<State, Predicate> NodeSelector<State> for NodesThat<Predicate>
@@ -32,9 +39,17 @@ where
     }
 }
 
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct HighlightedNodes {
     capture_group_name: String,
+}
+
+impl HighlightedNodes {
+    /// Creates a node selector for the given highlight capture group.
+    #[must_use]
+    pub const fn new(capture_group_name: String) -> Self {
+        Self { capture_group_name }
+    }
 }
 
 impl<State> NodeSelector<State> for HighlightedNodes

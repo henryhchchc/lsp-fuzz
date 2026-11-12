@@ -88,7 +88,7 @@ impl DerivationSequence {
 ///
 /// A grammar consists of a language identifier, a start symbol, and a collection of
 /// derivation rules that define how to generate valid programs in the language.
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, derive_more::Constructor)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Grammar {
     /// The programming language this grammar represents
     language: Language,
@@ -117,6 +117,20 @@ impl Display for Grammar {
 }
 
 impl Grammar {
+    /// Creates a grammar from its language, start symbol, and production rules.
+    #[must_use]
+    pub const fn new(
+        language: Language,
+        start_symbol: String,
+        derivation_rules: IndexMap<String, IndexSet<DerivationSequence>>,
+    ) -> Self {
+        Self {
+            language,
+            start_symbol,
+            derivation_rules,
+        }
+    }
+
     #[must_use]
     pub const fn language(&self) -> Language {
         self.language

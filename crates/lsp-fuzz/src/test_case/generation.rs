@@ -6,13 +6,21 @@ use crate::{
         generation::{GrammarContextLookup, NamedNodeGenerator, RandomRuleSelectionStrategy},
     },
 };
-use derive_more::Constructor;
+
 use libafl::{generators::Generator, state::HasRand};
 use libafl_bolts::rands::Rand;
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct LspInputGenerator<'a> {
     grammar_lookup: &'a GrammarContextLookup,
+}
+
+impl<'a> LspInputGenerator<'a> {
+    /// Creates an input generator using the grammar lookup.
+    #[must_use]
+    pub const fn new(grammar_lookup: &'a GrammarContextLookup) -> Self {
+        Self { grammar_lookup }
+    }
 }
 
 impl<State> Generator<LspInput, State> for LspInputGenerator<'_>

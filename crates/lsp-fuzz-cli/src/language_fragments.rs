@@ -21,7 +21,10 @@ pub fn load_grammar_context(
     let reader = zstd::Decoder::new(BufReader::new(file))?;
     let frags = ciborium::from_reader(reader).context("Deserializing derivation fragments")?;
     let grammar = Grammar::from_tree_sitter_grammar_json(lang, lang.grammar_json())?;
-    let grammar_ctx = GrammarContext::new(grammar, frags);
+    let grammar_ctx = GrammarContext {
+        grammar,
+        node_fragments: frags,
+    };
     Ok(grammar_ctx)
 }
 

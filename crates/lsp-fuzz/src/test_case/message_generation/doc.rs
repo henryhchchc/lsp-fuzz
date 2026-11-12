@@ -1,6 +1,5 @@
 use std::{marker::PhantomData, result::Result, str::FromStr};
 
-use derive_more::Constructor;
 use libafl::state::HasRand;
 use lsp_types::TextDocumentIdentifier;
 
@@ -57,7 +56,7 @@ where
     }
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug, Default)]
 pub struct RandomVirtualDocumentIdentifierGenerator;
 
 impl<State> LspParamsGenerator<State> for RandomVirtualDocumentIdentifierGenerator
@@ -94,9 +93,7 @@ where
                 TextDocumentIdentifierGenerator::<RandomDoc>::new(),
             ));
         } else {
-            generators.push(boxed_generator(
-                RandomVirtualDocumentIdentifierGenerator::new(),
-            ));
+            generators.push(boxed_generator(RandomVirtualDocumentIdentifierGenerator));
         }
         generators
     }

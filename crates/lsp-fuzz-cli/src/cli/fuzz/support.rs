@@ -57,7 +57,7 @@ where
     State: HasNamedMetadata + HasSolutions<I> + HasExecutions + HasStartTime,
 {
     feedback_or!(
-        TestCaseFileNameFeedback::<SOLUTION>::new(),
+        TestCaseFileNameFeedback::<SOLUTION>,
         feedback_and_fast!(
             CrashFeedback::new(),
             feedback_or_fast!(

@@ -1,6 +1,5 @@
 use std::{collections::HashSet, hash::Hash};
 
-use derive_more::Constructor;
 use libafl_bolts::SerdeAny;
 use lsp_types::{
     CallHierarchyItem, CodeAction, CodeActionOrCommand, CodeLens, Command, CompletionItem,
@@ -88,7 +87,10 @@ impl ParamFragments {
             self.workspace_symbols.extend(symbols.clone());
             symbol_ranges.extend(symbols.into_iter().filter_map(|sym| {
                 if let OneOf::Left(it) = sym.location {
-                    Some(SymbolRange::new(it.uri, it.range))
+                    Some(SymbolRange {
+                        uri: it.uri,
+                        range: it.range,
+                    })
                 } else {
                     None
                 }
@@ -101,11 +103,10 @@ impl ParamFragments {
         symbol_ranges: &mut HashSet<SymbolRange>,
     ) {
         if let Some(symbols) = symbol_infos {
-            symbol_ranges.extend(
-                symbols
-                    .into_iter()
-                    .map(|sym| SymbolRange::new(sym.location.uri.clone(), sym.location.range)),
-            );
+            symbol_ranges.extend(symbols.into_iter().map(|sym| SymbolRange {
+                uri: sym.location.uri.clone(),
+                range: sym.location.range,
+            }));
         }
     }
 
@@ -129,7 +130,7 @@ impl ParamFragments {
 }
 
 #[allow(clippy::unsafe_derive_deserialize)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny, Constructor)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny)]
 pub struct SymbolRange {
     pub uri: lsp_types::Uri,
     pub range: lsp_types::Range,

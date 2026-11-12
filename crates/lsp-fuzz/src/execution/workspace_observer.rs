@@ -1,15 +1,22 @@
 use std::{borrow::Cow, path::PathBuf};
 
-use derive_more::Constructor;
 use libafl::observers::Observer;
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
 
 use crate::test_case::HasWorkspace;
 
-#[derive(Debug, Serialize, Deserialize, Constructor)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkspaceObserver {
     temp_dir: PathBuf,
+}
+
+impl WorkspaceObserver {
+    /// Creates an observer that manages workspaces under the temporary directory.
+    #[must_use]
+    pub const fn new(temp_dir: PathBuf) -> Self {
+        Self { temp_dir }
+    }
 }
 
 impl Named for WorkspaceObserver {

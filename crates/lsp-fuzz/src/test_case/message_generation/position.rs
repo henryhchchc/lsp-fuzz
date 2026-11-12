@@ -1,6 +1,5 @@
 use std::{marker::PhantomData, str::FromStr};
 
-use derive_more::Constructor;
 use libafl::{
     HasMetadata,
     state::{HasCurrentTestcase, HasRand},
@@ -79,15 +78,15 @@ where
     ) -> impl IntoIterator<Item = Self::Generator> {
         type SelectInRandomDoc<PosSel> = TextDocumentPositionParamsGenerator<RandomDoc, PosSel>;
         type FeedbackPosInDoc<F> = FeedbackPositionsGenerator<RandomDoc, F>;
-        let term_start_pos = NodeTypeBalancingSelection::new();
+        let term_start_pos = NodeTypeBalancingSelection;
         let node_type: Self::Generator = boxed_generator(SelectInRandomDoc::new(term_start_pos));
-        let steer: Self::Generator = boxed_generator(SelectInRandomDoc::new(HighlightSteer::new()));
+        let steer: Self::Generator = boxed_generator(SelectInRandomDoc::new(HighlightSteer));
         let random_position = boxed_generator(SelectInRandomDoc::new(RandomPosition::new(1024)));
-        let invalid_pos = boxed_generator(InvalidDocPositionGenerator::new());
+        let invalid_pos = boxed_generator(InvalidDocPositionGenerator);
 
         let mut generators = WeightedGeneratorList::with_capacity(16);
         if config.use_context() {
-            let valid = boxed_generator(SelectInRandomDoc::new(ValidPosition::new()));
+            let valid = boxed_generator(SelectInRandomDoc::new(ValidPosition));
             generators.push_weighted(valid, 2);
             if config.use_grammar_ops() {
                 generators.push_weighted(node_type.clone(), 3);
@@ -111,7 +110,7 @@ where
     }
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug, Default)]
 pub struct InvalidDocPositionGenerator;
 
 impl<State> LspParamsGenerator<State> for InvalidDocPositionGenerator

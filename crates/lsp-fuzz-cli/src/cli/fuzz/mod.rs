@@ -157,7 +157,7 @@ impl FuzzCommand {
         let mut feedback = feedback_or!(
             map_feedback,
             LspResponseFeedback::new(&lsp_response_observer),
-            TestCaseFileNameFeedback::<CORPUS>::new(),
+            TestCaseFileNameFeedback::<CORPUS>,
             TimeFeedback::new(&time_observer)
         );
 

@@ -4,7 +4,7 @@ use crate::{
     lsp,
     text_document::TextDocument,
 };
-use derive_more::Constructor;
+
 use libafl::{
     corpus::CorpusId,
     inputs::{Input, ToTargetBytesConverter},
@@ -107,9 +107,17 @@ impl HasLen for LspInput {
     }
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct LspInputBytesConverter {
     workspace_root: PathBuf,
+}
+
+impl LspInputBytesConverter {
+    /// Creates a converter that localizes workspaces under the given root.
+    #[must_use]
+    pub const fn new(workspace_root: PathBuf) -> Self {
+        Self { workspace_root }
+    }
 }
 
 impl<State> ToTargetBytesConverter<LspInput, State> for LspInputBytesConverter {

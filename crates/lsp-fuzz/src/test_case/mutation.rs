@@ -8,10 +8,21 @@ use libafl::{
 use libafl_bolts::{Named, rands::Rand};
 use std::borrow::Cow;
 
-#[derive(Debug, derive_more::Constructor)]
+#[derive(Debug)]
 pub struct LspInputMutator<TM, RM> {
     text_document_mutator: TM,
     requests_mutator: RM,
+}
+
+impl<TM, RM> LspInputMutator<TM, RM> {
+    /// Creates a mutator for workspace documents and LSP messages.
+    #[must_use]
+    pub const fn new(text_document_mutator: TM, requests_mutator: RM) -> Self {
+        Self {
+            text_document_mutator,
+            requests_mutator,
+        }
+    }
 }
 
 impl<TM, RM> Named for LspInputMutator<TM, RM> {

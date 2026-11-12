@@ -1,12 +1,19 @@
 use std::borrow::Cow;
 
-use derive_more::Constructor;
 use libafl::stages::Stage;
 use libafl_bolts::Named;
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct ActionStage<F> {
     action: F,
+}
+
+impl<F> ActionStage<F> {
+    /// Creates a stage that applies the action to the state.
+    #[must_use]
+    pub const fn new(action: F) -> Self {
+        Self { action }
+    }
 }
 
 impl<F> Named for ActionStage<F> {
