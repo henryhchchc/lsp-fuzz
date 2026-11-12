@@ -29,7 +29,6 @@ pub struct LspInput {
 impl LspInput {
     pub const NAME_PREFIX: &str = "input_";
     pub const PROTOCOL_PREFIX: &str = "lsp-fuzz://";
-    pub const PROROCOL_PREFIX: &str = Self::PROTOCOL_PREFIX;
 
     #[must_use]
     pub fn root_uri() -> Uri {
