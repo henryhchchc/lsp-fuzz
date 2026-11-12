@@ -1,6 +1,5 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use derive_new::new as New;
 use libafl::{
     mutators::{MutationResult, Mutator},
     state::HasRand,
@@ -40,12 +39,12 @@ type NodeMutationInRandomDoc<'a, Mut, NodeSel> =
     NodeContentMutation<'a, Mut, selectors::RandomDoc, NodeSel>;
 
 #[must_use]
-pub fn text_document_mutations<'g, State>(
-    grammar_lookup: &'g GrammarContextLookup,
+pub fn text_document_mutations<State>(
+    grammar_lookup: &GrammarContextLookup,
     invalid_code_frequency: f64,
 ) -> impl libafl::mutators::MutatorsTuple<LspInput, State>
 + libafl_bolts::tuples::NamedTuple
-+ use<'g, State>
++ use<'_, State>
 where
     State: libafl::HasMetadata + libafl::state::HasMaxSize + HasRand,
 {
@@ -199,12 +198,29 @@ where
     }
 }
 
-#[derive(Debug, Clone, New)]
+#[derive(Debug, Clone)]
 pub struct NodeContentMutation<'a, Mut, TS, NodeSel> {
     mutator: Mut,
     grammar_lookup: &'a GrammarContextLookup,
     node_selector: NodeSel,
     _phantom: PhantomData<TS>,
+}
+
+impl<'a, Mut, TS, NodeSel> NodeContentMutation<'a, Mut, TS, NodeSel> {
+    /// Creates a node-content mutation with the given mutator, grammars, and selector.
+    #[must_use]
+    pub const fn new(
+        mutator: Mut,
+        grammar_lookup: &'a GrammarContextLookup,
+        node_selector: NodeSel,
+    ) -> Self {
+        Self {
+            mutator,
+            grammar_lookup,
+            node_selector,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<Mut, TS, NodeSel> Named for NodeContentMutation<'_, Mut, TS, NodeSel> {

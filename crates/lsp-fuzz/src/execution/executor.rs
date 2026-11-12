@@ -109,7 +109,7 @@ where
 
         let asan_options = asan_options
             .into_iter()
-            .chain(asan_log_path.as_ref().map(|it| it.as_str()))
+            .chain(asan_log_path.as_deref())
             .join(":");
 
         let mut envs = vec![("ASAN_OPTIONS".into(), asan_options.into())];

@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, result::Result, str::FromStr};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::state::{HasCurrentTestcase, HasRand};
 use libafl_bolts::rands::Rand;
 use lsp_types::{Range, TextDocumentIdentifier, Uri};
@@ -26,10 +26,21 @@ pub struct DocumentSelection(pub TextDocumentIdentifier, pub Range);
 
 pub type Selection = DocumentSelection;
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct RangeInDocGenerator<State, D = RandomDoc> {
     range_selector: fn(&mut State, &Uri, &TextDocument) -> Range,
     _phantom: PhantomData<D>,
+}
+
+impl<State, D> RangeInDocGenerator<State, D> {
+    /// Creates a range generator using document selector `D` and the given range selector.
+    #[must_use]
+    pub const fn new(range_selector: fn(&mut State, &Uri, &TextDocument) -> Range) -> Self {
+        Self {
+            range_selector,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<State, D> Clone for RangeInDocGenerator<State, D> {
@@ -38,7 +49,7 @@ impl<State, D> Clone for RangeInDocGenerator<State, D> {
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct InvalidSelectionGenerator;
 
 impl<State, D> LspParamsGenerator<State> for RangeInDocGenerator<State, D>

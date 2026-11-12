@@ -1,4 +1,4 @@
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::state::HasRand;
 use libafl_bolts::rands::Rand;
 
@@ -8,7 +8,7 @@ use crate::text_document::{
     grammar::tree_sitter::{CapturesIterator, TreeIter},
 };
 
-#[derive(Debug, Clone, Copy, New)]
+#[derive(Debug, Clone, Copy, Constructor)]
 pub struct NodesThat<Predicate> {
     predicate: Predicate,
 }
@@ -32,7 +32,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, New)]
+#[derive(Debug, Clone, Constructor)]
 pub struct HighlightedNodes {
     capture_group_name: String,
 }

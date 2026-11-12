@@ -13,7 +13,7 @@ use crate::{
     libafl_support::{mutators::SliceSwapMutator, prop_mutator},
     lsp,
 };
-use derive_new::new as New;
+
 use libafl::{
     HasMetadata,
     mutators::{MutationResult, Mutator, MutatorsTuple},
@@ -27,9 +27,25 @@ use libafl_bolts::{
 use std::{borrow::Cow, marker::PhantomData};
 use tuple_list::{tuple_list, tuple_list_type};
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct DropRandomMessage<State> {
     _state: PhantomData<State>,
+}
+
+impl<State> Default for DropRandomMessage<State> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<State> DropRandomMessage<State> {
+    /// Creates a mutator that removes a random message.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            _state: PhantomData,
+        }
+    }
 }
 
 impl<State> Named for DropRandomMessage<State> {

@@ -1,16 +1,26 @@
 use std::{marker::PhantomData, sync::mpsc::Receiver, time::Duration};
 
-use derive_new::new as New;
 use libafl::{
     events::{Event, EventFirer, EventWithStats},
     stages::{Restartable, Stage},
     state::{HasExecutions, HasStartTime},
 };
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct StopOnReceived<I> {
     receiver: Receiver<()>,
     _input: PhantomData<I>,
+}
+
+impl<I> StopOnReceived<I> {
+    /// Creates a stage that requests a stop when the receiver yields a message.
+    #[must_use]
+    pub const fn new(receiver: Receiver<()>) -> Self {
+        Self {
+            receiver,
+            _input: PhantomData,
+        }
+    }
 }
 
 impl<I, State> Restartable<State> for StopOnReceived<I> {
@@ -44,10 +54,21 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct TimeoutStopStage<I> {
     timeout: Duration,
     _input: PhantomData<I>,
+}
+
+impl<I> TimeoutStopStage<I> {
+    /// Creates a stage that requests a stop after the configured runtime.
+    #[must_use]
+    pub const fn new(timeout: Duration) -> Self {
+        Self {
+            timeout,
+            _input: PhantomData,
+        }
+    }
 }
 
 impl<I, State> Restartable<State> for TimeoutStopStage<I> {

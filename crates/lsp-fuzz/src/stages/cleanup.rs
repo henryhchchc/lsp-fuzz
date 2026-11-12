@@ -1,6 +1,6 @@
 use std::{mem, path::PathBuf, thread};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::{
     HasNamedMetadata,
     events::{EventFirer, LogSeverity},
@@ -18,7 +18,7 @@ use crate::test_case::LspInput;
 #[repr(transparent)]
 pub struct LastCleanupDir(u64);
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct CleanupWorkspaceDirs {
     cleanup_dir: String,
     cleanup_threshold: u64,

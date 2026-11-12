@@ -1,13 +1,13 @@
 use std::{borrow::Cow, path::PathBuf};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::observers::Observer;
 use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
 
 use crate::test_case::HasWorkspace;
 
-#[derive(Debug, Serialize, Deserialize, New)]
+#[derive(Debug, Serialize, Deserialize, Constructor)]
 pub struct WorkspaceObserver {
     temp_dir: PathBuf,
 }

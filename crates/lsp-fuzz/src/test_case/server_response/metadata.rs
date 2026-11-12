@@ -1,6 +1,6 @@
 use std::{collections::HashSet, hash::Hash};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl_bolts::SerdeAny;
 use lsp_types::{
     CallHierarchyItem, CodeAction, CodeActionOrCommand, CodeLens, Command, CompletionItem,
@@ -129,7 +129,7 @@ impl ParamFragments {
 }
 
 #[allow(clippy::unsafe_derive_deserialize)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny, New)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, SerdeAny, Constructor)]
 pub struct SymbolRange {
     pub uri: lsp_types::Uri,
     pub range: lsp_types::Range,

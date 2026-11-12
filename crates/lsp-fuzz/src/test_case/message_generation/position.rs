@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, str::FromStr};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::{
     HasMetadata,
     state::{HasCurrentTestcase, HasRand},
@@ -111,7 +111,7 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct InvalidDocPositionGenerator;
 
 impl<State> LspParamsGenerator<State> for InvalidDocPositionGenerator
@@ -151,10 +151,21 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct FeedbackPositionsGenerator<D, F> {
     position_selector: F,
     _doc_selector: PhantomData<D>,
+}
+
+impl<D, F> FeedbackPositionsGenerator<D, F> {
+    /// Creates a generator that selects positions from server feedback using `D`.
+    #[must_use]
+    pub const fn new(position_selector: F) -> Self {
+        Self {
+            position_selector,
+            _doc_selector: PhantomData,
+        }
+    }
 }
 
 impl<State, D, F> LspParamsGenerator<State> for FeedbackPositionsGenerator<D, F>

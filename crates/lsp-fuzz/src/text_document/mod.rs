@@ -136,7 +136,6 @@ impl TextDocument {
         String::from_utf8_lossy(&self.content)
     }
 
-    #[must_use]
     pub fn lines(&self) -> impl DoubleEndedIterator<Item = &[u8]> {
         self.content.as_slice().split(|&it| it == LINE_SEP)
     }

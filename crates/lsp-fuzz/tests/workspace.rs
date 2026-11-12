@@ -10,6 +10,7 @@ use lsp_fuzz::{
 };
 #[test]
 fn converter_uses_the_materialized_workspace_directory() {
+    use libafl::observers::Observer;
     use libafl_bolts::ToSlice;
 
     let root = tempfile::tempdir().unwrap();
@@ -24,7 +25,6 @@ fn converter_uses_the_materialized_workspace_directory() {
         )]),
     };
     let workspace = input.workspace_dir(root.path());
-    use libafl::observers::Observer;
     let mut observer =
         lsp_fuzz::execution::workspace_observer::WorkspaceObserver::new(root.path().to_owned());
     observer.pre_exec(&mut (), &input).unwrap();

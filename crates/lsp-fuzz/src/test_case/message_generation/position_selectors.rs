@@ -1,7 +1,6 @@
 use std::iter::repeat;
 
-use derive_more::derive::{Deref, DerefMut};
-use derive_new::new as New;
+use derive_more::{Constructor, Deref, DerefMut};
 use libafl::HasMetadata;
 use libafl_bolts::rands::Rand;
 use lsp_fuzz_grammars::WELL_KNOWN_HIGHLIGHT_CAPTURE_NAMES;
@@ -21,7 +20,7 @@ pub trait PositionSelector<State> {
     -> Option<lsp_types::Position>;
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct RandomPosition {
     rand_max: usize,
 }
@@ -42,7 +41,7 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct ValidPosition;
 
 impl<State> PositionSelector<State> for ValidPosition
@@ -66,7 +65,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, New)]
+#[derive(Debug, Clone, Copy, Constructor)]
 pub struct NodeTypeBalancingSelection;
 
 impl<State> PositionSelector<State> for NodeTypeBalancingSelection
@@ -84,7 +83,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, New)]
+#[derive(Debug, Clone, Copy, Constructor)]
 pub struct HighlightSteer;
 
 #[derive(Debug, Serialize, Deref, DerefMut, libafl_bolts::SerdeAny)]

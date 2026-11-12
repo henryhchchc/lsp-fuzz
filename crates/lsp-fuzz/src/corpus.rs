@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 
 use corpus_kind::{CORPUS, SOLUTION};
-use derive_more::Debug;
-use derive_new::new as New;
+use derive_more::{Constructor, Debug};
 use libafl::{
     corpus::{Corpus, CorpusId, Testcase},
     feedbacks::{Feedback, StateInitializer},
@@ -11,7 +10,7 @@ use libafl::{
 use libafl_bolts::{Named, SerdeAny, current_time};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct TestCaseFileNameFeedback<const KIND: bool>;
 
 pub mod corpus_kind {

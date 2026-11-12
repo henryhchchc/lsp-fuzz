@@ -11,7 +11,7 @@ anyhow.workspace = true
 bitflags.workspace = true
 ciborium.workspace = true
 const-str.workspace = true
-derive-new.workspace = true
+
 dot-structures.workspace = true
 fastbloom = { workspace = true, features = ["serde", "std"] }
 fluent-uri.workspace = true
@@ -39,14 +39,14 @@ tuple_list.workspace = true
 [dependencies.derive_more]
 workspace = true
 features = [
-  "constructor",
-  "debug",
-  "deref",
-  "deref_mut",
-  "display",
-  "from",
-  "into",
-  "into_iterator",
+    "constructor",
+    "debug",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "into",
+    "into_iterator",
 ]
 
 [dependencies.libafl]

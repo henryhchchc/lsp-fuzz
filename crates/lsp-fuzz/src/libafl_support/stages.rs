@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::stages::Stage;
 use libafl_bolts::Named;
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct ActionStage<F> {
     action: F,
 }

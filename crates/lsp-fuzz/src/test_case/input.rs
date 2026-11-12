@@ -4,7 +4,7 @@ use crate::{
     lsp,
     text_document::TextDocument,
 };
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::{
     corpus::CorpusId,
     inputs::{Input, ToTargetBytesConverter},
@@ -108,7 +108,7 @@ impl HasLen for LspInput {
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct LspInputBytesConverter {
     workspace_root: PathBuf,
 }

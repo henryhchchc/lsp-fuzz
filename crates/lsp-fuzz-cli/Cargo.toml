@@ -11,7 +11,7 @@ ciborium.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 core_affinity.workspace = true
 ctrlc.workspace = true
-derive-new.workspace = true
+
 itertools.workspace = true
 libafl = { workspace = true, features = ["clap"] }
 libafl_bolts = { workspace = true, features = ["std"] }

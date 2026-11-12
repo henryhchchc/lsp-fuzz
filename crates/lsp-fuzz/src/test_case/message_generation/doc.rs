@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, result::Result, str::FromStr};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::state::HasRand;
 use lsp_types::TextDocumentIdentifier;
 
@@ -14,9 +14,25 @@ use crate::{
     },
 };
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct TextDocumentIdentifierGenerator<D> {
     pub(crate) _phantom: PhantomData<D>,
+}
+
+impl<D> Default for TextDocumentIdentifierGenerator<D> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<D> TextDocumentIdentifierGenerator<D> {
+    /// Creates an identifier generator using document selector `D`.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T> Clone for TextDocumentIdentifierGenerator<T> {
@@ -41,7 +57,7 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct RandomVirtualDocumentIdentifierGenerator;
 
 impl<State> LspParamsGenerator<State> for RandomVirtualDocumentIdentifierGenerator

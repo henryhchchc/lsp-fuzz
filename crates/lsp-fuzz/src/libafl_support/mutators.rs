@@ -1,6 +1,6 @@
 use std::{borrow::Cow, marker::PhantomData, num::NonZero, sync::OnceLock};
 
-use derive_new::new as New;
+use derive_more::Constructor;
 use libafl::{
     corpus::CorpusId,
     mutators::{ComposedByMutations, MutationResult, Mutator},
@@ -75,7 +75,7 @@ impl<M> WithProbability for M {
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct ProbabilityMutator<Inner> {
     inner: Inner,
     probability: f64,
@@ -117,10 +117,27 @@ where
     }
 }
 
-#[derive(Debug, New)]
+#[derive(Debug)]
 pub struct SliceSwapMutator<T, State> {
     _item: PhantomData<T>,
     _state: PhantomData<State>,
+}
+
+impl<T, State> Default for SliceSwapMutator<T, State> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, State> SliceSwapMutator<T, State> {
+    /// Creates a mutator that swaps two random slice elements.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            _item: PhantomData,
+            _state: PhantomData,
+        }
+    }
 }
 
 impl<State, T> Named for SliceSwapMutator<T, State> {
@@ -169,7 +186,7 @@ pub trait HasMutProp<const OFFSET: usize> {
     fn get_field(&mut self) -> &mut Self::PropType;
 }
 
-#[derive(Debug, New)]
+#[derive(Debug, Constructor)]
 pub struct PropMutator<PM, const PROP_ID: usize> {
     mutator: PM,
 }
