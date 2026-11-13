@@ -1,7 +1,1 @@
-words = [
-  "afl",
-  "asan",
-  "autodict",
-  "serde",
-  "shmem",
-]
+words = ["afl", "asan", "autodict", "serde", "shmem"]

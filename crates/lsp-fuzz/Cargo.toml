@@ -38,13 +38,13 @@ tuple_list.workspace = true
 [dependencies.derive_more]
 workspace = true
 features = [
-    "debug",
-    "deref",
-    "deref_mut",
-    "display",
-    "from",
-    "into",
-    "into_iterator",
+  "debug",
+  "deref",
+  "deref_mut",
+  "display",
+  "from",
+  "into",
+  "into_iterator",
 ]
 
 [dependencies.libafl]
