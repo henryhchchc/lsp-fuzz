@@ -1,5 +1,4 @@
 use std::{
-    convert::Infallible,
     ops::{Deref, DerefMut, Index},
     str::FromStr,
 };
@@ -73,7 +72,7 @@ impl HasLen for Utf8Input {
 }
 
 impl FromStr for Utf8Input {
-    type Err = Infallible;
+    type Err = !;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self {

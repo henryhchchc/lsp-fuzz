@@ -163,7 +163,7 @@ fn parse_asan_log<R: Read>(
     let asan_summary = log_content
         .lines()
         .skip(1)
-        .map(|it| it.strip_prefix(&pid_prefix).unwrap_or(it))
+        .map(|it| it.trim_prefix(&pid_prefix))
         .take_while(|&it| !it.starts_with("    #"))
         .join("\n");
     info!(asan_summary);
