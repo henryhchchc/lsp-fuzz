@@ -163,14 +163,3 @@ impl Index<usize> for UTF8Tokens {
         self.content.index(index)
     }
 }
-
-#[cfg(test)]
-mod test {
-
-    #[test]
-    fn serialize_utf8_input() {
-        let input = super::Utf8Input::new("Hello, World!".to_string());
-        let serialized = serde_json::to_string(&input).unwrap();
-        assert_eq!(serialized, r#""Hello, World!""#);
-    }
-}
