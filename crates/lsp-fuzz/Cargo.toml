@@ -10,7 +10,6 @@ ahash.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
 ciborium.workspace = true
-const-str.workspace = true
 
 dot-structures.workspace = true
 fastbloom = { workspace = true, features = ["serde", "std"] }
