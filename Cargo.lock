@@ -1106,7 +1106,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "trait-gen",
- "tree-sitter 0.27.1",
+ "tree-sitter 0.27.2",
  "tuple_list",
 ]
 
@@ -1146,7 +1146,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "serde",
- "tree-sitter 0.27.1",
+ "tree-sitter 0.27.2",
  "tree-sitter-bibtex",
  "tree-sitter-c",
  "tree-sitter-cpp",
@@ -1851,9 +1851,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smallvec"
-version = "1.16.4"
+version = "1.16.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
+checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 
 [[package]]
 name = "static_assertions"
@@ -2030,9 +2030,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.27.1"
+version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5129de2ccc97808c4583d48f1fb44576d015cf241e432800572bda11ef30c3b"
+checksum = "37b2bed8f39a73439f3b0b7ed8f452be5d2911b5e9da69d352ef113bb7448fb8"
 dependencies = [
  "cc",
  "regex",
