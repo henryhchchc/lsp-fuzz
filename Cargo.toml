@@ -33,7 +33,7 @@ lsp-fuzz-grammars = { path = "crates/lsp-fuzz-grammars" }
 lsp-fuzz-tree-sitter-grammar = { path = "crates/lsp-fuzz-tree-sitter-grammar" }
 lsp-types = "0.97"
 memmap2 = "0.9"
-nix = "0.31"
+nix = "0.32"
 num_cpus = "1.17"
 ordermap = "1.2"
 os_pipe = "1.2"
